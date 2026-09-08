@@ -96,12 +96,6 @@ const JERSEY_OPTIONS = [
 <Layout title={`Winter Check-In (${wc.seasonLabel}) - Golden State Cricket Club`}>
   <div class="wc-page max-w-3xl mx-auto px-4 py-8 sm:py-12">
 
-    <!-- Preview banner (Part 1: UI only, no backend yet) -->
-    <div class="wc-preview" role="status">
-      <strong>Preview build.</strong> This is a draft for the winter planning group &mdash;
-      answers are <em>not saved yet</em>. Backend wiring comes next.
-    </div>
-
     <header class="wc-head">
       <p class="wc-eyebrow">Golden State Cricket Club</p>
       <h1 class="page-title mb-3">Winter Season Check-In</h1>
@@ -156,7 +150,15 @@ const JERSEY_OPTIONS = [
       </p>
     )}
 
+    <p id="wc-edit-note" class="wc-edit-note" hidden></p>
+
     <form id="wc-form" class="wc-form" data-logged-in={String(isLoggedIn)} novalidate>
+
+      <div class="wc-hp" aria-hidden="true">
+        <label>Company website
+          <input type="text" name="company_website" tabindex="-1" autocomplete="off" />
+        </label>
+      </div>
 
       <!-- Participation -->
       <section class="wc-section">
@@ -499,13 +501,21 @@ const JERSEY_OPTIONS = [
     color: var(--color-text-body);
   }
 
-  .wc-preview {
-    background: color-mix(in srgb, var(--color-accent, #e5c878) 22%, transparent);
+  .wc-hp {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+  }
+
+  .wc-edit-note {
+    background: color-mix(in srgb, var(--color-accent, #e5c878) 20%, transparent);
     border: 1px solid color-mix(in srgb, var(--color-accent, #e5c878) 55%, transparent);
     border-radius: 10px;
     padding: 0.75rem 1rem;
     font-size: 0.85rem;
-    margin-bottom: 1.75rem;
+    margin: 0 0 1.5rem;
   }
 
   .wc-head {
@@ -755,25 +765,78 @@ const JERSEY_OPTIONS = [
 <script>
   const form = document.getElementById('wc-form') as HTMLFormElement | null;
   const result = document.getElementById('wc-result') as HTMLDivElement | null;
+  const editNote = document.getElementById('wc-edit-note') as HTMLParagraphElement | null;
+  const submitBtn = form?.querySelector('.wc-submit') as HTMLButtonElement | null;
   const reasonWrap = document.getElementById('wc-reason-wrap') as HTMLDivElement | null;
   const jobEmployed = document.getElementById('wc-job-employed') as HTMLDivElement | null;
   const jobStudent = document.getElementById('wc-job-student') as HTMLDivElement | null;
 
-  if (form) {
-    // Show the "why not playing" field only when relevant.
-    form.querySelectorAll<HTMLInputElement>('input[name="participation"]').forEach((el) => {
-      el.addEventListener('change', () => {
-        if (reasonWrap) reasonWrap.hidden = el.value === 'in';
-      });
-    });
+  const ARRAY_FIELDS = new Set(['unavailableMonths', 'jerseyNeeds', 'volunteerRoles']);
 
-    // Employment status → show the matching profile fields.
-    form.querySelectorAll<HTMLInputElement>('input[name="employmentStatus"]').forEach((el) => {
-      el.addEventListener('change', () => {
-        if (jobEmployed) jobEmployed.hidden = el.value !== 'employed';
-        if (jobStudent) jobStudent.hidden = el.value !== 'student';
+  function syncConditionalSections() {
+    if (!form) return;
+    const part = form.querySelector<HTMLInputElement>('input[name="participation"]:checked');
+    if (reasonWrap) reasonWrap.hidden = !part || part.value === 'in';
+    const emp = form.querySelector<HTMLInputElement>('input[name="employmentStatus"]:checked');
+    if (jobEmployed) jobEmployed.hidden = emp?.value !== 'employed';
+    if (jobStudent) jobStudent.hidden = emp?.value !== 'student';
+  }
+
+  function setField(name: string, value: unknown) {
+    if (!form) return;
+    const nodes = form.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
+      `[name="${name}"]`
+    );
+    if (nodes.length === 0) return;
+    const first = nodes[0];
+
+    if (first instanceof HTMLInputElement && (first.type === 'radio' || first.type === 'checkbox')) {
+      let wanted: string[];
+      if (Array.isArray(value)) wanted = value.map(String);
+      else if (typeof value === 'boolean') wanted = value ? ['yes', 'true', 'on'] : ['no', 'false'];
+      else wanted = [String(value)];
+      nodes.forEach((node) => {
+        const input = node as HTMLInputElement;
+        input.checked = wanted.includes(input.value);
       });
-    });
+      return;
+    }
+    (first as HTMLInputElement).value = value == null ? '' : String(value);
+  }
+
+  function fillForm(data: Record<string, unknown>) {
+    for (const [key, value] of Object.entries(data)) {
+      if (value == null || value === '') continue;
+      setField(key, value);
+    }
+    syncConditionalSections();
+  }
+
+  if (form) {
+    form
+      .querySelectorAll<HTMLInputElement>('input[name="participation"], input[name="employmentStatus"]')
+      .forEach((el) => el.addEventListener('change', syncConditionalSections));
+
+    // For logged-in members: load an existing response so they can update it.
+    if (form.dataset.loggedIn === 'true') {
+      fetch('/.netlify/functions/winter-checkin-mine', { headers: { Accept: 'application/json' } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((payload) => {
+          const existing = payload?.response;
+          if (!existing) return;
+          fillForm(existing);
+          if (submitBtn) submitBtn.textContent = 'Update my response';
+          if (editNote) {
+            const when = new Date(existing.updatedAt || existing.submittedAt).toLocaleDateString(
+              undefined,
+              { year: 'numeric', month: 'short', day: 'numeric' }
+            );
+            editNote.textContent = `You submitted this on ${when}. Change anything below and re-submit to update it.`;
+            editNote.hidden = false;
+          }
+        })
+        .catch(() => {});
+    }
 
     const REQUIRED: Record<string, string> = {
       participation: 'Let us know if you’re playing this winter.',
@@ -781,6 +844,7 @@ const JERSEY_OPTIONS = [
       emergencyContactNumber: 'Emergency contact phone is required.',
       weekendFrequency: 'Tell us roughly how many weekends you can make.',
       nccaUmpireCertified: 'Let us know your NCCA umpiring status.',
+      goals: 'Tell us what you want out of the season.',
     };
     if (form.dataset.loggedIn !== 'true') {
       REQUIRED.firstName = 'First name is required.';
@@ -789,24 +853,20 @@ const JERSEY_OPTIONS = [
       REQUIRED.phone = 'Mobile number is required.';
     }
 
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      if (!result) return;
+      if (!result || !submitBtn) return;
 
       const data = new FormData(form);
       const missing: string[] = [];
       for (const [field, message] of Object.entries(REQUIRED)) {
         const value = data.get(field);
-        if (!value || (typeof value === 'string' && value.trim() === '')) {
-          missing.push(message);
-        }
+        if (!value || (typeof value === 'string' && value.trim() === '')) missing.push(message);
       }
-
       if (missing.length > 0) {
         result.hidden = false;
         result.dataset.tone = 'error';
-        result.innerHTML =
-          'Please finish these first:<br>&bull; ' + missing.join('<br>&bull; ');
+        result.innerHTML = 'Please finish these first:<br>&bull; ' + missing.join('<br>&bull; ');
         result.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
       }
@@ -821,21 +881,46 @@ const JERSEY_OPTIONS = [
         return;
       }
 
-      // Part 1 is UI only — collect the payload so the planning group can see the
-      // shape of the data, but don't send it anywhere yet.
-      const payload: Record<string, unknown> = { loggedIn: form.dataset.loggedIn === 'true' };
+      const payload: Record<string, unknown> = {};
       for (const key of new Set(Array.from(data.keys()))) {
-        const values = data.getAll(key);
-        payload[key] = values.length > 1 ? values : values[0];
+        payload[key] = ARRAY_FIELDS.has(key) ? data.getAll(key) : data.get(key);
       }
-      // eslint-disable-next-line no-console
-      console.log('[winter-checkin] preview payload', payload);
 
-      result.hidden = false;
-      result.dataset.tone = 'info';
-      result.textContent =
-        'Looks good — but this is a preview build, so nothing was submitted. The real form is coming shortly.';
-      result.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const label = submitBtn.textContent || 'Send my response';
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Saving…';
+      try {
+        const res = await fetch('/.netlify/functions/winter-checkin-submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          result.hidden = false;
+          result.dataset.tone = 'error';
+          result.textContent = out.error || 'Something went wrong. Please try again.';
+          result.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          submitBtn.disabled = false;
+          submitBtn.textContent = label;
+          return;
+        }
+        result.hidden = false;
+        result.dataset.tone = 'info';
+        result.textContent = out.updated
+          ? 'Your response has been updated. Thanks!'
+          : 'Thanks — your response is in. You can come back and update it any time before the season starts.';
+        result.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        submitBtn.textContent = 'Update my response';
+        submitBtn.disabled = false;
+        if (editNote) editNote.hidden = true;
+      } catch {
+        result.hidden = false;
+        result.dataset.tone = 'error';
+        result.textContent = 'Network error. Please try again.';
+        submitBtn.disabled = false;
+        submitBtn.textContent = label;
+      }
     });
   }
 </script>

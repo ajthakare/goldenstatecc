@@ -51,6 +51,7 @@ export const SITE_CONFIG = {
     // Set `isOpen` to false to hide the nav link and close the form once planning is done.
     winterCheckIn: {
         isOpen: true,
+        seasonKey: 'winter-2026-2027',
         seasonLabel: 'Winter 2026–2027',
         seasonWindow: 'October 2026 – March 2027',
         seasonStart: '2026-10-01',

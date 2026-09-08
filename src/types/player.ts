@@ -62,6 +62,7 @@ export interface Player {
   firstName: string;
   lastName: string;
   email?: string;                // Optional - can be added later (required for members, lowercase, unique)
+  phone?: string;                // Contact number, format "+1 1234567890" - Optional
   usacId?: string;               // USAC ID - Optional
   role?: string;                 // Batsman, Bowler, All-rounder, Wicket-keeper - Optional
   isActive: boolean;             // Currently active in club
