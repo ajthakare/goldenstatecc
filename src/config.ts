@@ -58,12 +58,12 @@ export const SITE_CONFIG = {
         seasonEnd: '2027-03-31',
         feeAmount: '$250',
         feeCovers:
-            'league registration, match balls, umpiring fees and home-ground charges across all three teams (Bengal Tigers, Bengal Bulls & Bengal Thunder Cats).',
+            'league registration, match balls, umpiring fees and home-ground charges across all three teams (Tigers, Bulls & ThunderCats).',
         paymentMethod: 'Zelle to gsbengalsinc@gmail.com with the subject "Winter 2026"',
         expectedGames: '9–12 games for players who stay available through the season. First preference goes to paid full-time members.',
         blackoutNote: 'No games between Dec 15 and Jan 2, or on holiday weekends (Diwali, Halloween, etc.).',
         homeGrounds: 'White-ball home ground: Livermore · Pink-ball home ground: San Jose. Games are on weekends only.',
-        teams: ['Bengal Tigers', 'Bengal Bulls', 'Bengal Thunder Cats']
+        teams: ['Tigers', 'Bulls', 'ThunderCats']
     }
 };
 
