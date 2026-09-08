@@ -74,6 +74,8 @@ export const handler: Handler = async (
       role_auth: player.role_auth || 'member', // Authentication role from database
       emergencyContactName: player.emergencyContactName,
       emergencyContactNumber: player.emergencyContactNumber,
+      jobCompany: player.jobCompany,
+      jobTitle: player.jobTitle,
     };
 
     return {

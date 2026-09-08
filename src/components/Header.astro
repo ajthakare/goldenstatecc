@@ -18,6 +18,11 @@ const navItems = [
     { linkText: 'Teams', href: '/teams' },
     { linkText: 'Fixtures', href: '/fixtures' },
     { linkText: 'Members', href: '/members' },
+    // /winter-checkin is hidden from nav until the club launches it publicly
+    // (SITE_CONFIG.winterCheckIn.isOpen). The page still works by direct URL.
+    ...(SITE_CONFIG.winterCheckIn?.isOpen
+        ? [{ linkText: 'Winter Check-In', href: '/winter-checkin' }]
+        : []),
     { linkText: 'Gallery', href: '/gallery' },
     { linkText: 'Contact Us', href: '/contact' }
 ];

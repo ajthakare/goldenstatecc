@@ -1,0 +1,474 @@
+---
+export const prerender = false;
+
+import AdminLayout from '../../layouts/AdminLayout.astro';
+
+// Auth (same pattern as other admin pages)
+const cookieHeader = Astro.request.headers.get('cookie');
+let authenticated = false;
+let username = '';
+let userRole = 'admin';
+let isAdminUser = false;
+
+if (cookieHeader) {
+  try {
+    const response = await fetch(`${Astro.url.origin}/.netlify/functions/auth-check`, {
+      headers: { cookie: cookieHeader },
+    });
+    const data = await response.json();
+    authenticated = data.authenticated;
+    username = data.user?.firstName || data.user?.username || '';
+    userRole = data.user?.role_auth || data.user?.role || 'admin';
+    isAdminUser = userRole === 'admin' || userRole === 'super_admin';
+  } catch (error) {
+    authenticated = false;
+  }
+}
+
+if (!authenticated) return Astro.redirect('/admin/login');
+if (!isAdminUser) return Astro.redirect('/');
+---
+
+<AdminLayout
+  title="Winter Check-In - GSCC Admin"
+  username={username}
+  userRole={userRole}
+  activePage="winter-checkin"
+>
+  <div class="dashboard">
+    <div class="page-header">
+      <h1 class="page-title">Winter Check-In</h1>
+      <p class="page-description" id="season-line">Player responses for the winter season</p>
+    </div>
+
+    <div class="toolbar wc-toolbar">
+      <input type="text" id="wc-search" class="search-input" placeholder="Search name or email…" />
+      <select id="wc-filter-participation" class="wc-select">
+        <option value="">All responses</option>
+        <option value="in">Playing</option>
+        <option value="break">Taking a break</option>
+        <option value="out">Not playing</option>
+        <option value="enquiring">Enquiries</option>
+      </select>
+      <select id="wc-filter-via" class="wc-select">
+        <option value="">Members &amp; guests</option>
+        <option value="member">Members only</option>
+        <option value="guest">Guests only</option>
+      </select>
+      <span class="wc-toolbar-spacer"></span>
+      <button id="wc-refresh" class="btn-secondary" type="button">Refresh</button>
+      <a href="/.netlify/functions/winter-checkin-export" class="btn-secondary" id="wc-export">Export CSV</a>
+    </div>
+
+    <div class="stats-grid" id="wc-stats" hidden></div>
+
+    <div id="wc-loading" class="state-container">
+      <div class="spinner"></div>
+      <p class="state-text">Loading responses…</p>
+    </div>
+
+    <div id="wc-error" class="state-container" hidden>
+      <div class="error-icon">⚠️</div>
+      <p class="state-title">Couldn’t load responses</p>
+      <p class="state-text" id="wc-error-text"></p>
+      <button id="wc-retry" class="btn-secondary" type="button">Try again</button>
+    </div>
+
+    <div id="wc-empty" class="state-container" hidden>
+      <div class="empty-icon">🗒️</div>
+      <p class="state-title">No responses yet</p>
+      <p class="state-text">They’ll show up here as players fill in the form.</p>
+    </div>
+
+    <div class="table-container wc-table-wrap" id="wc-table-wrap" hidden>
+      <table class="data-table wc-table">
+        <thead>
+          <tr id="wc-thead-row"></tr>
+        </thead>
+        <tbody id="wc-tbody"></tbody>
+      </table>
+    </div>
+    <p class="wc-count" id="wc-count" hidden></p>
+  </div>
+
+  <!-- Detail drawer -->
+  <div id="wc-modal" class="wc-modal" hidden>
+    <div class="wc-modal-card" role="dialog" aria-modal="true" aria-labelledby="wc-modal-title">
+      <div class="wc-modal-head">
+        <h2 id="wc-modal-title">Response</h2>
+        <button id="wc-modal-close" class="wc-modal-close" type="button" aria-label="Close">&times;</button>
+      </div>
+      <dl class="wc-modal-body" id="wc-modal-body"></dl>
+      <div class="wc-modal-foot">
+        <button id="wc-modal-delete" class="btn-danger-outline" type="button">Delete response</button>
+      </div>
+    </div>
+  </div>
+</AdminLayout>
+
+<style>
+  .wc-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+    margin-bottom: 1.5rem;
+  }
+  .wc-toolbar-spacer { flex: 1; }
+  .wc-select {
+    padding: 0.6rem 0.75rem;
+    border-radius: 8px;
+    border: 1px solid var(--color-border-strong, #d1d5db);
+    background: var(--color-bg-card, #fff);
+    color: inherit;
+    font: inherit;
+  }
+  #wc-search { max-width: 260px; }
+
+  .wc-table-wrap { overflow-x: auto; }
+  .wc-table { min-width: 940px; }
+  .wc-table th {
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+  }
+  .wc-table th[data-sort]::after { content: ''; }
+  .wc-table th.sort-asc::after { content: ' ▲'; font-size: 0.7em; }
+  .wc-table th.sort-desc::after { content: ' ▼'; font-size: 0.7em; }
+  .wc-table td { white-space: nowrap; vertical-align: top; }
+  .wc-table tbody tr { cursor: pointer; }
+  .wc-table td.wc-wrap { white-space: normal; min-width: 180px; max-width: 260px; }
+
+  .wc-pill {
+    display: inline-block;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.5;
+  }
+  .wc-pill.in { background: #dcfce7; color: #166534; }
+  .wc-pill.break { background: #fef9c3; color: #854d0e; }
+  .wc-pill.out { background: #fee2e2; color: #991b1b; }
+  .wc-pill.enquiring { background: #e0f2fe; color: #075985; }
+  .wc-pill.member { background: #e0e7ff; color: #3730a3; }
+  .wc-pill.guest { background: #f1f5f9; color: #475569; }
+
+  .wc-count {
+    font-size: 0.8rem;
+    color: var(--color-text-muted, #64748b);
+    margin: 0.75rem 0 0;
+  }
+
+  .wc-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    z-index: 1000;
+  }
+  .wc-modal-card {
+    background: var(--color-bg-card, #fff);
+    color: var(--color-text-body, #111827);
+    border-radius: 12px;
+    width: 100%;
+    max-width: 640px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.35);
+  }
+  .wc-modal-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--color-border, #e5e7eb);
+  }
+  .wc-modal-head h2 { margin: 0; font-size: 1.1rem; }
+  .wc-modal-close {
+    background: none;
+    border: none;
+    font-size: 1.6rem;
+    line-height: 1;
+    cursor: pointer;
+    color: inherit;
+  }
+  .wc-modal-body {
+    padding: 1.25rem;
+    overflow-y: auto;
+    margin: 0;
+    display: grid;
+    grid-template-columns: 40% 60%;
+    gap: 0.5rem 1rem;
+    font-size: 0.875rem;
+  }
+  .wc-modal-body dt { font-weight: 700; color: var(--color-text-muted, #64748b); }
+  .wc-modal-body dd { margin: 0; word-break: break-word; }
+  .wc-modal-foot {
+    padding: 0.9rem 1.25rem;
+    border-top: 1px solid var(--color-border, #e5e7eb);
+    text-align: right;
+  }
+
+  @media (max-width: 560px) {
+    .wc-toolbar > * {
+      flex: 1 1 100%;
+    }
+    #wc-search {
+      max-width: none;
+    }
+    .wc-toolbar-spacer {
+      display: none;
+    }
+    #wc-export {
+      text-align: center;
+    }
+    .wc-modal-body {
+      grid-template-columns: 1fr;
+      gap: 0.15rem 0;
+    }
+    .wc-modal-body dd {
+      margin-bottom: 0.6rem;
+    }
+  }
+</style>
+
+<script>
+  import { WINTER_CHECKIN_COLUMNS } from '../../types/winter';
+  import type { WinterCheckInResponse } from '../../types/winter';
+
+  const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+
+  const loading = $('wc-loading');
+  const errorBox = $('wc-error');
+  const errorText = $('wc-error-text');
+  const emptyBox = $('wc-empty');
+  const tableWrap = $('wc-table-wrap');
+  const theadRow = $('wc-thead-row');
+  const tbody = $('wc-tbody');
+  const statsGrid = $('wc-stats');
+  const countLine = $('wc-count');
+  const seasonLine = $('season-line');
+  const searchInput = $<HTMLInputElement>('wc-search');
+  const filterParticipation = $<HTMLSelectElement>('wc-filter-participation');
+  const filterVia = $<HTMLSelectElement>('wc-filter-via');
+  const modal = $('wc-modal');
+  const modalTitle = $('wc-modal-title');
+  const modalBody = $('wc-modal-body');
+  const modalDelete = $<HTMLButtonElement>('wc-modal-delete');
+
+  const PARTICIPATION_LABEL: Record<string, string> = {
+    in: 'Playing', break: 'Break', out: 'Not playing', enquiring: 'Enquiry',
+  };
+  const VOLUME_LABEL: Record<string, string> = {
+    max: 'As much as possible', some: 'A handful', 'fill-in': 'When short',
+  };
+  const WEEKEND_LABEL: Record<string, string> = {
+    most: 'Most', half: 'About half', occasional: 'Occasionally',
+  };
+  const LEADERSHIP_LABEL: Record<string, string> = {
+    captain: 'Captain', 'vice-captain': 'Vice-captain', none: '—',
+  };
+  const PAYMENT_LABEL: Record<string, string> = {
+    paid: 'Paid', 'will-pay': 'Will pay', discuss: 'Discuss',
+  };
+
+  // Visible table columns (the rest live in the detail drawer).
+  const TABLE_COLS: Array<{ label: string; get: (r: WinterCheckInResponse) => string; cls?: string; sortKey: string }> = [
+    { label: 'Name', sortKey: 'lastName', get: (r) => `${r.firstName} ${r.lastName}`.trim() },
+    { label: 'Via', sortKey: 'submittedVia', get: (r) => r.submittedVia },
+    { label: 'Playing?', sortKey: 'participation', get: (r) => r.participation },
+    { label: 'Role', sortKey: 'role', get: (r) => r.role || '—' },
+    { label: 'Experience', sortKey: 'experienceLevel', get: (r) => r.experienceLevel || '—' },
+    { label: 'Weekends', sortKey: 'weekendFrequency', get: (r) => WEEKEND_LABEL[r.weekendFrequency] || '—' },
+    { label: 'Away months', sortKey: 'unavailableMonths', cls: 'wc-wrap', get: (r) => (r.unavailableMonths || []).join(', ') || '—' },
+    { label: 'Team pref', sortKey: 'teamPreference', get: (r) => r.teamPreference || 'Any' },
+    { label: 'Wants', sortKey: 'desiredVolume', get: (r) => VOLUME_LABEL[r.desiredVolume || ''] || '—' },
+    { label: 'Leadership', sortKey: 'leadershipInterest', get: (r) => LEADERSHIP_LABEL[r.leadershipInterest || ''] || '—' },
+    { label: 'NCCA ump', sortKey: 'nccaUmpireCertified', get: (r) => (r.nccaUmpireCertified ? 'Yes' : 'No') },
+    { label: 'Jersey', sortKey: 'jerseyNeeds', cls: 'wc-wrap', get: (r) => (r.jerseyNeeds || []).join(', ') || '—' },
+    { label: 'Payment', sortKey: 'paymentStatus', get: (r) => PAYMENT_LABEL[r.paymentStatus || ''] || '—' },
+    { label: 'Updated', sortKey: 'updatedAt', get: (r) => new Date(r.updatedAt).toLocaleDateString() },
+  ];
+
+  let all: WinterCheckInResponse[] = [];
+  let sortKey = 'updatedAt';
+  let sortDir: 1 | -1 = -1;
+  let activeId: string | null = null;
+
+  function show(el: HTMLElement, on: boolean) { el.hidden = !on; }
+
+  function renderStats(s: any) {
+    const tiles: Array<[string, string | number, string?]> = [
+      ['Total responses', s.total],
+      ['Playing', s.in, 'stat-success'],
+      ['Break / out', (s.break || 0) + (s.out || 0)],
+      ['Prospective players', s.prospective || 0],
+      ['Enquiries', s.enquiring || 0],
+      ['Members / guests', `${s.members} / ${s.guests}`],
+      ['Need jerseys', s.jerseysNeeded],
+      ['Fees outstanding', s.feeOutstanding],
+      ['NCCA umpires', s.umpiresCertified],
+    ];
+    statsGrid.innerHTML = tiles
+      .map(
+        ([label, value]) =>
+          `<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value">${value}</div></div>`
+      )
+      .join('');
+    show(statsGrid, true);
+  }
+
+  function currentRows(): WinterCheckInResponse[] {
+    const q = searchInput.value.trim().toLowerCase();
+    const p = filterParticipation.value;
+    const v = filterVia.value;
+    let rows = all.filter((r) => {
+      if (p && r.participation !== p) return false;
+      if (v && r.submittedVia !== v) return false;
+      if (q) {
+        const hay = `${r.firstName} ${r.lastName} ${r.email}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+    rows = rows.slice().sort((a, b) => {
+      const av = (a as any)[sortKey];
+      const bv = (b as any)[sortKey];
+      const as = Array.isArray(av) ? av.join(',') : String(av ?? '');
+      const bs = Array.isArray(bv) ? bv.join(',') : String(bv ?? '');
+      return as.localeCompare(bs, undefined, { numeric: true }) * sortDir;
+    });
+    return rows;
+  }
+
+  function renderTable() {
+    theadRow.innerHTML = TABLE_COLS.map((c) => {
+      const cls = c.sortKey === sortKey ? (sortDir === 1 ? 'sort-asc' : 'sort-desc') : '';
+      return `<th data-sort="${c.sortKey}" class="${cls}">${c.label}</th>`;
+    }).join('');
+
+    const rows = currentRows();
+    tbody.innerHTML = rows
+      .map((r) => {
+        const cells = TABLE_COLS.map((c) => {
+          let val = c.get(r);
+          if (c.label === 'Playing?') val = `<span class="wc-pill ${r.participation}">${PARTICIPATION_LABEL[r.participation]}</span>`;
+          else if (c.label === 'Via') val = `<span class="wc-pill ${r.submittedVia}">${r.submittedVia}</span>`;
+          else val = escapeHtml(val);
+          return `<td class="${c.cls || ''}">${val}</td>`;
+        }).join('');
+        return `<tr data-id="${r.id}">${cells}</tr>`;
+      })
+      .join('');
+
+    show(tableWrap, rows.length > 0);
+    show(emptyBox, all.length === 0);
+    countLine.hidden = all.length === 0;
+    countLine.textContent = `Showing ${rows.length} of ${all.length} response${all.length === 1 ? '' : 's'}`;
+  }
+
+  function escapeHtml(s: string) {
+    return s.replace(/[&<>"']/g, (c) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string)
+    );
+  }
+
+  function fmt(key: string, value: unknown): string {
+    if (value == null || value === '') return '—';
+    if (Array.isArray(value)) return value.length ? value.join(', ') : '—';
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    if (key === 'submittedAt' || key === 'updatedAt') return new Date(String(value)).toLocaleString();
+    return String(value);
+  }
+
+  function openModal(id: string) {
+    const r = all.find((x) => x.id === id);
+    if (!r) return;
+    activeId = id;
+    modalTitle.textContent = `${r.firstName} ${r.lastName} — ${PARTICIPATION_LABEL[r.participation]}`;
+    modalBody.innerHTML = WINTER_CHECKIN_COLUMNS.map(
+      ({ key, label }) =>
+        `<dt>${label}</dt><dd>${escapeHtml(fmt(key as string, (r as any)[key]))}</dd>`
+    ).join('');
+    show(modal, true);
+  }
+
+  function closeModal() {
+    show(modal, false);
+    activeId = null;
+  }
+
+  async function load() {
+    show(loading, true);
+    show(errorBox, false);
+    show(tableWrap, false);
+    show(emptyBox, false);
+    try {
+      const res = await fetch('/.netlify/functions/winter-checkin-list', {
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+      const data = await res.json();
+      all = data.responses || [];
+      seasonLine.textContent = `Player responses for ${data.seasonLabel}${data.isOpen ? '' : ' (form closed)'}`;
+      renderStats(data.summary);
+      renderTable();
+      show(loading, false);
+    } catch (err) {
+      show(loading, false);
+      show(errorBox, true);
+      errorText.textContent = err instanceof Error ? err.message : 'Unknown error';
+    }
+  }
+
+  theadRow.addEventListener('click', (e) => {
+    const th = (e.target as HTMLElement).closest('th');
+    const key = th?.dataset.sort;
+    if (!key) return;
+    if (sortKey === key) sortDir = sortDir === 1 ? -1 : 1;
+    else { sortKey = key; sortDir = 1; }
+    renderTable();
+  });
+
+  tbody.addEventListener('click', (e) => {
+    const tr = (e.target as HTMLElement).closest('tr');
+    if (tr?.dataset.id) openModal(tr.dataset.id);
+  });
+
+  [searchInput, filterParticipation, filterVia].forEach((el) =>
+    el.addEventListener('input', renderTable)
+  );
+  $('wc-refresh').addEventListener('click', load);
+  $('wc-retry').addEventListener('click', load);
+  $('wc-modal-close').addEventListener('click', closeModal);
+  modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
+
+  modalDelete.addEventListener('click', async () => {
+    if (!activeId) return;
+    if (!confirm('Delete this response? This cannot be undone.')) return;
+    modalDelete.disabled = true;
+    try {
+      const res = await fetch('/.netlify/functions/winter-checkin-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: activeId }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Delete failed');
+      all = all.filter((r) => r.id !== activeId);
+      closeModal();
+      renderTable();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      modalDelete.disabled = false;
+    }
+  });
+
+  load();
+</script>
