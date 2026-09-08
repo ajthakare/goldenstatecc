@@ -3,6 +3,12 @@ export const prerender = false;
 
 import Layout from '../layouts/Layout.astro';
 
+// Optional post-login destination (?redirect=/some/path). Only same-origin
+// absolute paths are honored, to avoid open-redirect abuse.
+const redirectParam = Astro.url.searchParams.get('redirect');
+const safeRedirect =
+  redirectParam && /^\/(?!\/)/.test(redirectParam) ? redirectParam : null;
+
 // Check if already logged in
 const cookieHeader = Astro.request.headers.get('cookie');
 if (cookieHeader) {
@@ -17,7 +23,7 @@ if (cookieHeader) {
     );
     const data = await response.json();
     if (data.authenticated) {
-      return Astro.redirect('/');
+      return Astro.redirect(safeRedirect || '/');
     }
   } catch (error) {
     // Continue to login page
@@ -213,10 +219,15 @@ if (cookieHeader) {
       const data = await response.json();
 
       if (response.ok) {
-        // Login successful, redirect based on response
+        // Login successful. An explicit ?redirect= path (same-origin only) wins
+        // over the default destinations.
+        const redirectParam = new URLSearchParams(window.location.search).get('redirect');
+        const safeRedirect =
+          redirectParam && /^\/(?!\/)/.test(redirectParam) ? redirectParam : null;
         const isStandalone = window.matchMedia('(display-mode: standalone)').matches
           || (navigator as any).standalone === true;
-        window.location.href = isStandalone ? '/fixtures' : (data.redirectTo || '/');
+        window.location.href =
+          safeRedirect || (isStandalone ? '/fixtures' : (data.redirectTo || '/'));
       } else {
         // Handle specific error messages
         let errorMsg = data.error || 'Login failed. Please try again.';
