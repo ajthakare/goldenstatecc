@@ -56,17 +56,29 @@ if (session && isMember(session)) {
 }
 
 const isLoggedIn = member !== null;
+const isGuest = !isLoggedIn;
 const memberName = isLoggedIn
   ? `${member!.firstName} ${member!.lastName}`.trim()
   : '';
 const loginHref = '/login?redirect=/winter-checkin';
 const startEmployed = isLoggedIn && !!(member!.jobCompany || member!.jobTitle);
 
-// Section numbering — increments in render order, skips hidden sections.
-let n = 0;
-const step = () => ++n;
-
 const PLAYER_ROLES = ['Batsman', 'Bowler', 'All-rounder', 'Wicket-keeper'];
+const EXPERIENCE_LEVELS = [
+  'New to cricket',
+  'Social / tapeball',
+  'Club level',
+  'League level',
+  'Representative / semi-pro',
+];
+const HOW_HEARD = [
+  'Instagram',
+  'A friend or current player',
+  'CricClubs',
+  'Google / web search',
+  'Saw us at a ground or event',
+  'Other',
+];
 const BOWLING_STYLES = [
   'Right-arm pace / medium',
   'Left-arm pace / medium',
@@ -133,10 +145,11 @@ const JERSEY_OPTIONS = [
     ) : (
       <div class="wc-login card">
         <div>
-          <p class="wc-login-title">Already play for GSCC?</p>
+          <p class="wc-login-title">Already a GSCC member? Please log in first.</p>
           <p class="wc-login-text">
-            Log in first and we'll pre-fill your name, contact details and playing
-            info so you don't type them again.
+            We already have your contact details, playing profile and history on file.
+            Logging in pre-fills the form, keeps your answers linked to your record, and
+            leaves you only the new bits to fill in.
           </p>
         </div>
         <a href={loginHref} class="btn">Log in &amp; continue</a>
@@ -145,7 +158,7 @@ const JERSEY_OPTIONS = [
 
     {!isLoggedIn && (
       <p class="wc-guest-note">
-        New to the club or just interested? Carry on below &mdash; we'll take your
+        New to the club or just weighing it up? Carry on below &mdash; we'll take your
         details here.
       </p>
     )}
@@ -162,14 +175,23 @@ const JERSEY_OPTIONS = [
 
       <!-- Participation -->
       <section class="wc-section">
-        <h2 class="wc-section-title"><span class="wc-num">{step()}</span> Are you playing this winter?</h2>
+        <h2 class="wc-section-title">{isGuest ? 'Do you want to play this winter?' : 'Are you playing this winter?'}</h2>
         <div class="wc-group" role="radiogroup" aria-label="Winter participation">
-          <label class="wc-opt"><input type="radio" name="participation" value="in" required /> Yes &mdash; count me in</label>
-          <label class="wc-opt"><input type="radio" name="participation" value="break" /> Taking a break this winter</label>
-          <label class="wc-opt"><input type="radio" name="participation" value="out" /> No &mdash; sitting this one out</label>
+          {isGuest ? (
+            <>
+              <label class="wc-opt"><input type="radio" name="participation" value="in" required /> Yes, I'd like to play this winter</label>
+              <label class="wc-opt"><input type="radio" name="participation" value="enquiring" /> Just enquiring for now</label>
+            </>
+          ) : (
+            <>
+              <label class="wc-opt"><input type="radio" name="participation" value="in" required /> Yes &mdash; count me in</label>
+              <label class="wc-opt"><input type="radio" name="participation" value="break" /> Taking a break this winter</label>
+              <label class="wc-opt"><input type="radio" name="participation" value="out" /> No &mdash; sitting this one out</label>
+            </>
+          )}
         </div>
-        <div class="wc-field" id="wc-reason-wrap" hidden>
-          <label for="wc-reason">If you're not playing, what's the main reason? <span class="wc-opt-tag">optional</span></label>
+        <div class="wc-field" id="wc-reason-wrap" data-sec="reason" hidden>
+          <label for="wc-reason">What's the main reason you're not playing? <span class="wc-opt-tag">optional</span></label>
           <p class="wc-hint">Travel, cost, time, fitness, form &mdash; it just helps us plan and follow up.</p>
           <textarea id="wc-reason" name="notPlayingReason" class="input w-full" rows="2"></textarea>
         </div>
@@ -178,7 +200,7 @@ const JERSEY_OPTIONS = [
       {!isLoggedIn && (
         <!-- Your details (guests only — members come from the identity card above) -->
         <section class="wc-section">
-          <h2 class="wc-section-title"><span class="wc-num">{step()}</span> Your details</h2>
+          <h2 class="wc-section-title">Your details</h2>
           <div class="wc-grid-2">
             <div class="wc-field">
               <label for="wc-first">First name <span class="wc-req">*</span></label>
@@ -203,9 +225,9 @@ const JERSEY_OPTIONS = [
       )}
 
       <!-- Emergency contact -->
-      <section class="wc-section">
+      <section class="wc-section" data-sec="emergency">
         <h2 class="wc-section-title">
-          <span class="wc-num">{step()}</span> Emergency contact
+          Emergency contact
           <span class="wc-section-sub">Required by NCCA</span>
         </h2>
         {isLoggedIn && (member!.emergencyContactName || member!.emergencyContactNumber) && (
@@ -241,13 +263,40 @@ const JERSEY_OPTIONS = [
 
       <!-- Your cricket (shown to everyone; pre-filled for members) -->
       <section class="wc-section">
-        <h2 class="wc-section-title"><span class="wc-num">{step()}</span> Your cricket</h2>
+        <h2 class="wc-section-title">Your cricket</h2>
         {isLoggedIn && (
           <p class="wc-hint">
             This is what we have on file. Add anything that's missing or update it if
             it's changed &mdash; sometimes IDs or roles need a refresh.
           </p>
         )}
+
+        {isGuest && (
+          <div class="wc-guest-bg">
+            <div class="wc-grid-2">
+              <div class="wc-field">
+                <label for="wc-exp">Cricket experience</label>
+                <select id="wc-exp" name="experienceLevel" class="input w-full">
+                  <option value="">Select&hellip;</option>
+                  {EXPERIENCE_LEVELS.map((e) => <option>{e}</option>)}
+                </select>
+              </div>
+              <div class="wc-field">
+                <label for="wc-heard">How did you hear about us?</label>
+                <select id="wc-heard" name="howHeard" class="input w-full">
+                  <option value="">Select&hellip;</option>
+                  {HOW_HEARD.map((h) => <option>{h}</option>)}
+                </select>
+              </div>
+            </div>
+            <div class="wc-field">
+              <label for="wc-played">Where have you played before? <span class="wc-opt-tag">optional</span></label>
+              <p class="wc-hint">Clubs, leagues, country &mdash; or just say "new to cricket".</p>
+              <input type="text" id="wc-played" name="playedBefore" class="input w-full" maxlength="300" />
+            </div>
+          </div>
+        )}
+
         <div class="wc-grid-2">
           <div class="wc-field">
             <label for="wc-usac">USA Cricket (USAC) ID</label>
@@ -270,7 +319,7 @@ const JERSEY_OPTIONS = [
             ))}
           </div>
         </div>
-        <div class="wc-grid-2">
+        <div class="wc-grid-2" data-sec="cricket-extra">
           <div class="wc-field">
             <label for="wc-batpos">Batting position preference</label>
             <select id="wc-batpos" name="battingPreference" class="input w-full">
@@ -291,8 +340,8 @@ const JERSEY_OPTIONS = [
       </section>
 
       <!-- Availability -->
-      <section class="wc-section">
-        <h2 class="wc-section-title"><span class="wc-num">{step()}</span> Availability</h2>
+      <section class="wc-section" data-sec="availability">
+        <h2 class="wc-section-title">Availability</h2>
         <div class="wc-field">
           <span class="wc-label">Months you expect to be away / travelling</span>
           <p class="wc-hint">An approximate guess is fine &mdash; helps us request the right fixtures.</p>
@@ -344,9 +393,19 @@ const JERSEY_OPTIONS = [
         </div>
       </section>
 
+      <!-- What are you looking for? (guests just enquiring) -->
+      <section class="wc-section wc-section-accent" data-sec="lookingFor" hidden>
+        <h2 class="wc-section-title">What are you looking for?</h2>
+        <div class="wc-field">
+          <label for="wc-lookingfor">What are you hoping to find in a club? <span class="wc-opt-tag">optional</span></label>
+          <p class="wc-hint">Competitive cricket, regular game time, getting back into it, meeting people &mdash; whatever it is.</p>
+          <textarea id="wc-lookingfor" name="goals" class="input w-full" rows="3"></textarea>
+        </div>
+      </section>
+
       <!-- What you want from the season -->
-      <section class="wc-section wc-section-accent">
-        <h2 class="wc-section-title"><span class="wc-num">{step()}</span> What you want from the season</h2>
+      <section class="wc-section wc-section-accent" data-sec="wants">
+        <h2 class="wc-section-title">What you want from the season</h2>
         <p class="wc-hint">This is the part that actually shapes how we run the squads &mdash; be honest.</p>
         <div class="wc-field">
           <label for="wc-goals">What are you hoping to get out of winter? <span class="wc-req">*</span></label>
@@ -385,8 +444,8 @@ const JERSEY_OPTIONS = [
       </section>
 
       <!-- Jerseys -->
-      <section class="wc-section">
-        <h2 class="wc-section-title"><span class="wc-num">{step()}</span> Jerseys</h2>
+      <section class="wc-section" data-sec="jerseys">
+        <h2 class="wc-section-title">Jerseys</h2>
         <p class="wc-hint">
           GSCC players need coloured kit (white-ball) and whites (pink-ball).
           Jersey + pants is $25 a set; jersey only is $12.50 (price may move with tariffs).
@@ -409,8 +468,8 @@ const JERSEY_OPTIONS = [
       </section>
 
       <!-- Chipping in -->
-      <section class="wc-section">
-        <h2 class="wc-section-title"><span class="wc-num">{step()}</span> Chipping in</h2>
+      <section class="wc-section" data-sec="chipping">
+        <h2 class="wc-section-title">Chipping in</h2>
         <div class="wc-field">
           <span class="wc-label">Are you NCCA-certified for umpiring? <span class="wc-req">*</span></span>
           <div class="wc-group wc-group-inline" role="radiogroup" aria-label="NCCA umpire certification">
@@ -428,9 +487,28 @@ const JERSEY_OPTIONS = [
         </div>
       </section>
 
-      <!-- Fees -->
-      <section class="wc-section">
-        <h2 class="wc-section-title"><span class="wc-num">{step()}</span> Fees</h2>
+      {isGuest && (
+        <!-- Joining the club (guests who want to play) -->
+        <section class="wc-section" data-sec="membership" hidden>
+          <h2 class="wc-section-title">Joining the club</h2>
+          <p class="wc-hint">
+            Playing with GSCC this winter means registering with USA Cricket and paying
+            club membership. The winter fee is <strong>{wc.feeAmount}</strong> &mdash; it covers
+            {' '}{wc.feeCovers} Payment is {wc.paymentMethod}.
+          </p>
+          <label class="wc-opt wc-opt-block">
+            <input type="checkbox" name="membershipAcknowledged" value="yes" />
+            <span>
+              I understand that joining means registering with USA Cricket and paying club
+              membership. <span class="wc-req">*</span>
+            </span>
+          </label>
+        </section>
+      )}
+
+      <!-- Fees (existing members) -->
+      <section class="wc-section" data-sec="fees">
+        <h2 class="wc-section-title">Fees</h2>
         <label class="wc-opt wc-opt-block">
           <input type="checkbox" name="feeAcknowledged" value="yes" />
           <span>
@@ -450,29 +528,33 @@ const JERSEY_OPTIONS = [
 
       <!-- Anything else -->
       <section class="wc-section">
-        <h2 class="wc-section-title"><span class="wc-num">{step()}</span> Anything else</h2>
-        <div class="wc-field">
-          <span class="wc-label">Employment status <span class="wc-opt-tag">optional</span></span>
-          <p class="wc-hint">Helps us connect members who are hiring or job-hunting.</p>
-          <div class="wc-group wc-group-inline" role="radiogroup" aria-label="Employment status">
-            <label class="wc-opt"><input type="radio" name="employmentStatus" value="employed" checked={startEmployed} /> Employed</label>
-            <label class="wc-opt"><input type="radio" name="employmentStatus" value="student" /> Student</label>
-          </div>
-        </div>
-        <div class="wc-grid-2" id="wc-job-employed" hidden={!startEmployed}>
-          <div class="wc-field">
-            <label for="wc-job-company">Company</label>
-            <input type="text" id="wc-job-company" name="jobCompany" class="input w-full" maxlength="200" value={member?.jobCompany ?? ''} />
-          </div>
-          <div class="wc-field">
-            <label for="wc-job-title">Job title</label>
-            <input type="text" id="wc-job-title" name="jobTitle" class="input w-full" maxlength="200" value={member?.jobTitle ?? ''} />
-          </div>
-        </div>
-        <div class="wc-field" id="wc-job-student" hidden>
-          <label for="wc-college">College / university</label>
-          <input type="text" id="wc-college" name="collegeName" class="input w-full" maxlength="200" />
-        </div>
+        <h2 class="wc-section-title">Anything else</h2>
+        {isLoggedIn && (
+          <>
+            <div class="wc-field">
+              <span class="wc-label">Employment status <span class="wc-opt-tag">optional</span></span>
+              <p class="wc-hint">Helps us connect members who are hiring or job-hunting.</p>
+              <div class="wc-group wc-group-inline" role="radiogroup" aria-label="Employment status">
+                <label class="wc-opt"><input type="radio" name="employmentStatus" value="employed" checked={startEmployed} /> Employed</label>
+                <label class="wc-opt"><input type="radio" name="employmentStatus" value="student" /> Student</label>
+              </div>
+            </div>
+            <div class="wc-grid-2" id="wc-job-employed" hidden={!startEmployed}>
+              <div class="wc-field">
+                <label for="wc-job-company">Company</label>
+                <input type="text" id="wc-job-company" name="jobCompany" class="input w-full" maxlength="200" value={member?.jobCompany ?? ''} />
+              </div>
+              <div class="wc-field">
+                <label for="wc-job-title">Job title</label>
+                <input type="text" id="wc-job-title" name="jobTitle" class="input w-full" maxlength="200" value={member?.jobTitle ?? ''} />
+              </div>
+            </div>
+            <div class="wc-field" id="wc-job-student" hidden>
+              <label for="wc-college">College / university</label>
+              <input type="text" id="wc-college" name="collegeName" class="input w-full" maxlength="200" />
+            </div>
+          </>
+        )}
         <div class="wc-field">
           <label for="wc-injury">Injuries or fitness notes for management <span class="wc-opt-tag">optional</span></label>
           <textarea id="wc-injury" name="injuryNotes" class="input w-full" rows="2"></textarea>
@@ -630,18 +712,13 @@ const JERSEY_OPTIONS = [
     color: var(--color-text-heading);
     margin: 0;
   }
-  .wc-num {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 1.6rem;
-    height: 1.6rem;
-    padding: 0 0.4rem;
-    border-radius: 6px;
-    background: var(--color-primary);
-    color: var(--color-primary-content, #fff);
-    font-size: 0.8rem;
-    font-weight: 700;
+  .wc-guest-bg {
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+    padding-bottom: 1.1rem;
+    margin-bottom: 0.2rem;
+    border-bottom: 1px dashed var(--color-border-strong);
   }
   .wc-section-sub {
     font-size: 0.72rem;
@@ -755,6 +832,52 @@ const JERSEY_OPTIONS = [
     color: #b91c1c;
   }
 
+  /* Mobile — most people open this on a phone */
+  @media (max-width: 560px) {
+    .wc-page {
+      padding-top: 1.25rem;
+    }
+    .wc-form {
+      gap: 1.25rem;
+    }
+    .wc-section {
+      padding-top: 1.1rem;
+    }
+    .wc-section-accent {
+      margin: 0 -0.75rem;
+      padding: 1.2rem 0.75rem;
+    }
+    /* Roomier tap targets for radio / checkbox pills */
+    .wc-opt {
+      padding: 0.7rem 0.85rem;
+      font-size: 0.95rem;
+    }
+    .wc-opt input {
+      width: 1.15rem;
+      height: 1.15rem;
+    }
+    .wc-group-inline {
+      gap: 0.5rem;
+    }
+    /* Full-width primary actions are easier to hit with a thumb */
+    .wc-submit {
+      align-self: stretch;
+      width: 100%;
+    }
+    .wc-login,
+    .wc-identity {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .wc-login .btn {
+      width: 100%;
+      text-align: center;
+    }
+    .wc-facts {
+      padding: 1.1rem;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .wc-opt {
       transition: none;
@@ -767,19 +890,84 @@ const JERSEY_OPTIONS = [
   const result = document.getElementById('wc-result') as HTMLDivElement | null;
   const editNote = document.getElementById('wc-edit-note') as HTMLParagraphElement | null;
   const submitBtn = form?.querySelector('.wc-submit') as HTMLButtonElement | null;
-  const reasonWrap = document.getElementById('wc-reason-wrap') as HTMLDivElement | null;
   const jobEmployed = document.getElementById('wc-job-employed') as HTMLDivElement | null;
   const jobStudent = document.getElementById('wc-job-student') as HTMLDivElement | null;
 
   const ARRAY_FIELDS = new Set(['unavailableMonths', 'jerseyNeeds', 'volunteerRoles']);
 
-  function syncConditionalSections() {
+  // Hide an element and take its controls out of the form (disabled fields are not
+  // submitted and don't count towards validation).
+  function setHidden(el: HTMLElement | null, hide: boolean) {
+    if (!el) return;
+    el.hidden = hide;
+    el.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
+      'input, select, textarea'
+    ).forEach((c) => {
+      c.disabled = hide;
+    });
+  }
+
+  function setSec(name: string, show: boolean) {
     if (!form) return;
-    const part = form.querySelector<HTMLInputElement>('input[name="participation"]:checked');
-    if (reasonWrap) reasonWrap.hidden = !part || part.value === 'in';
-    const emp = form.querySelector<HTMLInputElement>('input[name="employmentStatus"]:checked');
-    if (jobEmployed) jobEmployed.hidden = emp?.value !== 'employed';
-    if (jobStudent) jobStudent.hidden = emp?.value !== 'student';
+    form
+      .querySelectorAll<HTMLElement>(`[data-sec="${name}"]`)
+      .forEach((el) => setHidden(el, !show));
+  }
+
+  function participationValue() {
+    return (
+      form?.querySelector<HTMLInputElement>('input[name="participation"]:checked')?.value ?? ''
+    );
+  }
+
+  // Show only the sections that make sense for this person + their answer.
+  function applyVisibility() {
+    if (!form) return;
+    const loggedIn = form.dataset.loggedIn === 'true';
+    const p = participationValue();
+    const playing = p === 'in';
+    const notPlaying = p === 'break' || p === 'out';
+    const enquiring = p === 'enquiring';
+
+    setSec('reason', notPlaying);
+    setSec('emergency', playing || notPlaying);
+    setSec('cricket-extra', playing);
+    setSec('availability', playing);
+    setSec('wants', playing);
+    setSec('lookingFor', enquiring);
+    setSec('jerseys', playing);
+    setSec('chipping', playing);
+    setSec('membership', playing && !loggedIn);
+    setSec('fees', playing && loggedIn);
+
+    const emp = form.querySelector<HTMLInputElement>('input[name="employmentStatus"]:checked')?.value;
+    setHidden(jobEmployed, emp !== 'employed');
+    setHidden(jobStudent, emp !== 'student');
+  }
+
+  function requiredFields(): Record<string, string> {
+    const loggedIn = form?.dataset.loggedIn === 'true';
+    const p = participationValue();
+    const req: Record<string, string> = {
+      participation: 'Let us know whether you want to play this winter.',
+    };
+    if (!loggedIn) {
+      req.firstName = 'First name is required.';
+      req.lastName = 'Last name is required.';
+      req.email = 'Email is required.';
+      req.phone = 'Mobile number is required.';
+    }
+    if (p === 'in') {
+      req.emergencyContactName = 'Emergency contact name is required.';
+      req.emergencyContactNumber = 'Emergency contact phone is required.';
+      req.weekendFrequency = 'Tell us roughly how many weekends you can make.';
+      req.nccaUmpireCertified = 'Let us know your NCCA umpiring status.';
+      req.goals = 'Tell us what you want out of the season.';
+      if (!loggedIn) {
+        req.membershipAcknowledged = 'Please confirm you understand what joining involves.';
+      }
+    }
+    return req;
   }
 
   function setField(name: string, value: unknown) {
@@ -809,13 +997,14 @@ const JERSEY_OPTIONS = [
       if (value == null || value === '') continue;
       setField(key, value);
     }
-    syncConditionalSections();
+    applyVisibility();
   }
 
   if (form) {
     form
       .querySelectorAll<HTMLInputElement>('input[name="participation"], input[name="employmentStatus"]')
-      .forEach((el) => el.addEventListener('change', syncConditionalSections));
+      .forEach((el) => el.addEventListener('change', applyVisibility));
+    applyVisibility();
 
     // For logged-in members: load an existing response so they can update it.
     if (form.dataset.loggedIn === 'true') {
@@ -838,28 +1027,13 @@ const JERSEY_OPTIONS = [
         .catch(() => {});
     }
 
-    const REQUIRED: Record<string, string> = {
-      participation: 'Let us know if you’re playing this winter.',
-      emergencyContactName: 'Emergency contact name is required.',
-      emergencyContactNumber: 'Emergency contact phone is required.',
-      weekendFrequency: 'Tell us roughly how many weekends you can make.',
-      nccaUmpireCertified: 'Let us know your NCCA umpiring status.',
-      goals: 'Tell us what you want out of the season.',
-    };
-    if (form.dataset.loggedIn !== 'true') {
-      REQUIRED.firstName = 'First name is required.';
-      REQUIRED.lastName = 'Last name is required.';
-      REQUIRED.email = 'Email is required.';
-      REQUIRED.phone = 'Mobile number is required.';
-    }
-
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (!result || !submitBtn) return;
 
       const data = new FormData(form);
       const missing: string[] = [];
-      for (const [field, message] of Object.entries(REQUIRED)) {
+      for (const [field, message] of Object.entries(requiredFields())) {
         const value = data.get(field);
         if (!value || (typeof value === 'string' && value.trim() === '')) missing.push(message);
       }

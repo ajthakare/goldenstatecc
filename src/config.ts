@@ -48,9 +48,13 @@ export const SITE_CONFIG = {
     },
 
     // Winter Season Check-In Form (/winter-checkin)
-    // Set `isOpen` to false to hide the nav link and close the form once planning is done.
+    // `isOpen`            → show the link in the site nav (public launch). The page
+    //                       still works by direct URL when this is false.
+    // `acceptingResponses`→ whether the form accepts submissions at all.
+    // Flip `isOpen` to true once the club decides to launch this to everyone.
     winterCheckIn: {
-        isOpen: true,
+        isOpen: false,
+        acceptingResponses: true,
         seasonKey: 'winter-2026-2027',
         seasonLabel: 'Winter 2026–2027',
         seasonWindow: 'October 2026 – March 2027',

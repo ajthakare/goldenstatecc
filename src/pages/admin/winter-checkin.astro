@@ -48,6 +48,7 @@ if (!isAdminUser) return Astro.redirect('/');
         <option value="in">Playing</option>
         <option value="break">Taking a break</option>
         <option value="out">Not playing</option>
+        <option value="enquiring">Enquiries</option>
       </select>
       <select id="wc-filter-via" class="wc-select">
         <option value="">Members &amp; guests</option>
@@ -149,6 +150,7 @@ if (!isAdminUser) return Astro.redirect('/');
   .wc-pill.in { background: #dcfce7; color: #166534; }
   .wc-pill.break { background: #fef9c3; color: #854d0e; }
   .wc-pill.out { background: #fee2e2; color: #991b1b; }
+  .wc-pill.enquiring { background: #e0f2fe; color: #075985; }
   .wc-pill.member { background: #e0e7ff; color: #3730a3; }
   .wc-pill.guest { background: #f1f5f9; color: #475569; }
 
@@ -211,6 +213,28 @@ if (!isAdminUser) return Astro.redirect('/');
     border-top: 1px solid var(--color-border, #e5e7eb);
     text-align: right;
   }
+
+  @media (max-width: 560px) {
+    .wc-toolbar > * {
+      flex: 1 1 100%;
+    }
+    #wc-search {
+      max-width: none;
+    }
+    .wc-toolbar-spacer {
+      display: none;
+    }
+    #wc-export {
+      text-align: center;
+    }
+    .wc-modal-body {
+      grid-template-columns: 1fr;
+      gap: 0.15rem 0;
+    }
+    .wc-modal-body dd {
+      margin-bottom: 0.6rem;
+    }
+  }
 </style>
 
 <script>
@@ -238,7 +262,7 @@ if (!isAdminUser) return Astro.redirect('/');
   const modalDelete = $<HTMLButtonElement>('wc-modal-delete');
 
   const PARTICIPATION_LABEL: Record<string, string> = {
-    in: 'Playing', break: 'Break', out: 'Not playing',
+    in: 'Playing', break: 'Break', out: 'Not playing', enquiring: 'Enquiry',
   };
   const VOLUME_LABEL: Record<string, string> = {
     max: 'As much as possible', some: 'A handful', 'fill-in': 'When short',
@@ -259,6 +283,7 @@ if (!isAdminUser) return Astro.redirect('/');
     { label: 'Via', sortKey: 'submittedVia', get: (r) => r.submittedVia },
     { label: 'Playing?', sortKey: 'participation', get: (r) => r.participation },
     { label: 'Role', sortKey: 'role', get: (r) => r.role || '—' },
+    { label: 'Experience', sortKey: 'experienceLevel', get: (r) => r.experienceLevel || '—' },
     { label: 'Weekends', sortKey: 'weekendFrequency', get: (r) => WEEKEND_LABEL[r.weekendFrequency] || '—' },
     { label: 'Away months', sortKey: 'unavailableMonths', cls: 'wc-wrap', get: (r) => (r.unavailableMonths || []).join(', ') || '—' },
     { label: 'Team pref', sortKey: 'teamPreference', get: (r) => r.teamPreference || 'Any' },
@@ -281,11 +306,11 @@ if (!isAdminUser) return Astro.redirect('/');
     const tiles: Array<[string, string | number, string?]> = [
       ['Total responses', s.total],
       ['Playing', s.in, 'stat-success'],
-      ['Break', s.break],
-      ['Not playing', s.out],
+      ['Break / out', (s.break || 0) + (s.out || 0)],
+      ['Prospective players', s.prospective || 0],
+      ['Enquiries', s.enquiring || 0],
       ['Members / guests', `${s.members} / ${s.guests}`],
       ['Need jerseys', s.jerseysNeeded],
-      ['Fees paid', s.feePaid],
       ['Fees outstanding', s.feeOutstanding],
       ['NCCA umpires', s.umpiresCertified],
     ];

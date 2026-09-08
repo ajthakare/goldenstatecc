@@ -1,7 +1,7 @@
 // Winter Season Check-In — shared types & field metadata
 // Used by the public form, the submit/list/export functions and the admin view.
 
-export type Participation = 'in' | 'break' | 'out';
+export type Participation = 'in' | 'break' | 'out' | 'enquiring';
 export type WeekendFrequency = 'most' | 'half' | 'occasional';
 export type PreferredDay = 'sat' | 'sun' | 'either';
 export type PracticeAvailability = 'regular' | 'sometimes' | 'no';
@@ -36,6 +36,12 @@ export interface WinterCheckInResponse {
   role?: string;
   battingPreference?: string;
   bowlingStyle?: string;
+
+  // Prospective-player fields (guests only)
+  experienceLevel?: string;
+  playedBefore?: string;
+  howHeard?: string;
+  membershipAcknowledged?: boolean;
 
   unavailableMonths: string[];
   weekendFrequency: WeekendFrequency;
@@ -74,6 +80,8 @@ export interface WinterCheckInSummary {
   in: number;
   break: number;
   out: number;
+  enquiring: number;
+  prospective: number; // guests who said "I'd like to play"
   members: number;
   guests: number;
   jerseysNeeded: number;
@@ -101,6 +109,9 @@ export const WINTER_CHECKIN_COLUMNS: Array<{ key: keyof WinterCheckInResponse; l
   { key: 'role', label: 'Role' },
   { key: 'battingPreference', label: 'Batting pref' },
   { key: 'bowlingStyle', label: 'Bowling style' },
+  { key: 'experienceLevel', label: 'Experience' },
+  { key: 'playedBefore', label: 'Played before' },
+  { key: 'howHeard', label: 'Heard about us via' },
   { key: 'unavailableMonths', label: 'Away months' },
   { key: 'weekendFrequency', label: 'Weekends' },
   { key: 'preferredDay', label: 'Preferred day' },
@@ -117,6 +128,7 @@ export const WINTER_CHECKIN_COLUMNS: Array<{ key: keyof WinterCheckInResponse; l
   { key: 'jerseyNumber', label: 'Jersey number' },
   { key: 'nccaUmpireCertified', label: 'NCCA umpire' },
   { key: 'volunteerRoles', label: 'Can help with' },
+  { key: 'membershipAcknowledged', label: 'Membership acknowledged' },
   { key: 'feeAcknowledged', label: 'Fee acknowledged' },
   { key: 'paymentStatus', label: 'Payment' },
   { key: 'employmentStatus', label: 'Employment' },

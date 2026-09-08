@@ -37,6 +37,8 @@ export const handler: Handler = async (
       in: 0,
       break: 0,
       out: 0,
+      enquiring: 0,
+      prospective: 0,
       members: 0,
       guests: 0,
       jerseysNeeded: 0,
@@ -47,9 +49,13 @@ export const handler: Handler = async (
     };
 
     for (const r of all) {
-      summary[r.participation] += 1;
+      if (r.participation === 'in') summary.in += 1;
+      else if (r.participation === 'break') summary.break += 1;
+      else if (r.participation === 'out') summary.out += 1;
+      else if (r.participation === 'enquiring') summary.enquiring += 1;
       if (r.submittedVia === 'member') summary.members += 1;
       else summary.guests += 1;
+      if (r.submittedVia === 'guest' && r.participation === 'in') summary.prospective += 1;
       if (r.jerseyNeeds && r.jerseyNeeds.length > 0) summary.jerseysNeeded += 1;
       if (r.paymentStatus === 'paid') summary.feePaid += 1;
       if (r.participation === 'in' && r.paymentStatus !== 'paid') summary.feeOutstanding += 1;

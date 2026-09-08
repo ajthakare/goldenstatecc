@@ -9,7 +9,7 @@ import type { WinterCheckInResponse } from '../../src/types/winter';
 const wc = SITE_CONFIG.winterCheckIn;
 const RESPONSES_KEY = `responses-${wc.seasonKey}`;
 
-const PARTICIPATION = ['in', 'break', 'out'];
+const PARTICIPATION = ['in', 'break', 'out', 'enquiring'];
 const WEEKEND_FREQ = ['most', 'half', 'occasional'];
 const PREFERRED_DAY = ['sat', 'sun', 'either'];
 const PRACTICE = ['regular', 'sometimes', 'no'];
@@ -65,7 +65,7 @@ export const handler: Handler = async (
     return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
 
-  if (!wc.isOpen) {
+  if (!wc.acceptingResponses) {
     return {
       statusCode: 403,
       body: JSON.stringify({ error: 'The winter check-in is closed.' }),
@@ -123,25 +123,39 @@ export const handler: Handler = async (
     if (!phone) errors.push('Mobile number is required.');
   }
 
-  // --- Required winter fields ---
+  // --- Participation ---
   const participation = oneOf(body.participation, PARTICIPATION);
-  if (!participation) errors.push('Tell us whether you’re playing this winter.');
+  if (!participation) errors.push('Tell us whether you want to play this winter.');
+  // "enquiring" is a guest-only state.
+  if (participation === 'enquiring' && memberSession) {
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ error: 'Invalid participation value for a member.' }),
+    };
+  }
+  const playing = participation === 'in';
 
   const emergencyContactName = str(body.emergencyContactName, 100);
   const emergencyContactNumber = str(body.emergencyContactNumber, 40);
-  if (!emergencyContactName) errors.push('Emergency contact name is required.');
-  if (!emergencyContactNumber) errors.push('Emergency contact phone is required.');
-
   const weekendFrequency = oneOf(body.weekendFrequency, WEEKEND_FREQ);
-  if (!weekendFrequency) errors.push('Tell us roughly how many weekends you can make.');
-
   const nccaRaw = str(body.nccaUmpireCertified);
-  if (nccaRaw !== 'yes' && nccaRaw !== 'no') {
-    errors.push('Let us know your NCCA umpiring status.');
-  }
-
   const goals = str(body.goals, 2000);
-  if (!goals) errors.push('Tell us what you want out of the season.');
+  const membershipAcknowledged =
+    str(body.membershipAcknowledged) === 'yes' || body.membershipAcknowledged === true;
+
+  // The full question set only applies when they're actually playing.
+  if (playing) {
+    if (!emergencyContactName) errors.push('Emergency contact name is required.');
+    if (!emergencyContactNumber) errors.push('Emergency contact phone is required.');
+    if (!weekendFrequency) errors.push('Tell us roughly how many weekends you can make.');
+    if (nccaRaw !== 'yes' && nccaRaw !== 'no') {
+      errors.push('Let us know your NCCA umpiring status.');
+    }
+    if (!goals) errors.push('Tell us what you want out of the season.');
+    if (!memberSession && !membershipAcknowledged) {
+      errors.push('Please confirm you understand what joining involves.');
+    }
+  }
 
   // --- Optional / bounded fields ---
   const awayFrom = strOrUndef(body.awayFrom, 10);
@@ -192,6 +206,11 @@ export const handler: Handler = async (
     role: strOrUndef(body.role, 40),
     battingPreference: strOrUndef(body.battingPreference, 60),
     bowlingStyle: strOrUndef(body.bowlingStyle, 60),
+
+    experienceLevel: strOrUndef(body.experienceLevel, 60),
+    playedBefore: strOrUndef(body.playedBefore, 300),
+    howHeard: strOrUndef(body.howHeard, 60),
+    membershipAcknowledged,
 
     unavailableMonths: strArray(body.unavailableMonths),
     weekendFrequency: weekendFrequency as WinterCheckInResponse['weekendFrequency'],
