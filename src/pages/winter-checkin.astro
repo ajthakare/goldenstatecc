@@ -24,6 +24,7 @@ interface MemberInfo {
   emergencyContactNumber: string;
   jobCompany: string;
   jobTitle: string;
+  isFullTimeMember: boolean;
 }
 
 let member: MemberInfo | null = null;
@@ -47,6 +48,7 @@ if (session && isMember(session)) {
           emergencyContactNumber: data.user.emergencyContactNumber || '',
           jobCompany: data.user.jobCompany || '',
           jobTitle: data.user.jobTitle || '',
+          isFullTimeMember: !!data.user.isFullTimeMember,
         };
       }
     }
@@ -102,6 +104,23 @@ const JERSEY_OPTIONS = [
   'Coloured jersey + pants',
   'Whites (pink-ball)',
   'Whites + pants',
+];
+const JERSEY_SIZES: Array<{ value: string; label: string }> = [
+  { value: 'S', label: 'Small (S)' },
+  { value: 'M', label: 'Medium (M)' },
+  { value: 'L', label: 'Large (L)' },
+  { value: 'XL', label: 'Extra Large (XL)' },
+  { value: 'XXL', label: 'Double XL (XXL)' },
+];
+
+// Summer '26 season feedback (members only)
+const sf = wc.summerFeedback;
+const SUMMER_SPONSOR_USAGE: Array<{ value: string; label: string }> = [
+  { value: '1', label: '1' },
+  { value: '2', label: '2' },
+  { value: '3', label: '3' },
+  { value: 'more-than-3', label: 'More than 3' },
+  { value: 'never', label: 'Never' },
 ];
 ---
 
@@ -359,6 +378,22 @@ const JERSEY_OPTIONS = [
             <label class="wc-opt"><input type="radio" name="weekendFrequency" value="occasional" /> Occasionally / when you're short</label>
           </div>
         </div>
+        <div class="wc-field">
+          <span class="wc-label">Are you committing full-time or part-time this winter? <span class="wc-req">*</span></span>
+          <p class="wc-hint">
+            Full-time = you're in the squad every week you're available. Part-time = you'll
+            play when we're short or when it suits you. First selection preference goes to
+            full-time members.
+          </p>
+          <div class="wc-group" role="radiogroup" aria-label="Availability commitment">
+            <label class="wc-opt">
+              <input type="radio" name="availabilityCommitment" value="full-time" checked={member?.isFullTimeMember === true} /> Full-time
+            </label>
+            <label class="wc-opt">
+              <input type="radio" name="availabilityCommitment" value="part-time" /> Part-time
+            </label>
+          </div>
+        </div>
         <div class="wc-grid-2">
           <div class="wc-field">
             <span class="wc-label">Preferred match day</span>
@@ -455,6 +490,13 @@ const JERSEY_OPTIONS = [
             <label class="wc-opt"><input type="checkbox" name="jerseyNeeds" value={j} /> {j}</label>
           ))}
         </div>
+        <div class="wc-field">
+          <label for="wc-jersey-size">Jersey size <span class="wc-opt-tag">if ordering</span></label>
+          <select id="wc-jersey-size" name="jerseySize" class="input w-full">
+            <option value="">Select&hellip;</option>
+            {JERSEY_SIZES.map((s) => <option value={s.value}>{s.label}</option>)}
+          </select>
+        </div>
         <div class="wc-grid-2">
           <div class="wc-field">
             <label for="wc-jersey-name">Name to print <span class="wc-opt-tag">if ordering</span></label>
@@ -525,6 +567,109 @@ const JERSEY_OPTIONS = [
           </div>
         </div>
       </section>
+
+      {isLoggedIn && sf.enabled && (
+        <!-- Summer '26 season feedback (members only) -->
+        <section class="wc-section wc-section-accent">
+          <h2 class="wc-section-title">How was your {sf.seasonLabel} season?</h2>
+          <p class="wc-hint">A quick look back so the club and the captains can act on it.</p>
+
+          <div class="wc-field">
+            <span class="wc-label">Did you play any games with us this summer? <span class="wc-req">*</span></span>
+            <div class="wc-group wc-group-inline" role="radiogroup" aria-label="Played this summer">
+              <label class="wc-opt"><input type="radio" name="summerPlayed" value="yes" /> Yes</label>
+              <label class="wc-opt"><input type="radio" name="summerPlayed" value="no" /> No</label>
+            </div>
+          </div>
+
+          <div class="wc-summer-detail" data-sec="summer-detail" hidden>
+            <div class="wc-field">
+              <span class="wc-label">Have you felt included in the club?</span>
+              <div class="wc-group wc-group-inline" role="radiogroup" aria-label="Felt included">
+                <label class="wc-opt"><input type="radio" name="summerFeltIncluded" value="yes" /> Yes</label>
+                <label class="wc-opt"><input type="radio" name="summerFeltIncluded" value="no" /> No</label>
+                <label class="wc-opt"><input type="radio" name="summerFeltIncluded" value="at-times" /> At times</label>
+              </div>
+            </div>
+            <div class="wc-field">
+              <label for="wc-sum-exp">How was your overall experience playing this summer?</label>
+              <textarea id="wc-sum-exp" name="summerExperienceNotes" class="input w-full" rows="3"></textarea>
+            </div>
+            <div class="wc-field">
+              <span class="wc-label">Which team(s) did you play for this summer?</span>
+              <div class="wc-group wc-group-inline">
+                {sf.teams.map((t) => (
+                  <label class="wc-opt"><input type="checkbox" name="summerTeamsPlayedFor" value={t} /> {t}</label>
+                ))}
+              </div>
+            </div>
+            <div class="wc-field">
+              <span class="wc-label">Were you told before the XI was announced if you didn't make it?</span>
+              <div class="wc-group wc-group-inline" role="radiogroup" aria-label="Notified before XI">
+                <label class="wc-opt"><input type="radio" name="summerNotifiedBeforeXI" value="yes" /> Yes</label>
+                <label class="wc-opt"><input type="radio" name="summerNotifiedBeforeXI" value="no" /> No</label>
+                <label class="wc-opt"><input type="radio" name="summerNotifiedBeforeXI" value="na" /> N/A &mdash; always made the XI</label>
+              </div>
+            </div>
+
+            <div class="wc-field">
+              <span class="wc-label">{sf.seasonLabel} captains &amp; vice-captains</span>
+              <ul class="wc-reflist">
+                {sf.teams.map((t) => {
+                  const l = sf.leadership[t] || { captain: '', viceCaptain: '' };
+                  const hasNames = !!(l.captain || l.viceCaptain);
+                  return (
+                    <li>
+                      <strong>{t}</strong> &mdash;{' '}
+                      {hasNames
+                        ? `Captain: ${l.captain || '—'} · Vice-captain: ${l.viceCaptain || '—'}`
+                        : 'no official captain / vice-captain this season'}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+            <div class="wc-field">
+              <label for="wc-sum-capt">Feedback for your captain(s)</label>
+              <p class="wc-hint">Say which team you mean.</p>
+              <textarea id="wc-sum-capt" name="summerCaptainFeedback" class="input w-full" rows="3"></textarea>
+            </div>
+            <div class="wc-field">
+              <label for="wc-sum-vc">Feedback for your vice-captain(s)</label>
+              <p class="wc-hint">Say which team you mean.</p>
+              <textarea id="wc-sum-vc" name="summerViceCaptainFeedback" class="input w-full" rows="3"></textarea>
+            </div>
+            <div class="wc-field">
+              <label for="wc-sum-improve">Anything your summer team(s) should improve?</label>
+              <textarea id="wc-sum-improve" name="summerTeamImprovement" class="input w-full" rows="2"></textarea>
+            </div>
+            <div class="wc-field">
+              <label for="wc-sum-sugg">Suggestions on how the team can improve (team level)</label>
+              <textarea id="wc-sum-sugg" name="summerTeamSuggestions" class="input w-full" rows="2"></textarea>
+            </div>
+            <div class="wc-field">
+              <label for="wc-sum-practice">How did practice timings work for you this summer?</label>
+              <textarea id="wc-sum-practice" name="summerPracticeNotes" class="input w-full" rows="2"></textarea>
+            </div>
+            <div class="wc-field">
+              <span class="wc-label">Park Town Pizza discount &mdash; how many times did you use it?</span>
+              <div class="wc-group wc-group-inline" role="radiogroup" aria-label="Sponsor discount usage">
+                {SUMMER_SPONSOR_USAGE.map((s) => (
+                  <label class="wc-opt"><input type="radio" name="summerSponsorUsage" value={s.value} /> {s.label}</label>
+                ))}
+              </div>
+            </div>
+            <div class="wc-field">
+              <label for="wc-sum-jersey">Thoughts on the team jersey &mdash; quality and price?</label>
+              <textarea id="wc-sum-jersey" name="summerJerseyNotes" class="input w-full" rows="2"></textarea>
+            </div>
+            <div class="wc-field">
+              <label for="wc-sum-other">Anything else about the summer season? <span class="wc-opt-tag">optional</span></label>
+              <textarea id="wc-sum-other" name="summerOther" class="input w-full" rows="2"></textarea>
+            </div>
+          </div>
+        </section>
+      )}
 
       <!-- Anything else -->
       <section class="wc-section">
@@ -720,6 +865,21 @@ const JERSEY_OPTIONS = [
     margin-bottom: 0.2rem;
     border-bottom: 1px dashed var(--color-border-strong);
   }
+  .wc-summer-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+  }
+  .wc-reflist {
+    margin: 0;
+    padding-left: 1.1rem;
+    font-size: 0.82rem;
+    color: var(--color-text-muted);
+    line-height: 1.55;
+  }
+  .wc-reflist li {
+    list-style: disc;
+  }
   .wc-section-sub {
     font-size: 0.72rem;
     font-weight: 700;
@@ -893,7 +1053,12 @@ const JERSEY_OPTIONS = [
   const jobEmployed = document.getElementById('wc-job-employed') as HTMLDivElement | null;
   const jobStudent = document.getElementById('wc-job-student') as HTMLDivElement | null;
 
-  const ARRAY_FIELDS = new Set(['unavailableMonths', 'jerseyNeeds', 'volunteerRoles']);
+  const ARRAY_FIELDS = new Set([
+    'unavailableMonths',
+    'jerseyNeeds',
+    'volunteerRoles',
+    'summerTeamsPlayedFor',
+  ]);
 
   // Hide an element and take its controls out of the form (disabled fields are not
   // submitted and don't count towards validation).
@@ -940,6 +1105,11 @@ const JERSEY_OPTIONS = [
     setSec('membership', playing && !loggedIn);
     setSec('fees', playing && loggedIn);
 
+    // Summer feedback gate (members only).
+    const playedSummer =
+      form.querySelector<HTMLInputElement>('input[name="summerPlayed"]:checked')?.value === 'yes';
+    setSec('summer-detail', playedSummer);
+
     const emp = form.querySelector<HTMLInputElement>('input[name="employmentStatus"]:checked')?.value;
     setHidden(jobEmployed, emp !== 'employed');
     setHidden(jobStudent, emp !== 'student');
@@ -956,11 +1126,14 @@ const JERSEY_OPTIONS = [
       req.lastName = 'Last name is required.';
       req.email = 'Email is required.';
       req.phone = 'Mobile number is required.';
+    } else {
+      req.summerPlayed = 'Let us know whether you played with us this summer.';
     }
     if (p === 'in') {
       req.emergencyContactName = 'Emergency contact name is required.';
       req.emergencyContactNumber = 'Emergency contact phone is required.';
       req.weekendFrequency = 'Tell us roughly how many weekends you can make.';
+      req.availabilityCommitment = 'Let us know if you’re full-time or part-time.';
       req.nccaUmpireCertified = 'Let us know your NCCA umpiring status.';
       req.goals = 'Tell us what you want out of the season.';
       if (!loggedIn) {
@@ -1002,7 +1175,9 @@ const JERSEY_OPTIONS = [
 
   if (form) {
     form
-      .querySelectorAll<HTMLInputElement>('input[name="participation"], input[name="employmentStatus"]')
+      .querySelectorAll<HTMLInputElement>(
+        'input[name="participation"], input[name="employmentStatus"], input[name="summerPlayed"]'
+      )
       .forEach((el) => el.addEventListener('change', applyVisibility));
     applyVisibility();
 

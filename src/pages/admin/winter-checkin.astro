@@ -285,6 +285,7 @@ if (!isAdminUser) return Astro.redirect('/');
     { label: 'Role', sortKey: 'role', get: (r) => r.role || '—' },
     { label: 'Experience', sortKey: 'experienceLevel', get: (r) => r.experienceLevel || '—' },
     { label: 'Weekends', sortKey: 'weekendFrequency', get: (r) => WEEKEND_LABEL[r.weekendFrequency] || '—' },
+    { label: 'Commitment', sortKey: 'availabilityCommitment', get: (r) => r.availabilityCommitment === 'full-time' ? 'Full-time' : r.availabilityCommitment === 'part-time' ? 'Part-time' : '—' },
     { label: 'Away months', sortKey: 'unavailableMonths', cls: 'wc-wrap', get: (r) => (r.unavailableMonths || []).join(', ') || '—' },
     { label: 'Team pref', sortKey: 'teamPreference', get: (r) => r.teamPreference || 'Any' },
     { label: 'Wants', sortKey: 'desiredVolume', get: (r) => VOLUME_LABEL[r.desiredVolume || ''] || '—' },

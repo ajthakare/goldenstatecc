@@ -11,12 +11,18 @@ const RESPONSES_KEY = `responses-${wc.seasonKey}`;
 
 const PARTICIPATION = ['in', 'break', 'out', 'enquiring'];
 const WEEKEND_FREQ = ['most', 'half', 'occasional'];
+const COMMITMENT = ['full-time', 'part-time'];
 const PREFERRED_DAY = ['sat', 'sun', 'either'];
 const PRACTICE = ['regular', 'sometimes', 'no'];
 const VOLUME = ['max', 'some', 'fill-in'];
 const LEADERSHIP = ['captain', 'vice-captain', 'none'];
 const PAYMENT = ['paid', 'will-pay', 'discuss'];
 const EMPLOYMENT = ['employed', 'student'];
+const JERSEY_SIZE = ['S', 'M', 'L', 'XL', 'XXL'];
+const SUMMER_FELT = ['yes', 'no', 'at-times'];
+const SUMMER_NOTIFIED = ['yes', 'no', 'na'];
+const SUMMER_SPONSOR = ['1', '2', '3', 'more-than-3', 'never'];
+const SUMMER_TEAMS: string[] = wc.summerFeedback?.teams ?? [];
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -138,6 +144,7 @@ export const handler: Handler = async (
   const emergencyContactName = str(body.emergencyContactName, 100);
   const emergencyContactNumber = str(body.emergencyContactNumber, 40);
   const weekendFrequency = oneOf(body.weekendFrequency, WEEKEND_FREQ);
+  const availabilityCommitment = oneOf(body.availabilityCommitment, COMMITMENT);
   const nccaRaw = str(body.nccaUmpireCertified);
   const goals = str(body.goals, 2000);
   const membershipAcknowledged =
@@ -148,6 +155,7 @@ export const handler: Handler = async (
     if (!emergencyContactName) errors.push('Emergency contact name is required.');
     if (!emergencyContactNumber) errors.push('Emergency contact phone is required.');
     if (!weekendFrequency) errors.push('Tell us roughly how many weekends you can make.');
+    if (!availabilityCommitment) errors.push('Let us know if you’re full-time or part-time.');
     if (nccaRaw !== 'yes' && nccaRaw !== 'no') {
       errors.push('Let us know your NCCA umpiring status.');
     }
@@ -155,6 +163,12 @@ export const handler: Handler = async (
     if (!memberSession && !membershipAcknowledged) {
       errors.push('Please confirm you understand what joining involves.');
     }
+  }
+
+  // --- Summer '26 feedback (members only) ---
+  const summerPlayed = memberSession ? oneOf(body.summerPlayed, ['yes', 'no']) : undefined;
+  if (memberSession && !summerPlayed) {
+    errors.push('Let us know whether you played with us this summer.');
   }
 
   // --- Optional / bounded fields ---
@@ -214,6 +228,9 @@ export const handler: Handler = async (
 
     unavailableMonths: strArray(body.unavailableMonths),
     weekendFrequency: weekendFrequency as WinterCheckInResponse['weekendFrequency'],
+    availabilityCommitment: availabilityCommitment as
+      | WinterCheckInResponse['availabilityCommitment']
+      | undefined,
     preferredDay: oneOf(body.preferredDay, PREFERRED_DAY) as
       | WinterCheckInResponse['preferredDay']
       | undefined,
@@ -234,6 +251,9 @@ export const handler: Handler = async (
     goodSeasonLooksLike: strOrUndef(body.goodSeasonLooksLike, 2000),
 
     jerseyNeeds: strArray(body.jerseyNeeds, 60),
+    jerseySize: oneOf(body.jerseySize, JERSEY_SIZE) as
+      | WinterCheckInResponse['jerseySize']
+      | undefined,
     jerseyName: strOrUndef(body.jerseyName, 20),
     jerseyNumber: strOrUndef(body.jerseyNumber, 3),
 
@@ -254,6 +274,33 @@ export const handler: Handler = async (
 
     injuryNotes: strOrUndef(body.injuryNotes, 2000),
     anythingElse: strOrUndef(body.anythingElse, 2000),
+
+    // Summer '26 feedback — members only; stripped entirely for guests.
+    ...(memberSession
+      ? {
+          summerPlayed: summerPlayed as WinterCheckInResponse['summerPlayed'],
+          summerFeltIncluded: oneOf(body.summerFeltIncluded, SUMMER_FELT) as
+            | WinterCheckInResponse['summerFeltIncluded']
+            | undefined,
+          summerExperienceNotes: strOrUndef(body.summerExperienceNotes, 2000),
+          summerTeamsPlayedFor: strArray(body.summerTeamsPlayedFor, 40).filter((t) =>
+            SUMMER_TEAMS.includes(t)
+          ),
+          summerNotifiedBeforeXI: oneOf(body.summerNotifiedBeforeXI, SUMMER_NOTIFIED) as
+            | WinterCheckInResponse['summerNotifiedBeforeXI']
+            | undefined,
+          summerCaptainFeedback: strOrUndef(body.summerCaptainFeedback, 2000),
+          summerViceCaptainFeedback: strOrUndef(body.summerViceCaptainFeedback, 2000),
+          summerTeamImprovement: strOrUndef(body.summerTeamImprovement, 2000),
+          summerTeamSuggestions: strOrUndef(body.summerTeamSuggestions, 2000),
+          summerPracticeNotes: strOrUndef(body.summerPracticeNotes, 2000),
+          summerSponsorUsage: oneOf(body.summerSponsorUsage, SUMMER_SPONSOR) as
+            | WinterCheckInResponse['summerSponsorUsage']
+            | undefined,
+          summerJerseyNotes: strOrUndef(body.summerJerseyNotes, 2000),
+          summerOther: strOrUndef(body.summerOther, 2000),
+        }
+      : {}),
   };
 
   if (existingIndex >= 0) {
