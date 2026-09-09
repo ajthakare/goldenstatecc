@@ -195,7 +195,7 @@ const summerSlug = (team: string) => team.replace(/[^A-Za-z0-9]/g, '');
             <>
               <label class="wc-opt"><input type="radio" name="participation" value="in" required /> Yes &mdash; count me in</label>
               <label class="wc-opt"><input type="radio" name="participation" value="out" /> Not playing this winter</label>
-              <label class="wc-opt"><input type="radio" name="participation" value="transfer" /> Transferring to / playing from another club</label>
+              <label class="wc-opt"><input type="radio" name="participation" value="transfer" /> Transferring to another club</label>
             </>
           )}
         </div>
@@ -1150,7 +1150,12 @@ const summerSlug = (team: string) => team.replace(/[^A-Za-z0-9]/g, '');
       });
       return;
     }
-    (first as HTMLInputElement).value = value == null ? '' : String(value);
+    // Some names appear twice in the DOM (e.g. `goals` on both the "wants" and
+    // the guest "looking for" sections) — set every match so the visible one wins.
+    const v = value == null ? '' : String(value);
+    nodes.forEach((node) => {
+      (node as HTMLInputElement).value = v;
+    });
   }
 
   function fillForm(data: Record<string, unknown>) {
