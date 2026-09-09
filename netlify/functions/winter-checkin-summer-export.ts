@@ -34,6 +34,14 @@ export const handler: Handler = async (
     const all =
       ((await store.get(RESPONSES_KEY, { type: 'json' })) as WinterCheckInResponse[]) || [];
 
+    // Per-team captain / vice-captain feedback → one column pair per team.
+    const teams: string[] = wc.summerFeedback?.teams ?? [];
+    const slug = (t: string) => t.replace(/[^A-Za-z0-9]/g, '');
+    const leadershipCols = teams.flatMap((t) => [
+      { label: `${t} — captain`, slug: slug(t), role: 'captain' as const },
+      { label: `${t} — vice-captain`, slug: slug(t), role: 'viceCaptain' as const },
+    ]);
+
     const rows = all
       .filter((r) => r.summerPlayed === 'yes')
       .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
@@ -51,11 +59,18 @@ export const handler: Handler = async (
                 ? ''
                 : String(v);
         }
+        const slf = r.summerLeadershipFeedback ?? {};
+        for (const c of leadershipCols) {
+          row[c.label] = slf[c.slug]?.[c.role] ?? '';
+        }
         return row;
       });
 
     const csv = Papa.unparse(rows, {
-      columns: SUMMER_FEEDBACK_COLUMNS.map((c) => c.label),
+      columns: [
+        ...SUMMER_FEEDBACK_COLUMNS.map((c) => c.label),
+        ...leadershipCols.map((c) => c.label),
+      ],
     });
     const today = new Date().toISOString().split('T')[0];
 

@@ -273,9 +273,6 @@ if (!isAdminUser) return Astro.redirect('/');
   const LEADERSHIP_LABEL: Record<string, string> = {
     captain: 'Captain', 'vice-captain': 'Vice-captain', none: '—',
   };
-  const PAYMENT_LABEL: Record<string, string> = {
-    paid: 'Paid', 'will-pay': 'Will pay', discuss: 'Discuss',
-  };
 
   // Visible table columns (the rest live in the detail drawer).
   const TABLE_COLS: Array<{ label: string; get: (r: WinterCheckInResponse) => string; cls?: string; sortKey: string }> = [
@@ -292,7 +289,6 @@ if (!isAdminUser) return Astro.redirect('/');
     { label: 'Leadership', sortKey: 'leadershipInterest', get: (r) => LEADERSHIP_LABEL[r.leadershipInterest || ''] || '—' },
     { label: 'NCCA ump', sortKey: 'nccaUmpireCertified', get: (r) => (r.nccaUmpireCertified ? 'Yes' : 'No') },
     { label: 'Jersey', sortKey: 'jerseyNeeds', cls: 'wc-wrap', get: (r) => (r.jerseyNeeds || []).join(', ') || '—' },
-    { label: 'Payment', sortKey: 'paymentStatus', get: (r) => PAYMENT_LABEL[r.paymentStatus || ''] || '—' },
     { label: 'Updated', sortKey: 'updatedAt', get: (r) => new Date(r.updatedAt).toLocaleDateString() },
   ];
 
@@ -312,7 +308,6 @@ if (!isAdminUser) return Astro.redirect('/');
       ['Enquiries', s.enquiring || 0],
       ['Members / guests', `${s.members} / ${s.guests}`],
       ['Need jerseys', s.jerseysNeeded],
-      ['Fees outstanding', s.feeOutstanding],
       ['NCCA umpires', s.umpiresCertified],
     ];
     statsGrid.innerHTML = tiles

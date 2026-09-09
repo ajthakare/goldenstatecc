@@ -16,13 +16,14 @@ const PREFERRED_DAY = ['sat', 'sun', 'either'];
 const PRACTICE = ['regular', 'sometimes', 'no'];
 const VOLUME = ['max', 'some', 'fill-in'];
 const LEADERSHIP = ['captain', 'vice-captain', 'none'];
-const PAYMENT = ['paid', 'will-pay', 'discuss'];
 const EMPLOYMENT = ['employed', 'student'];
 const JERSEY_SIZE = ['S', 'M', 'L', 'XL', 'XXL'];
 const SUMMER_FELT = ['yes', 'no', 'at-times'];
 const SUMMER_NOTIFIED = ['yes', 'no', 'na'];
-const SUMMER_SPONSOR = ['1', '2', '3', 'more-than-3', 'never'];
+const SUMMER_YESNO = ['yes', 'no'];
 const SUMMER_TEAMS: string[] = wc.summerFeedback?.teams ?? [];
+const summerSlug = (team: string) => team.replace(/[^A-Za-z0-9]/g, '');
+const SUMMER_TEAM_SLUGS = new Set(SUMMER_TEAMS.map(summerSlug));
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -149,6 +150,8 @@ export const handler: Handler = async (
   const goals = str(body.goals, 2000);
   const membershipAcknowledged =
     str(body.membershipAcknowledged) === 'yes' || body.membershipAcknowledged === true;
+  const liabilityAccepted =
+    str(body.liabilityAccepted) === 'yes' || body.liabilityAccepted === true;
 
   // The full question set only applies when they're actually playing.
   if (playing) {
@@ -160,15 +163,65 @@ export const handler: Handler = async (
       errors.push('Let us know your NCCA umpiring status.');
     }
     if (!goals) errors.push('Tell us what you want out of the season.');
+    if (!liabilityAccepted) {
+      errors.push('Please confirm you take part of your own free will and at your own risk.');
+    }
     if (!memberSession && !membershipAcknowledged) {
       errors.push('Please confirm you understand what joining involves.');
     }
   }
 
   // --- Summer '26 feedback (members only) ---
-  const summerPlayed = memberSession ? oneOf(body.summerPlayed, ['yes', 'no']) : undefined;
+  const summerPlayed = memberSession ? oneOf(body.summerPlayed, SUMMER_YESNO) : undefined;
   if (memberSession && !summerPlayed) {
     errors.push('Let us know whether you played with us this summer.');
+  }
+
+  // Parse per-team captain / vice-captain feedback, keep only real teams.
+  const rawLeadership =
+    body.summerLeadershipFeedback && typeof body.summerLeadershipFeedback === 'object'
+      ? (body.summerLeadershipFeedback as Record<string, unknown>)
+      : {};
+  const summerLeadershipFeedback: Record<string, { captain?: string; viceCaptain?: string }> = {};
+  for (const [slug, raw] of Object.entries(rawLeadership)) {
+    if (!SUMMER_TEAM_SLUGS.has(slug) || !raw || typeof raw !== 'object') continue;
+    const entry = raw as Record<string, unknown>;
+    const captain = strOrUndef(entry.captain, 2000);
+    const viceCaptain = strOrUndef(entry.viceCaptain, 2000);
+    if (captain || viceCaptain) summerLeadershipFeedback[slug] = { captain, viceCaptain };
+  }
+
+  const summerFeltIncluded = oneOf(body.summerFeltIncluded, SUMMER_FELT);
+  const summerExperienceNotes = strOrUndef(body.summerExperienceNotes, 2000);
+  const summerTeamsPlayedFor = strArray(body.summerTeamsPlayedFor, 40).filter((t) =>
+    SUMMER_TEAMS.includes(t)
+  );
+  const summerNotifiedBeforeXI = oneOf(body.summerNotifiedBeforeXI, SUMMER_NOTIFIED);
+  const summerUmpired = oneOf(body.summerUmpired, SUMMER_YESNO);
+  const summerTeamImprovement = strOrUndef(body.summerTeamImprovement, 2000);
+  const summerTeamSuggestions = strOrUndef(body.summerTeamSuggestions, 2000);
+  const summerPracticeNotes = strOrUndef(body.summerPracticeNotes, 2000);
+  const summerJerseyNotes = strOrUndef(body.summerJerseyNotes, 2000);
+  const summerOther = strOrUndef(body.summerOther, 2000);
+
+  // Every summer field is mandatory once a member says they played.
+  if (memberSession && summerPlayed === 'yes') {
+    const need = 'Every field in the summer feedback section is required.';
+    if (!summerFeltIncluded) errors.push(need);
+    if (!summerExperienceNotes) errors.push(need);
+    if (summerTeamsPlayedFor.length === 0) errors.push('Pick at least one summer team.');
+    if (!summerNotifiedBeforeXI) errors.push(need);
+    if (!summerUmpired) errors.push(need);
+    if (!summerTeamImprovement) errors.push(need);
+    if (!summerTeamSuggestions) errors.push(need);
+    if (!summerPracticeNotes) errors.push(need);
+    if (!summerJerseyNotes) errors.push(need);
+    if (!summerOther) errors.push(need);
+    for (const team of summerTeamsPlayedFor) {
+      const fb = summerLeadershipFeedback[summerSlug(team)];
+      if (!fb?.captain) errors.push(`Add feedback for the ${team} captain.`);
+      if (!fb?.viceCaptain) errors.push(`Add feedback for the ${team} vice-captain.`);
+    }
   }
 
   // --- Optional / bounded fields ---
@@ -181,7 +234,8 @@ export const handler: Handler = async (
   }
 
   if (errors.length > 0) {
-    return { statusCode: 400, body: JSON.stringify({ error: errors.join(' '), errors }) };
+    const unique = Array.from(new Set(errors));
+    return { statusCode: 400, body: JSON.stringify({ error: unique.join(' '), errors: unique }) };
   }
 
   const now = new Date().toISOString();
@@ -260,10 +314,7 @@ export const handler: Handler = async (
     nccaUmpireCertified: nccaRaw === 'yes',
     volunteerRoles: strArray(body.volunteerRoles, 60),
 
-    feeAcknowledged: str(body.feeAcknowledged) === 'yes' || body.feeAcknowledged === true,
-    paymentStatus: oneOf(body.paymentStatus, PAYMENT) as
-      | WinterCheckInResponse['paymentStatus']
-      | undefined,
+    liabilityAccepted,
 
     employmentStatus: oneOf(body.employmentStatus, EMPLOYMENT) as
       | WinterCheckInResponse['employmentStatus']
@@ -279,26 +330,24 @@ export const handler: Handler = async (
     ...(memberSession
       ? {
           summerPlayed: summerPlayed as WinterCheckInResponse['summerPlayed'],
-          summerFeltIncluded: oneOf(body.summerFeltIncluded, SUMMER_FELT) as
+          summerFeltIncluded: summerFeltIncluded as
             | WinterCheckInResponse['summerFeltIncluded']
             | undefined,
-          summerExperienceNotes: strOrUndef(body.summerExperienceNotes, 2000),
-          summerTeamsPlayedFor: strArray(body.summerTeamsPlayedFor, 40).filter((t) =>
-            SUMMER_TEAMS.includes(t)
-          ),
-          summerNotifiedBeforeXI: oneOf(body.summerNotifiedBeforeXI, SUMMER_NOTIFIED) as
+          summerExperienceNotes,
+          summerTeamsPlayedFor,
+          summerNotifiedBeforeXI: summerNotifiedBeforeXI as
             | WinterCheckInResponse['summerNotifiedBeforeXI']
             | undefined,
-          summerCaptainFeedback: strOrUndef(body.summerCaptainFeedback, 2000),
-          summerViceCaptainFeedback: strOrUndef(body.summerViceCaptainFeedback, 2000),
-          summerTeamImprovement: strOrUndef(body.summerTeamImprovement, 2000),
-          summerTeamSuggestions: strOrUndef(body.summerTeamSuggestions, 2000),
-          summerPracticeNotes: strOrUndef(body.summerPracticeNotes, 2000),
-          summerSponsorUsage: oneOf(body.summerSponsorUsage, SUMMER_SPONSOR) as
-            | WinterCheckInResponse['summerSponsorUsage']
-            | undefined,
-          summerJerseyNotes: strOrUndef(body.summerJerseyNotes, 2000),
-          summerOther: strOrUndef(body.summerOther, 2000),
+          summerUmpired: summerUmpired as WinterCheckInResponse['summerUmpired'] | undefined,
+          summerLeadershipFeedback:
+            Object.keys(summerLeadershipFeedback).length > 0
+              ? summerLeadershipFeedback
+              : undefined,
+          summerTeamImprovement,
+          summerTeamSuggestions,
+          summerPracticeNotes,
+          summerJerseyNotes,
+          summerOther,
         }
       : {}),
   };

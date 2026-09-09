@@ -60,14 +60,14 @@ export const SITE_CONFIG = {
         seasonWindow: 'October 2026 – March 2027',
         seasonStart: '2026-10-01',
         seasonEnd: '2027-03-31',
-        feeAmount: '$300',
-        feeCovers:
-            'league registration, match balls, umpiring fees and home-ground charges across all three teams (Tigers, Bulls & ThunderCats).',
-        paymentMethod: 'Zelle to gsbengalsinc@gmail.com with the subject "Winter 2026"',
-        expectedGames: '9–12 games for players who stay available through the season. First preference goes to paid full-time members.',
+        feeNote:
+            "We'll confirm the exact amount once we have registration information from NCCA.",
         blackoutNote: 'No games between Dec 15 and Jan 2, or on holiday weekends (Diwali, Halloween, etc.).',
-        homeGrounds: 'White-ball home ground: Livermore · Pink-ball home ground: San Jose. Games are on weekends only.',
         teams: ['Tigers', 'Bulls', 'ThunderCats'],
+
+        // Shown under "Yes — count me in"; also the checkbox waiver label.
+        liabilityText:
+            "I'm joining of my own free will and take part at my own risk. Golden State Cricket Club and Bengals Inc. aren't liable for any injury, illness, or loss arising from my participation.",
 
         // Summer '26 season feedback — a member-only block on the same form,
         // reviewed on its own admin page (/admin/summer-feedback).

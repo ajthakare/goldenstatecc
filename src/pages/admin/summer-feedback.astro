@@ -170,9 +170,7 @@ const seasonLabel = SITE_CONFIG.winterCheckIn.summerFeedback?.seasonLabel ?? 'Su
 
   const FELT = { yes: 'Yes', no: 'No', 'at-times': 'At times' } as Record<string, string>;
   const NOTIFIED = { yes: 'Yes', no: 'No', na: 'N/A' } as Record<string, string>;
-  const SPONSOR = {
-    '1': '1', '2': '2', '3': '3', 'more-than-3': 'More than 3', never: 'Never',
-  } as Record<string, string>;
+  const YESNO = { yes: 'Yes', no: 'No' } as Record<string, string>;
 
   type Row = Record<string, unknown> & { id: string };
   let rows: Row[] = [];
@@ -188,8 +186,15 @@ const seasonLabel = SITE_CONFIG.winterCheckIn.summerFeedback?.seasonLabel ?? 'Su
     if (Array.isArray(value)) return value.length ? value.join(', ') : '—';
     if (key === 'summerFeltIncluded') return FELT[String(value)] || String(value);
     if (key === 'summerNotifiedBeforeXI') return NOTIFIED[String(value)] || String(value);
-    if (key === 'summerSponsorUsage') return SPONSOR[String(value)] || String(value);
+    if (key === 'summerUmpired') return YESNO[String(value)] || String(value);
     if (key === 'updatedAt') return new Date(String(value)).toLocaleString();
+    if (key === 'summerLeadershipFeedback' && typeof value === 'object') {
+      const parts = Object.entries(value as Record<string, any>).map(
+        ([team, fb]) =>
+          `${team} — captain: ${fb?.captain || '—'} · vice-captain: ${fb?.viceCaptain || '—'}`
+      );
+      return parts.length ? parts.join('\n') : '—';
+    }
     return String(value);
   }
 
@@ -198,8 +203,8 @@ const seasonLabel = SITE_CONFIG.winterCheckIn.summerFeedback?.seasonLabel ?? 'Su
       ['Responses', s.total],
       ['Felt included', `${s.feltIncluded.yes} yes / ${s.feltIncluded['at-times']} at times / ${s.feltIncluded.no} no`],
       ['Notified before XI', `${s.notifiedBeforeXI.yes} yes / ${s.notifiedBeforeXI.no} no / ${s.notifiedBeforeXI.na} n/a`],
+      ['Umpired this season', `${s.umpired?.yes ?? 0} yes / ${s.umpired?.no ?? 0} no`],
       ...teams.map((t) => [t, s.byTeam?.[t] ?? 0] as [string, number]),
-      ['Pizza discount — never', s.sponsorUsage?.never ?? 0],
     ];
     statsGrid.innerHTML = tiles
       .map(
@@ -248,9 +253,15 @@ const seasonLabel = SITE_CONFIG.winterCheckIn.summerFeedback?.seasonLabel ?? 'Su
     const r = rows.find((x) => x.id === id);
     if (!r) return;
     modalTitle.textContent = `${r.firstName ?? ''} ${r.lastName ?? ''}`.trim() || 'Feedback';
-    modalBody.innerHTML = SUMMER_FEEDBACK_COLUMNS.map(
+    const rows2 = SUMMER_FEEDBACK_COLUMNS.map(
       ({ key, label }) => `<dt>${label}</dt><dd>${esc(fmt(key as string, (r as any)[key]))}</dd>`
-    ).join('');
+    );
+    rows2.push(
+      `<dt>Captain / vice-captain feedback</dt><dd>${esc(
+        fmt('summerLeadershipFeedback', (r as any).summerLeadershipFeedback)
+      )}</dd>`
+    );
+    modalBody.innerHTML = rows2.join('');
     show(modal, true);
   }
   const closeModal = () => show(modal, false);

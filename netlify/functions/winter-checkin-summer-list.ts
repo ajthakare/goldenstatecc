@@ -41,6 +41,7 @@ export const handler: Handler = async (
       .map((r) => {
         const projected: Record<string, unknown> = { id: r.id };
         for (const { key } of SUMMER_FEEDBACK_COLUMNS) projected[key] = r[key];
+        projected.summerLeadershipFeedback = r.summerLeadershipFeedback ?? {};
         return projected;
       });
 
@@ -48,7 +49,7 @@ export const handler: Handler = async (
       total: rows.length,
       feltIncluded: { yes: 0, no: 0, 'at-times': 0 },
       notifiedBeforeXI: { yes: 0, no: 0, na: 0 },
-      sponsorUsage: { '1': 0, '2': 0, '3': 0, 'more-than-3': 0, never: 0 },
+      umpired: { yes: 0, no: 0 },
       byTeam: {},
     };
     for (const team of wc.summerFeedback?.teams ?? []) summary.byTeam[team] = 0;
@@ -58,8 +59,8 @@ export const handler: Handler = async (
       if (fi && fi in summary.feltIncluded) summary.feltIncluded[fi] += 1;
       const nb = r.summerNotifiedBeforeXI as keyof SummerFeedbackSummary['notifiedBeforeXI'] | undefined;
       if (nb && nb in summary.notifiedBeforeXI) summary.notifiedBeforeXI[nb] += 1;
-      const su = r.summerSponsorUsage as keyof SummerFeedbackSummary['sponsorUsage'] | undefined;
-      if (su && su in summary.sponsorUsage) summary.sponsorUsage[su] += 1;
+      const um = r.summerUmpired as keyof SummerFeedbackSummary['umpired'] | undefined;
+      if (um && um in summary.umpired) summary.umpired[um] += 1;
       for (const team of (r.summerTeamsPlayedFor as string[] | undefined) ?? []) {
         summary.byTeam[team] = (summary.byTeam[team] || 0) + 1;
       }

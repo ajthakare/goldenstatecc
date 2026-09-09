@@ -14,7 +14,13 @@ export type JerseySize = 'S' | 'M' | 'L' | 'XL' | 'XXL';
 export type SummerPlayed = 'yes' | 'no';
 export type SummerFeltIncluded = 'yes' | 'no' | 'at-times';
 export type SummerNotified = 'yes' | 'no' | 'na';
-export type SummerSponsorUsage = '1' | '2' | '3' | 'more-than-3' | 'never';
+export type SummerUmpired = 'yes' | 'no';
+
+/** Per-team captain / vice-captain feedback, keyed by team name. */
+export type SummerLeadershipFeedback = Record<
+  string,
+  { captain?: string; viceCaptain?: string }
+>;
 
 export interface WinterCheckInResponse {
   id: string;
@@ -71,7 +77,10 @@ export interface WinterCheckInResponse {
   nccaUmpireCertified: boolean;
   volunteerRoles: string[];
 
-  feeAcknowledged: boolean;
+  liabilityAccepted?: boolean;
+
+  // Retired: fees are now "TBC" so nothing is collected here.
+  feeAcknowledged?: boolean;
   paymentStatus?: PaymentStatus;
 
   employmentStatus?: EmploymentStatus;
@@ -88,12 +97,11 @@ export interface WinterCheckInResponse {
   summerExperienceNotes?: string;
   summerTeamsPlayedFor?: string[];
   summerNotifiedBeforeXI?: SummerNotified;
-  summerCaptainFeedback?: string;
-  summerViceCaptainFeedback?: string;
+  summerUmpired?: SummerUmpired;
+  summerLeadershipFeedback?: SummerLeadershipFeedback;
   summerTeamImprovement?: string;
   summerTeamSuggestions?: string;
   summerPracticeNotes?: string;
-  summerSponsorUsage?: SummerSponsorUsage;
   summerJerseyNotes?: string;
   summerOther?: string;
 }
@@ -108,8 +116,6 @@ export interface WinterCheckInSummary {
   members: number;
   guests: number;
   jerseysNeeded: number;
-  feePaid: number;
-  feeOutstanding: number; // "in" and not yet paid
   umpiresCertified: number;
   byTeamPreference: Record<string, number>;
 }
@@ -154,8 +160,7 @@ export const WINTER_CHECKIN_COLUMNS: Array<{ key: keyof WinterCheckInResponse; l
   { key: 'nccaUmpireCertified', label: 'NCCA umpire' },
   { key: 'volunteerRoles', label: 'Can help with' },
   { key: 'membershipAcknowledged', label: 'Membership acknowledged' },
-  { key: 'feeAcknowledged', label: 'Fee acknowledged' },
-  { key: 'paymentStatus', label: 'Payment' },
+  { key: 'liabilityAccepted', label: 'Liability waiver accepted' },
   { key: 'employmentStatus', label: 'Employment' },
   { key: 'jobCompany', label: 'Company' },
   { key: 'jobTitle', label: 'Job title' },
@@ -170,10 +175,12 @@ export interface SummerFeedbackSummary {
   total: number;
   feltIncluded: { yes: number; no: number; 'at-times': number };
   notifiedBeforeXI: { yes: number; no: number; na: number };
-  sponsorUsage: Record<SummerSponsorUsage, number>;
+  umpired: { yes: number; no: number };
   byTeam: Record<string, number>;
 }
 
+// Flat columns for the summer CSV / admin table. Per-team captain & vice-captain
+// feedback lives in `summerLeadershipFeedback` and is expanded separately.
 export const SUMMER_FEEDBACK_COLUMNS: Array<{ key: keyof WinterCheckInResponse; label: string }> = [
   { key: 'updatedAt', label: 'Updated' },
   { key: 'firstName', label: 'First name' },
@@ -183,12 +190,10 @@ export const SUMMER_FEEDBACK_COLUMNS: Array<{ key: keyof WinterCheckInResponse; 
   { key: 'summerFeltIncluded', label: 'Felt included' },
   { key: 'summerExperienceNotes', label: 'Experience' },
   { key: 'summerNotifiedBeforeXI', label: 'Notified before XI' },
-  { key: 'summerCaptainFeedback', label: 'Captain feedback' },
-  { key: 'summerViceCaptainFeedback', label: 'Vice-captain feedback' },
+  { key: 'summerUmpired', label: 'Umpired this season' },
   { key: 'summerTeamImprovement', label: 'Team improvement' },
   { key: 'summerTeamSuggestions', label: 'Team suggestions' },
   { key: 'summerPracticeNotes', label: 'Practice timings' },
-  { key: 'summerSponsorUsage', label: 'Pizza discount used' },
-  { key: 'summerJerseyNotes', label: 'Jersey (quality & price)' },
+  { key: 'summerJerseyNotes', label: 'Jersey feedback' },
   { key: 'summerOther', label: 'Anything else (summer)' },
 ];
