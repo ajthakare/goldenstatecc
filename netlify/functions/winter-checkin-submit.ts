@@ -9,12 +9,9 @@ import type { WinterCheckInResponse } from '../../src/types/winter';
 const wc = SITE_CONFIG.winterCheckIn;
 const RESPONSES_KEY = `responses-${wc.seasonKey}`;
 
-const PARTICIPATION = ['in', 'break', 'out', 'enquiring'];
+const PARTICIPATION = ['in', 'out', 'transfer', 'enquiring'];
 const WEEKEND_FREQ = ['most', 'half', 'occasional'];
 const COMMITMENT = ['full-time', 'part-time'];
-const PREFERRED_DAY = ['sat', 'sun', 'either'];
-const PRACTICE = ['regular', 'sometimes', 'no'];
-const VOLUME = ['max', 'some', 'fill-in'];
 const LEADERSHIP = ['captain', 'vice-captain', 'none'];
 const EMPLOYMENT = ['employed', 'student'];
 const JERSEY_SIZE = ['S', 'M', 'L', 'XL', 'XXL'];
@@ -285,20 +282,10 @@ export const handler: Handler = async (
     availabilityCommitment: availabilityCommitment as
       | WinterCheckInResponse['availabilityCommitment']
       | undefined,
-    preferredDay: oneOf(body.preferredDay, PREFERRED_DAY) as
-      | WinterCheckInResponse['preferredDay']
-      | undefined,
-    practiceAvailability: oneOf(body.practiceAvailability, PRACTICE) as
-      | WinterCheckInResponse['practiceAvailability']
-      | undefined,
     awayFrom,
     awayTo,
 
     goals,
-    desiredVolume: oneOf(body.desiredVolume, VOLUME) as
-      | WinterCheckInResponse['desiredVolume']
-      | undefined,
-    teamPreference: strOrUndef(body.teamPreference, 80),
     leadershipInterest: oneOf(body.leadershipInterest, LEADERSHIP) as
       | WinterCheckInResponse['leadershipInterest']
       | undefined,

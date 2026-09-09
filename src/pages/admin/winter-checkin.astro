@@ -46,8 +46,8 @@ if (!isAdminUser) return Astro.redirect('/');
       <select id="wc-filter-participation" class="wc-select">
         <option value="">All responses</option>
         <option value="in">Playing</option>
-        <option value="break">Taking a break</option>
         <option value="out">Not playing</option>
+        <option value="transfer">Transferring club</option>
         <option value="enquiring">Enquiries</option>
       </select>
       <select id="wc-filter-via" class="wc-select">
@@ -148,8 +148,8 @@ if (!isAdminUser) return Astro.redirect('/');
     line-height: 1.5;
   }
   .wc-pill.in { background: #dcfce7; color: #166534; }
-  .wc-pill.break { background: #fef9c3; color: #854d0e; }
   .wc-pill.out { background: #fee2e2; color: #991b1b; }
+  .wc-pill.transfer { background: #fef9c3; color: #854d0e; }
   .wc-pill.enquiring { background: #e0f2fe; color: #075985; }
   .wc-pill.member { background: #e0e7ff; color: #3730a3; }
   .wc-pill.guest { background: #f1f5f9; color: #475569; }
@@ -262,10 +262,7 @@ if (!isAdminUser) return Astro.redirect('/');
   const modalDelete = $<HTMLButtonElement>('wc-modal-delete');
 
   const PARTICIPATION_LABEL: Record<string, string> = {
-    in: 'Playing', break: 'Break', out: 'Not playing', enquiring: 'Enquiry',
-  };
-  const VOLUME_LABEL: Record<string, string> = {
-    max: 'As much as possible', some: 'A handful', 'fill-in': 'When short',
+    in: 'Playing', out: 'Not playing', transfer: 'Transfer', enquiring: 'Enquiry',
   };
   const WEEKEND_LABEL: Record<string, string> = {
     most: 'Most', half: 'About half', occasional: 'Occasionally',
@@ -284,8 +281,6 @@ if (!isAdminUser) return Astro.redirect('/');
     { label: 'Weekends', sortKey: 'weekendFrequency', get: (r) => WEEKEND_LABEL[r.weekendFrequency] || '—' },
     { label: 'Commitment', sortKey: 'availabilityCommitment', get: (r) => r.availabilityCommitment === 'full-time' ? 'Full-time' : r.availabilityCommitment === 'part-time' ? 'Part-time' : '—' },
     { label: 'Away months', sortKey: 'unavailableMonths', cls: 'wc-wrap', get: (r) => (r.unavailableMonths || []).join(', ') || '—' },
-    { label: 'Team pref', sortKey: 'teamPreference', get: (r) => r.teamPreference || 'Any' },
-    { label: 'Wants', sortKey: 'desiredVolume', get: (r) => VOLUME_LABEL[r.desiredVolume || ''] || '—' },
     { label: 'Leadership', sortKey: 'leadershipInterest', get: (r) => LEADERSHIP_LABEL[r.leadershipInterest || ''] || '—' },
     { label: 'NCCA ump', sortKey: 'nccaUmpireCertified', get: (r) => (r.nccaUmpireCertified ? 'Yes' : 'No') },
     { label: 'Jersey', sortKey: 'jerseyNeeds', cls: 'wc-wrap', get: (r) => (r.jerseyNeeds || []).join(', ') || '—' },
@@ -303,7 +298,8 @@ if (!isAdminUser) return Astro.redirect('/');
     const tiles: Array<[string, string | number, string?]> = [
       ['Total responses', s.total],
       ['Playing', s.in, 'stat-success'],
-      ['Break / out', (s.break || 0) + (s.out || 0)],
+      ['Not playing', s.out || 0],
+      ['Transferring club', s.transfer || 0],
       ['Prospective players', s.prospective || 0],
       ['Enquiries', s.enquiring || 0],
       ['Members / guests', `${s.members} / ${s.guests}`],

@@ -91,12 +91,9 @@ const BOWLING_STYLES = [
 ];
 const MONTHS = ['October', 'November', 'December', 'January', 'February', 'March'];
 const VOLUNTEER_ROLES = [
-  'Scoring',
-  'Umpiring',
-  'Bringing kit / gear',
-  'Ground setup',
+  'Live streaming games',
+  'Practice help',
   'Photos / social media',
-  'Logistics & scheduling',
   'Helping newer players',
 ];
 const JERSEY_OPTIONS = [
@@ -104,6 +101,8 @@ const JERSEY_OPTIONS = [
   'Coloured jersey + pants',
   'Whites (pink-ball)',
   'Whites + pants',
+  'Cap',
+  'Hat',
 ];
 const JERSEY_SIZES: Array<{ value: string; label: string }> = [
   { value: 'S', label: 'Small (S)' },
@@ -195,14 +194,14 @@ const summerSlug = (team: string) => team.replace(/[^A-Za-z0-9]/g, '');
           ) : (
             <>
               <label class="wc-opt"><input type="radio" name="participation" value="in" required /> Yes &mdash; count me in</label>
-              <label class="wc-opt"><input type="radio" name="participation" value="break" /> Taking a break this winter</label>
-              <label class="wc-opt"><input type="radio" name="participation" value="out" /> No &mdash; sitting this one out</label>
+              <label class="wc-opt"><input type="radio" name="participation" value="out" /> Not playing this winter</label>
+              <label class="wc-opt"><input type="radio" name="participation" value="transfer" /> Transferring to another club</label>
             </>
           )}
         </div>
         <div class="wc-field" id="wc-reason-wrap" data-sec="reason" hidden>
-          <label for="wc-reason">What's the main reason you're not playing? <span class="wc-opt-tag">optional</span></label>
-          <p class="wc-hint">Travel, cost, time, fitness, form &mdash; it just helps us plan and follow up.</p>
+          <label for="wc-reason">Anything you'd like to tell us? <span class="wc-opt-tag">optional</span></label>
+          <p class="wc-hint">Travel, cost, time, form, which club you're moving to &mdash; it just helps us plan and follow up.</p>
           <textarea id="wc-reason" name="notPlayingReason" class="input w-full" rows="2"></textarea>
         </div>
         <div data-sec="liability" hidden>
@@ -386,24 +385,6 @@ const summerSlug = (team: string) => team.replace(/[^A-Za-z0-9]/g, '');
             </label>
           </div>
         </div>
-        <div class="wc-grid-2">
-          <div class="wc-field">
-            <span class="wc-label">Preferred match day</span>
-            <div class="wc-group wc-group-inline" role="radiogroup" aria-label="Preferred day">
-              <label class="wc-opt"><input type="radio" name="preferredDay" value="sat" /> Saturday</label>
-              <label class="wc-opt"><input type="radio" name="preferredDay" value="sun" /> Sunday</label>
-              <label class="wc-opt"><input type="radio" name="preferredDay" value="either" /> Either</label>
-            </div>
-          </div>
-          <div class="wc-field">
-            <span class="wc-label">Weekday practice / nets</span>
-            <div class="wc-group wc-group-inline" role="radiogroup" aria-label="Practice availability">
-              <label class="wc-opt"><input type="radio" name="practiceAvailability" value="regular" /> Regularly</label>
-              <label class="wc-opt"><input type="radio" name="practiceAvailability" value="sometimes" /> Sometimes</label>
-              <label class="wc-opt"><input type="radio" name="practiceAvailability" value="no" /> No</label>
-            </div>
-          </div>
-        </div>
         <div class="wc-field">
           <span class="wc-label">Dates you already know you're away <span class="wc-opt-tag">optional</span></span>
           <p class="wc-hint">One trip you're already sure about &mdash; mention any others in the notes at the end.</p>
@@ -440,28 +421,11 @@ const summerSlug = (team: string) => team.replace(/[^A-Za-z0-9]/g, '');
           <textarea id="wc-goals" name="goals" class="input w-full" rows="3"></textarea>
         </div>
         <div class="wc-field">
-          <span class="wc-label">How much do you want to play?</span>
-          <div class="wc-group" role="radiogroup" aria-label="Desired volume">
-            <label class="wc-opt"><input type="radio" name="desiredVolume" value="max" /> As many matches as possible</label>
-            <label class="wc-opt"><input type="radio" name="desiredVolume" value="some" /> A handful across the season is plenty</label>
-            <label class="wc-opt"><input type="radio" name="desiredVolume" value="fill-in" /> Only when the team's short</label>
-          </div>
-        </div>
-        <div class="wc-grid-2">
-          <div class="wc-field">
-            <label for="wc-team">Team you're aiming for <span class="wc-opt-tag">optional</span></label>
-            <select id="wc-team" name="teamPreference" class="input w-full">
-              <option value="">Wherever I'm needed</option>
-              {wc.teams.map((t) => <option>{t}</option>)}
-            </select>
-          </div>
-          <div class="wc-field">
-            <span class="wc-label">Interested in a leadership role?</span>
-            <div class="wc-group wc-group-inline" role="radiogroup" aria-label="Leadership interest">
-              <label class="wc-opt"><input type="radio" name="leadershipInterest" value="captain" /> Captain</label>
-              <label class="wc-opt"><input type="radio" name="leadershipInterest" value="vice-captain" /> Vice-captain</label>
-              <label class="wc-opt"><input type="radio" name="leadershipInterest" value="none" /> Not this season</label>
-            </div>
+          <span class="wc-label">Interested in a leadership role?</span>
+          <div class="wc-group wc-group-inline" role="radiogroup" aria-label="Leadership interest">
+            <label class="wc-opt"><input type="radio" name="leadershipInterest" value="captain" /> Captain</label>
+            <label class="wc-opt"><input type="radio" name="leadershipInterest" value="vice-captain" /> Vice-captain</label>
+            <label class="wc-opt"><input type="radio" name="leadershipInterest" value="none" /> Not this season</label>
           </div>
         </div>
         <div class="wc-field">
@@ -635,7 +599,7 @@ const summerSlug = (team: string) => team.replace(/[^A-Za-z0-9]/g, '');
               <textarea id="wc-sum-jersey" name="summerJerseyNotes" class="input w-full" rows="2"></textarea>
             </div>
             <div class="wc-field">
-              <label for="wc-sum-other">Anything else about the summer season? <span class="wc-req">*</span></label>
+              <label for="wc-sum-other">Any feedback for the club to improve on? <span class="wc-req">*</span></label>
               <textarea id="wc-sum-other" name="summerOther" class="input w-full" rows="2"></textarea>
             </div>
           </div>
@@ -1089,7 +1053,7 @@ const summerSlug = (team: string) => team.replace(/[^A-Za-z0-9]/g, '');
     const loggedIn = form.dataset.loggedIn === 'true';
     const p = participationValue();
     const playing = p === 'in';
-    const notPlaying = p === 'break' || p === 'out';
+    const notPlaying = p === 'out' || p === 'transfer';
     const enquiring = p === 'enquiring';
 
     setSec('reason', notPlaying);
@@ -1186,7 +1150,12 @@ const summerSlug = (team: string) => team.replace(/[^A-Za-z0-9]/g, '');
       });
       return;
     }
-    (first as HTMLInputElement).value = value == null ? '' : String(value);
+    // Some names appear twice in the DOM (e.g. `goals` on both the "wants" and
+    // the guest "looking for" sections) — set every match so the visible one wins.
+    const v = value == null ? '' : String(value);
+    nodes.forEach((node) => {
+      (node as HTMLInputElement).value = v;
+    });
   }
 
   function fillForm(data: Record<string, unknown>) {

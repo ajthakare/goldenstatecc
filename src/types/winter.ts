@@ -1,11 +1,8 @@
 // Winter Season Check-In — shared types & field metadata
 // Used by the public form, the submit/list/export functions and the admin view.
 
-export type Participation = 'in' | 'break' | 'out' | 'enquiring';
+export type Participation = 'in' | 'out' | 'transfer' | 'enquiring';
 export type WeekendFrequency = 'most' | 'half' | 'occasional';
-export type PreferredDay = 'sat' | 'sun' | 'either';
-export type PracticeAvailability = 'regular' | 'sometimes' | 'no';
-export type DesiredVolume = 'max' | 'some' | 'fill-in';
 export type LeadershipInterest = 'captain' | 'vice-captain' | 'none';
 export type PaymentStatus = 'paid' | 'will-pay' | 'discuss';
 export type EmploymentStatus = 'employed' | 'student';
@@ -58,14 +55,10 @@ export interface WinterCheckInResponse {
   unavailableMonths: string[];
   weekendFrequency: WeekendFrequency;
   availabilityCommitment?: AvailabilityCommitment;
-  preferredDay?: PreferredDay;
-  practiceAvailability?: PracticeAvailability;
   awayFrom?: string;
   awayTo?: string;
 
   goals: string;
-  desiredVolume?: DesiredVolume;
-  teamPreference?: string;
   leadershipInterest?: LeadershipInterest;
   goodSeasonLooksLike?: string;
 
@@ -109,15 +102,14 @@ export interface WinterCheckInResponse {
 export interface WinterCheckInSummary {
   total: number;
   in: number;
-  break: number;
   out: number;
+  transfer: number;
   enquiring: number;
   prospective: number; // guests who said "I'd like to play"
   members: number;
   guests: number;
   jerseysNeeded: number;
   umpiresCertified: number;
-  byTeamPreference: Record<string, number>;
 }
 
 // Ordered column set for CSV export and the admin table.
@@ -144,13 +136,9 @@ export const WINTER_CHECKIN_COLUMNS: Array<{ key: keyof WinterCheckInResponse; l
   { key: 'unavailableMonths', label: 'Away months' },
   { key: 'weekendFrequency', label: 'Weekends' },
   { key: 'availabilityCommitment', label: 'Commitment' },
-  { key: 'preferredDay', label: 'Preferred day' },
-  { key: 'practiceAvailability', label: 'Nets' },
   { key: 'awayFrom', label: 'Away from' },
   { key: 'awayTo', label: 'Away until' },
   { key: 'goals', label: 'Goals for the season' },
-  { key: 'desiredVolume', label: 'Wants to play' },
-  { key: 'teamPreference', label: 'Team preference' },
   { key: 'leadershipInterest', label: 'Leadership' },
   { key: 'goodSeasonLooksLike', label: 'Good season =' },
   { key: 'jerseyNeeds', label: 'Jersey needs' },
@@ -195,5 +183,5 @@ export const SUMMER_FEEDBACK_COLUMNS: Array<{ key: keyof WinterCheckInResponse; 
   { key: 'summerTeamSuggestions', label: 'Team suggestions' },
   { key: 'summerPracticeNotes', label: 'Practice timings' },
   { key: 'summerJerseyNotes', label: 'Jersey feedback' },
-  { key: 'summerOther', label: 'Anything else (summer)' },
+  { key: 'summerOther', label: 'Feedback for the club' },
 ];

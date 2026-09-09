@@ -63,7 +63,6 @@ export const SITE_CONFIG = {
         feeNote:
             "We'll confirm the exact amount once we have registration information from NCCA.",
         blackoutNote: 'No games between Dec 15 and Jan 2, or on holiday weekends (Diwali, Halloween, etc.).',
-        teams: ['Tigers', 'Bulls', 'ThunderCats'],
 
         // Shown under "Yes — count me in"; also the checkbox waiver label.
         liabilityText:
