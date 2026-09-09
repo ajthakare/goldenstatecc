@@ -264,9 +264,6 @@ if (!isAdminUser) return Astro.redirect('/');
   const PARTICIPATION_LABEL: Record<string, string> = {
     in: 'Playing', break: 'Break', out: 'Not playing', enquiring: 'Enquiry',
   };
-  const VOLUME_LABEL: Record<string, string> = {
-    max: 'As much as possible', some: 'A handful', 'fill-in': 'When short',
-  };
   const WEEKEND_LABEL: Record<string, string> = {
     most: 'Most', half: 'About half', occasional: 'Occasionally',
   };
@@ -284,8 +281,6 @@ if (!isAdminUser) return Astro.redirect('/');
     { label: 'Weekends', sortKey: 'weekendFrequency', get: (r) => WEEKEND_LABEL[r.weekendFrequency] || '—' },
     { label: 'Commitment', sortKey: 'availabilityCommitment', get: (r) => r.availabilityCommitment === 'full-time' ? 'Full-time' : r.availabilityCommitment === 'part-time' ? 'Part-time' : '—' },
     { label: 'Away months', sortKey: 'unavailableMonths', cls: 'wc-wrap', get: (r) => (r.unavailableMonths || []).join(', ') || '—' },
-    { label: 'Team pref', sortKey: 'teamPreference', get: (r) => r.teamPreference || 'Any' },
-    { label: 'Wants', sortKey: 'desiredVolume', get: (r) => VOLUME_LABEL[r.desiredVolume || ''] || '—' },
     { label: 'Leadership', sortKey: 'leadershipInterest', get: (r) => LEADERSHIP_LABEL[r.leadershipInterest || ''] || '—' },
     { label: 'NCCA ump', sortKey: 'nccaUmpireCertified', get: (r) => (r.nccaUmpireCertified ? 'Yes' : 'No') },
     { label: 'Jersey', sortKey: 'jerseyNeeds', cls: 'wc-wrap', get: (r) => (r.jerseyNeeds || []).join(', ') || '—' },

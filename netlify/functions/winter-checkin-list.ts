@@ -43,7 +43,6 @@ export const handler: Handler = async (
       guests: 0,
       jerseysNeeded: 0,
       umpiresCertified: 0,
-      byTeamPreference: {},
     };
 
     for (const r of all) {
@@ -56,8 +55,6 @@ export const handler: Handler = async (
       if (r.submittedVia === 'guest' && r.participation === 'in') summary.prospective += 1;
       if (r.jerseyNeeds && r.jerseyNeeds.length > 0) summary.jerseysNeeded += 1;
       if (r.nccaUmpireCertified) summary.umpiresCertified += 1;
-      const team = r.teamPreference || 'No preference';
-      summary.byTeamPreference[team] = (summary.byTeamPreference[team] || 0) + 1;
     }
 
     return {
