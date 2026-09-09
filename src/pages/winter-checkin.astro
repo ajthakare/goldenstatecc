@@ -377,11 +377,6 @@ const summerSlug = (team: string) => team.replace(/[^A-Za-z0-9]/g, '');
         </div>
         <div class="wc-field">
           <span class="wc-label">Are you committing full-time or part-time this winter? <span class="wc-req">*</span></span>
-          <p class="wc-hint">
-            Full-time = you're in the squad every week you're available. Part-time = you'll
-            play when we're short or when it suits you. First selection preference goes to
-            full-time members.
-          </p>
           <div class="wc-group" role="radiogroup" aria-label="Availability commitment">
             <label class="wc-opt">
               <input type="radio" name="availabilityCommitment" value="full-time" checked={member?.isFullTimeMember === true} /> Full-time
