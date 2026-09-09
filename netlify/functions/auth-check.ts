@@ -76,6 +76,7 @@ export const handler: Handler = async (
       emergencyContactNumber: player.emergencyContactNumber,
       jobCompany: player.jobCompany,
       jobTitle: player.jobTitle,
+      isFullTimeMember: player.isFullTimeMember ?? false,
     };
 
     return {
