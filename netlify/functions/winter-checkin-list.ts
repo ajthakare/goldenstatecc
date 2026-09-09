@@ -42,8 +42,6 @@ export const handler: Handler = async (
       members: 0,
       guests: 0,
       jerseysNeeded: 0,
-      feePaid: 0,
-      feeOutstanding: 0,
       umpiresCertified: 0,
       byTeamPreference: {},
     };
@@ -57,8 +55,6 @@ export const handler: Handler = async (
       else summary.guests += 1;
       if (r.submittedVia === 'guest' && r.participation === 'in') summary.prospective += 1;
       if (r.jerseyNeeds && r.jerseyNeeds.length > 0) summary.jerseysNeeded += 1;
-      if (r.paymentStatus === 'paid') summary.feePaid += 1;
-      if (r.participation === 'in' && r.paymentStatus !== 'paid') summary.feeOutstanding += 1;
       if (r.nccaUmpireCertified) summary.umpiresCertified += 1;
       const team = r.teamPreference || 'No preference';
       summary.byTeamPreference[team] = (summary.byTeamPreference[team] || 0) + 1;
