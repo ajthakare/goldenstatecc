@@ -14,6 +14,50 @@ try {
 
 const seasonTeams = activeSeason?.teams ?? [];
 
+// Fetch this season's fixtures to derive each team's record + recent form
+let seasonFixtures: any[] = [];
+if (activeSeason?.id) {
+    try {
+        const res = await fetch(`${Astro.url.origin}/.netlify/functions/fixtures-list?seasonId=${activeSeason.id}`);
+        if (res.ok) seasonFixtures = await res.json();
+    } catch (e) {}
+}
+
+const RESULT_PILL: Record<string, { letter: string; label: string; cls: string }> = {
+    win:       { letter: 'W', label: 'Won',       cls: 'bg-green-500 text-white' },
+    loss:      { letter: 'L', label: 'Lost',      cls: 'bg-red-500 text-white' },
+    tie:       { letter: 'T', label: 'Tied',      cls: 'bg-yellow-500 text-white' },
+    abandoned: { letter: 'A', label: 'Abandoned', cls: 'bg-gray-400 text-white' },
+    forfeit:   { letter: 'F', label: 'Forfeit',   cls: 'bg-gray-400 text-white' },
+};
+
+function fmtShortDate(d: string) {
+    const [y, m, day] = String(d).split('-').map(Number);
+    if (!y || !m || !day) return d;
+    return new Date(y, m - 1, day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// fixtures-list returns fixtures sorted by date ascending
+function getTeamRecord(teamName: string) {
+    const played = seasonFixtures.filter(
+        (f) => f.team === teamName && f.result && RESULT_PILL[f.result]
+    );
+    let win = 0, loss = 0, tie = 0, other = 0;
+    for (const f of played) {
+        if (f.result === 'win') win++;
+        else if (f.result === 'loss') loss++;
+        else if (f.result === 'tie') tie++;
+        else other++;
+    }
+    const decided = win + loss + tie;
+    const winRate = decided > 0 ? Math.round((win / decided) * 100) : 0;
+    const form = played.slice(-5).map((f) => ({
+        ...RESULT_PILL[f.result as string],
+        tip: `${RESULT_PILL[f.result as string].label} vs ${f.opponent} · ${fmtShortDate(f.date)}`,
+    }));
+    return { total: played.length, win, loss, tie, other, decided, winRate, form };
+}
+
 function getTeamColors(name: string) {
     if (name.includes('Tigers'))  return { header: '#fffbeb', border: '#fbbf24', badge: '#fef3c7', badgeBorder: '#fcd34d', badgeText: '#78350f' };
     if (name.includes('Bulls'))   return { header: '#eff6ff', border: '#60a5fa', badge: '#dbeafe', badgeBorder: '#93c5fd', badgeText: '#1e40af' };
@@ -53,61 +97,97 @@ const playerDevelopment = [
             <div class="grid sm:grid-cols-2 gap-6 mb-12">
                 {seasonTeams.map((team: any) => {
                     const c = getTeamColors(team.teamName);
+                    const rec = getTeamRecord(team.teamName);
                     return (
-                        <div class="bg-white rounded-lg border-2 border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-                            {/* Header */}
-                            <div style={`background:${c.header};border-bottom:4px solid ${c.border};`} class="p-6">
-                                <h3 class="text-2xl font-bold text-gray-900 mb-3">{team.teamName}</h3>
-                                <div class="inline-block px-4 py-2 rounded-full text-sm font-bold border-2" style={`background:${c.badge};border-color:${c.badgeBorder};color:${c.badgeText}`}>
-                                    {team.division}
+                        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
+                            {/* Header — the only team-tinted area */}
+                            <div style={`background:${c.header};border-bottom:2px solid ${c.border};`} class="px-5 py-3.5 flex items-center justify-between gap-3">
+                                <div class="min-w-0">
+                                    <h3 class="text-lg font-bold text-gray-900 leading-tight mb-1.5">{team.teamName}</h3>
+                                    <span class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold border" style={`background:${c.badge};border-color:${c.badgeBorder};color:${c.badgeText}`}>
+                                        {team.division}
+                                    </span>
                                 </div>
+                                {rec.form.length > 0 && (
+                                    <div class="flex gap-1.5 shrink-0">
+                                        {rec.form.map((p: any) => (
+                                            <span
+                                                class={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${p.cls}`}
+                                                title={p.tip}
+                                                aria-label={p.tip}
+                                            >
+                                                {p.letter}
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
-                            {/* Team Details */}
-                            <div class="p-6 space-y-4">
-                                {team.captain && (
-                                    <div class="bg-gradient-to-r from-yellow-50 to-yellow-100 rounded-lg p-4 border-2 border-yellow-300">
-                                        <div class="flex items-center gap-2 mb-1">
-                                            <span class="text-2xl">👑</span>
-                                            <span class="text-xs font-semibold text-yellow-800 uppercase tracking-wide">Captain</span>
-                                        </div>
-                                        <div class="text-lg font-bold text-gray-900 ml-8">{team.captain}</div>
-                                    </div>
-                                )}
-
-                                {team.viceCaptain && (
-                                    <div class="bg-gradient-to-r from-slate-50 to-slate-100 rounded-lg p-4 border-2 border-slate-300">
-                                        <div class="flex items-center gap-2 mb-1">
-                                            <span class="text-2xl">⭐</span>
-                                            <span class="text-xs font-semibold text-slate-700 uppercase tracking-wide">Vice Captain</span>
-                                        </div>
-                                        <div class="text-lg font-bold text-gray-900 ml-8">{team.viceCaptain}</div>
-                                    </div>
-                                )}
-
-                                {team.homeGroundName && (
-                                    <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                                        <div class="flex items-start gap-2 mb-2">
-                                            <span class="text-xl">🏟️</span>
-                                            <div class="flex-1">
-                                                <div class="text-xs text-gray-600 mb-1 uppercase tracking-wide font-semibold">Home Ground</div>
-                                                <div class="font-semibold text-gray-900">{team.homeGroundName}</div>
+                            {/* Body */}
+                            <div class="px-5 py-4 flex-1">
+                                {(team.captain || team.viceCaptain) && (
+                                    <div class="grid grid-cols-2 gap-3">
+                                        {team.captain && (
+                                            <div>
+                                                <div class="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">Captain</div>
+                                                <div class="text-sm font-semibold text-gray-800">{team.captain}</div>
                                             </div>
-                                        </div>
-                                        {team.homeGroundAddress && (
-                                            <div class="flex items-start gap-2 ml-7">
-                                                <span class="text-gray-600">📍</span>
-                                                <div class="text-sm text-gray-700">{team.homeGroundAddress}</div>
+                                        )}
+                                        {team.viceCaptain && (
+                                            <div>
+                                                <div class="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">Vice-captain</div>
+                                                <div class="text-sm font-semibold text-gray-800">{team.viceCaptain}</div>
                                             </div>
                                         )}
                                     </div>
                                 )}
 
+                                {team.homeGroundName && (
+                                    <div class="flex gap-2 mt-3 text-sm">
+                                        <span class="shrink-0">📍</span>
+                                        <div>
+                                            <div class="font-semibold text-gray-800">{team.homeGroundName}</div>
+                                            {team.homeGroundAddress && (
+                                                <div class="text-xs text-gray-500 mt-0.5">{team.homeGroundAddress}</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div class="border-t border-gray-100 my-3.5"></div>
+
+                                {/* Season record */}
+                                {rec.total === 0 ? (
+                                    <p class="text-sm text-gray-500">No results yet this season</p>
+                                ) : (
+                                    <>
+                                        <div class="flex items-baseline gap-1.5 mb-2">
+                                            <span class="text-xl font-extrabold text-gray-900">{rec.winRate}%</span>
+                                            <span class="text-[13px] text-gray-500">win rate</span>
+                                        </div>
+                                        <div class="flex h-1.5 rounded-full overflow-hidden bg-gray-100">
+                                            {rec.win > 0 && <span class="bg-green-500" style={`width:${(rec.win / rec.decided) * 100}%`}></span>}
+                                            {rec.loss > 0 && <span class="bg-red-500" style={`width:${(rec.loss / rec.decided) * 100}%`}></span>}
+                                            {rec.tie > 0 && <span class="bg-yellow-500" style={`width:${(rec.tie / rec.decided) * 100}%`}></span>}
+                                        </div>
+                                        <div class="text-xs text-gray-500 mt-1.5">
+                                            <span class="font-bold text-gray-700">{rec.win}</span>W ·
+                                            <span class="font-bold text-gray-700"> {rec.loss}</span>L ·
+                                            <span class="font-bold text-gray-700"> {rec.tie}</span>T
+                                            {rec.other > 0 && <> · <span class="font-bold text-gray-700">{rec.other}</span> NR</>}
+                                            <span> · {rec.total} played</span>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+
+                            {/* Footer */}
+                            <div class="border-t border-gray-100 px-5 py-3 text-center">
                                 <a
                                     href={`/fixtures?team=${encodeURIComponent(team.teamName)}`}
-                                    class="block mt-4 text-center py-3 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors"
+                                    class="text-sm font-bold text-primary hover:underline"
                                 >
-                                    View Fixtures 🏏
+                                    View fixtures &rarr;
                                 </a>
                             </div>
                         </div>
