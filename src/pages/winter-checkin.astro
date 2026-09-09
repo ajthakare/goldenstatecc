@@ -194,14 +194,14 @@ const summerSlug = (team: string) => team.replace(/[^A-Za-z0-9]/g, '');
           ) : (
             <>
               <label class="wc-opt"><input type="radio" name="participation" value="in" required /> Yes &mdash; count me in</label>
-              <label class="wc-opt"><input type="radio" name="participation" value="break" /> Taking a break this winter</label>
-              <label class="wc-opt"><input type="radio" name="participation" value="out" /> No &mdash; sitting this one out</label>
+              <label class="wc-opt"><input type="radio" name="participation" value="out" /> Not playing this winter</label>
+              <label class="wc-opt"><input type="radio" name="participation" value="transfer" /> Transferring to / playing from another club</label>
             </>
           )}
         </div>
         <div class="wc-field" id="wc-reason-wrap" data-sec="reason" hidden>
-          <label for="wc-reason">What's the main reason you're not playing? <span class="wc-opt-tag">optional</span></label>
-          <p class="wc-hint">Travel, cost, time, fitness, form &mdash; it just helps us plan and follow up.</p>
+          <label for="wc-reason">Anything you'd like to tell us? <span class="wc-opt-tag">optional</span></label>
+          <p class="wc-hint">Travel, cost, time, form, which club you're moving to &mdash; it just helps us plan and follow up.</p>
           <textarea id="wc-reason" name="notPlayingReason" class="input w-full" rows="2"></textarea>
         </div>
         <div data-sec="liability" hidden>
@@ -1053,7 +1053,7 @@ const summerSlug = (team: string) => team.replace(/[^A-Za-z0-9]/g, '');
     const loggedIn = form.dataset.loggedIn === 'true';
     const p = participationValue();
     const playing = p === 'in';
-    const notPlaying = p === 'break' || p === 'out';
+    const notPlaying = p === 'out' || p === 'transfer';
     const enquiring = p === 'enquiring';
 
     setSec('reason', notPlaying);

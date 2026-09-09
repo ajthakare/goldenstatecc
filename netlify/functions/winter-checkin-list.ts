@@ -35,8 +35,8 @@ export const handler: Handler = async (
     const summary: WinterCheckInSummary = {
       total: all.length,
       in: 0,
-      break: 0,
       out: 0,
+      transfer: 0,
       enquiring: 0,
       prospective: 0,
       members: 0,
@@ -47,8 +47,8 @@ export const handler: Handler = async (
 
     for (const r of all) {
       if (r.participation === 'in') summary.in += 1;
-      else if (r.participation === 'break') summary.break += 1;
       else if (r.participation === 'out') summary.out += 1;
+      else if (r.participation === 'transfer') summary.transfer += 1;
       else if (r.participation === 'enquiring') summary.enquiring += 1;
       if (r.submittedVia === 'member') summary.members += 1;
       else summary.guests += 1;

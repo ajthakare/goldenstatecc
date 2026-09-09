@@ -1,7 +1,7 @@
 // Winter Season Check-In — shared types & field metadata
 // Used by the public form, the submit/list/export functions and the admin view.
 
-export type Participation = 'in' | 'break' | 'out' | 'enquiring';
+export type Participation = 'in' | 'out' | 'transfer' | 'enquiring';
 export type WeekendFrequency = 'most' | 'half' | 'occasional';
 export type LeadershipInterest = 'captain' | 'vice-captain' | 'none';
 export type PaymentStatus = 'paid' | 'will-pay' | 'discuss';
@@ -102,8 +102,8 @@ export interface WinterCheckInResponse {
 export interface WinterCheckInSummary {
   total: number;
   in: number;
-  break: number;
   out: number;
+  transfer: number;
   enquiring: number;
   prospective: number; // guests who said "I'd like to play"
   members: number;

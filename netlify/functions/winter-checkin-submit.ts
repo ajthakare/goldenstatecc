@@ -9,7 +9,7 @@ import type { WinterCheckInResponse } from '../../src/types/winter';
 const wc = SITE_CONFIG.winterCheckIn;
 const RESPONSES_KEY = `responses-${wc.seasonKey}`;
 
-const PARTICIPATION = ['in', 'break', 'out', 'enquiring'];
+const PARTICIPATION = ['in', 'out', 'transfer', 'enquiring'];
 const WEEKEND_FREQ = ['most', 'half', 'occasional'];
 const COMMITMENT = ['full-time', 'part-time'];
 const LEADERSHIP = ['captain', 'vice-captain', 'none'];
