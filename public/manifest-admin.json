@@ -1,5 +1,5 @@
 {
-  "id": "/admin/app",
+  "id": "/admin/app?v=2",
   "name": "GSCC Admin Panel",
   "short_name": "GSCC Admin",
   "description": "Golden State Cricket Club - Admin Portal for managing availability, players, practices and statistics",
@@ -11,23 +11,23 @@
   "launch_handler": {
     "client_mode": "auto"
   },
-  "background_color": "#000000",
-  "theme_color": "#355c7d",
+  "background_color": "#1A1614",
+  "theme_color": "#1A1614",
   "icons": [
     {
-      "src": "/icons/icon-192.png",
+      "src": "/icons/admin-icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-512.png",
+      "src": "/icons/admin-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-512-maskable.png",
+      "src": "/icons/admin-icon-512-maskable.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

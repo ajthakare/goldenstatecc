@@ -6,21 +6,36 @@
    ============================================ */
 .page-header {
   margin-bottom: 2rem;
-  padding-bottom: 1.5rem;
-  border-bottom: 1px solid transparent; /* Thickness set here, color from theme */
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 
+/* Match the site-wide PageHeader treatment (no markup change):
+   heavy fluid title -> short gold rule -> muted description. */
 .page-title {
-  font-size: 2rem;
-  font-weight: 700;
-  margin: 0 0 0.5rem 0;
-  /* Color and background are set in theme CSS */
+  font-size: var(--text-h1);
+  font-weight: var(--font-weight-display, 800);
+  letter-spacing: var(--tracking-tight, -0.02em);
+  line-height: 1.1;
+  margin: 0 0 1.25rem 0;
+  /* colour comes from the theme (--color-ink) */
+}
+
+.page-title::after {
+  content: "";
+  display: block;
+  width: 3rem;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--color-gold-500, #c9a227);
+  margin-top: 1rem;
 }
 
 .page-description {
-  font-size: 0.875rem;
+  font-size: 1.0625rem;
+  line-height: 1.6;
   margin: 0;
-  /* Color and background are set in theme CSS */
+  /* colour comes from the theme (--color-muted-text) */
 }
 
 /* ============================================
@@ -1898,3 +1913,7 @@
     color: #1e40af !important;
   }
 }
+
+/* Keep admin page titles on the site fluid scale at every breakpoint
+   (neutralises the older mobile shrink overrides above). */
+.page-title { font-size: var(--text-h1); }
