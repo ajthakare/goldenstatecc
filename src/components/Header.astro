@@ -1,8 +1,8 @@
 ---
 import Logo from '../components/Logo.astro';
+import Icon from '../components/Icon.astro';
 import { SITE_CONFIG } from '../config';
 import { validateAdminSession } from '../middleware/auth';
-import '@fontsource/libre-baskerville/700.css';
 
 const navItems = [
     { linkText: 'Home', href: '/' },
@@ -65,86 +65,58 @@ if (cookieHeader) {
 const currentPath = Astro.url.pathname;
 ---
 
-<nav class="header-gradient py-3 sm:py-4">
-    <div class="grid grid-cols-[auto_1fr] gap-4 items-stretch">
-        {/* Column 1: Logo (full height) */}
-        <a href="/" class="flex items-center self-stretch">
+<nav class="site-nav py-3 sm:py-4 px-4 sm:px-6">
+    <div class="grid grid-cols-[auto_1fr] gap-4 items-center">
+        {/* Column 1: Logo */}
+        <a href="/" class="flex items-center self-stretch" aria-label="Golden State Cricket Club — home">
             <Logo />
         </a>
 
-        {/* Column 2: Title + Menu */}
-        <div class="flex flex-col gap-2">
-            {/* Row 1: Title + Logout/Login + Mobile Menu Button */}
-            <div class="flex items-center justify-between">
-                <div class="flex flex-col gap-0">
-                    <h1 class="text-lg sm:text-4xl font-extrabold uppercase tracking-tight leading-tight mb-0" style="color: #D4AF37;">{SITE_CONFIG.name}</h1>
-                    <p class="text-[10px] sm:text-base leading-tight" style="color: #E5C878;">{SITE_CONFIG.location}</p>
+        {/* Column 2: Wordmark + nav */}
+        <div class="flex flex-col gap-2 min-w-0">
+            {/* Row 1: Wordmark + auth + mobile toggle */}
+            <div class="flex items-center justify-between gap-3">
+                <div class="flex flex-col leading-none min-w-0">
+                    <span class="wordmark">{SITE_CONFIG.name}</span>
+                    <span class="wordmark-sub">{SITE_CONFIG.location}</span>
                 </div>
 
-                <div class="flex items-center gap-3">
-                    {/* Desktop Greeting + Logout/Login Button */}
+                <div class="flex items-center gap-2 shrink-0">
                     {isAuthenticated ? (
                         <>
                             {firstName && (
-                                <span class="hidden lg:block text-sm font-semibold" style="color: #E5C878;">
-                                    Hello, {firstName}
+                                <span class="hidden lg:block text-sm font-medium text-white/70">
+                                    Hi, {firstName}
                                 </span>
                             )}
-                            <a href="/logout" class="hidden lg:flex items-center p-2 rounded-lg hover:bg-white/10 transition-colors" style="color: #E5C878;">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                                    <polyline points="16 17 21 12 16 7"></polyline>
-                                    <line x1="21" y1="12" x2="9" y2="12"></line>
-                                </svg>
+                            <a href="/logout" class="nav-icon-btn hidden lg:flex" aria-label="Log out">
+                                <Icon name="log-out" size={18} />
                             </a>
                         </>
                     ) : (
-                        <a href="/login" class="hidden lg:flex items-center p-2 rounded-lg hover:bg-white/10 transition-colors" style="color: #D4AF37;">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
-                                <polyline points="10 17 15 12 10 7"></polyline>
-                                <line x1="15" y1="12" x2="3" y2="12"></line>
-                            </svg>
+                        <a href="/login" class="nav-icon-btn hidden lg:flex" aria-label="Log in">
+                            <Icon name="log-in" size={18} />
                         </a>
                     )}
 
                     {/* Mobile Menu Button */}
                     <button
                         id="mobile-menu-toggle"
-                        class="lg:hidden p-2 rounded-lg hover:bg-white/10 transition-colors"
+                        class="nav-icon-btn lg:hidden"
                         aria-label="Toggle navigation menu"
                         aria-expanded="false"
-                        style="color: #D4AF37;"
                     >
-                        <svg id="menu-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                            <line x1="3" y1="6" x2="21" y2="6"></line>
-                            <line x1="3" y1="12" x2="21" y2="12"></line>
-                            <line x1="3" y1="18" x2="21" y2="18"></line>
-                        </svg>
-                        <svg
-                            id="close-icon"
-                            class="hidden"
-                            width="28"
-                            height="28"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                        >
-                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                            <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </svg>
+                        <span id="menu-icon"><Icon name="menu" size={26} /></span>
+                        <span id="close-icon" class="hidden"><Icon name="x" size={26} /></span>
                     </button>
                 </div>
             </div>
 
-            {/* Row 2: Desktop Main Navigation Menu */}
+            {/* Row 2: Desktop primary nav */}
             {
                 !!navItems?.length && (
-                    <ul class="hidden lg:flex gap-x-2 xl:gap-x-4 items-center">
+                    <ul class="hidden lg:flex flex-wrap gap-x-1 xl:gap-x-2 items-center">
                         {navItems.map((item) => {
-                            // Highlight all pages except Home
                             const isActive = item.href !== '/' && (currentPath === item.href || currentPath.startsWith(item.href));
                             const hasDropdown = item.dropdown && item.dropdown.length > 0;
 
@@ -152,24 +124,20 @@ const currentPath = Astro.url.pathname;
                                 <li class={hasDropdown ? 'relative dropdown-container' : ''}>
                                     <a
                                         href={item.href}
-                                        class={`inline-flex items-center gap-1 px-1.5 py-1 xl:px-3 xl:py-2 text-xs xl:text-sm font-bold whitespace-nowrap ${isActive ? 'nav-active' : ''}`}
+                                        class={`nav-link ${isActive ? 'nav-active' : ''}`}
                                     >
                                         {item.linkText}
-                                        {hasDropdown && (
-                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                                            </svg>
-                                        )}
+                                        {hasDropdown && <Icon name="chevron-down" size={13} class="ml-0.5 opacity-70" />}
                                     </a>
                                     {hasDropdown && (
-                                        <ul class="dropdown-menu absolute left-0 mt-1 bg-gray-900 rounded-lg shadow-lg py-2 min-w-[180px] opacity-0 invisible transition-all duration-200">
+                                        <ul class="dropdown-menu absolute left-0 mt-1 rounded-lg py-1.5 min-w-[190px] opacity-0 invisible transition-all duration-200">
                                             {item.dropdown.map((dropdownItem) => {
                                                 const isDropdownActive = currentPath === dropdownItem.href || currentPath.startsWith(dropdownItem.href);
                                                 return (
                                                     <li>
                                                         <a
                                                             href={dropdownItem.href}
-                                                            class={`block px-4 py-2 text-xs xl:text-sm font-bold hover:bg-white/10 transition-colors ${isDropdownActive ? 'text-amber-400' : 'text-white'}`}
+                                                            class={`dropdown-link ${isDropdownActive ? 'is-active' : ''}`}
                                                         >
                                                             {dropdownItem.linkText}
                                                         </a>
@@ -185,50 +153,20 @@ const currentPath = Astro.url.pathname;
                 )
             }
 
-            {/* Row 3: Member Navigation Menu (when authenticated) */}
+            {/* Row 3: Member strip (authenticated) */}
             {isAuthenticated && (
-                <ul class="hidden lg:flex gap-x-2 xl:gap-x-4 items-center border-t border-white/20 pt-2" style="position: relative; z-index: 10;">
+                <ul class="hidden lg:flex gap-x-1 xl:gap-x-2 items-center member-strip">
                     {isMember && (
-                        <li>
-                            <a
-                                href="/myfixtures"
-                                class={`inline-block px-1.5 py-1 xl:px-3 xl:py-2 text-xs xl:text-sm font-bold whitespace-nowrap ${currentPath === '/myfixtures' ? 'nav-active' : ''}`}
-                            >
-                                My Fixtures
-                            </a>
-                        </li>
+                        <li><a href="/myfixtures" class={`nav-link nav-link--sm ${currentPath === '/myfixtures' ? 'nav-active' : ''}`}>My Fixtures</a></li>
                     )}
                     {isMember && (
-                        <li>
-                            <a
-                                href="/mypractice"
-                                class={`inline-block px-1.5 py-1 xl:px-3 xl:py-2 text-xs xl:text-sm font-bold whitespace-nowrap ${currentPath === '/mypractice' ? 'nav-active' : ''}`}
-                            >
-                                Practice Sessions
-                            </a>
-                        </li>
+                        <li><a href="/mypractice" class={`nav-link nav-link--sm ${currentPath === '/mypractice' ? 'nav-active' : ''}`}>Practice Sessions</a></li>
                     )}
                     {isAdmin && (
-                        <li>
-                            <a
-                                href="/admin"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="inline-block px-1.5 py-1 xl:px-3 xl:py-2 text-xs xl:text-sm font-bold whitespace-nowrap"
-                            >
-                                Admin Portal ↗
-                            </a>
-                        </li>
+                        <li><a href="/admin" target="_blank" rel="noopener noreferrer" class="nav-link nav-link--sm inline-flex items-center gap-1">Admin Portal <Icon name="external-link" size={12} /></a></li>
                     )}
                     {isMember && (
-                        <li>
-                            <a
-                                href="/profile"
-                                class={`inline-block px-1.5 py-1 xl:px-3 xl:py-2 text-xs xl:text-sm font-bold whitespace-nowrap ${currentPath === '/profile' ? 'nav-active' : ''}`}
-                            >
-                                My Profile
-                            </a>
-                        </li>
+                        <li><a href="/profile" class={`nav-link nav-link--sm ${currentPath === '/profile' ? 'nav-active' : ''}`}>My Profile</a></li>
                     )}
                 </ul>
             )}
@@ -238,12 +176,9 @@ const currentPath = Astro.url.pathname;
     {/* Mobile Navigation Menu */}
     <div id="mobile-menu" class="mobile-menu">
         <ul class="flex flex-col gap-1 p-6">
-            {/* Mobile Greeting */}
             {isAuthenticated && firstName && (
-                <li class="mb-2 pb-3 border-b border-white/20">
-                    <span class="block px-5 py-2 text-base font-bold" style="color: #E5C878;">
-                        Hello, {firstName}
-                    </span>
+                <li class="mb-2 pb-3 border-b border-white/15">
+                    <span class="block px-5 py-2 text-base font-semibold text-white/80">Hi, {firstName}</span>
                 </li>
             )}
 
@@ -260,9 +195,7 @@ const currentPath = Astro.url.pathname;
                                     data-dropdown-id={`mobile-dropdown-${index}`}
                                 >
                                     <span>{item.linkText}</span>
-                                    <svg class="w-4 h-4 transition-transform mobile-dropdown-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                                    </svg>
+                                    <Icon name="chevron-down" size={16} class="transition-transform mobile-dropdown-icon" />
                                 </button>
                             ) : (
                                 <a href={item.href} class={`mobile-nav-link ${isActive ? 'mobile-nav-active' : ''}`}>
@@ -288,116 +221,129 @@ const currentPath = Astro.url.pathname;
                 })
             }
 
-            {/* Mobile Auth Links */}
-            <li class="border-t border-white/20 mt-2 pt-2">
+            <li class="border-t border-white/15 mt-2 pt-2">
                 {isAuthenticated ? (
                     <div class="flex flex-col gap-1">
-                        {/* Member Links */}
-                        {isMember && (
-                            <a href="/myfixtures" class="mobile-nav-link">
-                                My Fixtures
-                            </a>
-                        )}
-                        {isMember && (
-                            <a href="/mypractice" class="mobile-nav-link">
-                                Practice Sessions
-                            </a>
-                        )}
-                        {isAdmin && (
-                            <a href="/admin" target="_blank" rel="noopener noreferrer" class="mobile-nav-link">
-                                Admin Portal ↗
-                            </a>
-                        )}
-                        {isMember && (
-                            <a href="/profile" class="mobile-nav-link">
-                                My Profile
-                            </a>
-                        )}
-                        <a href="/logout" class="mobile-nav-link flex items-center">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2">
-                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                                <polyline points="16 17 21 12 16 7"></polyline>
-                                <line x1="21" y1="12" x2="9" y2="12"></line>
-                            </svg>
-                            Logout
+                        {isMember && <a href="/myfixtures" class="mobile-nav-link">My Fixtures</a>}
+                        {isMember && <a href="/mypractice" class="mobile-nav-link">Practice Sessions</a>}
+                        {isAdmin && <a href="/admin" target="_blank" rel="noopener noreferrer" class="mobile-nav-link">Admin Portal ↗</a>}
+                        {isMember && <a href="/profile" class="mobile-nav-link">My Profile</a>}
+                        <a href="/logout" class="mobile-nav-link flex items-center gap-2">
+                            <Icon name="log-out" size={18} /> Logout
                         </a>
                     </div>
                 ) : (
                     <div class="flex flex-col gap-1">
-                        <a href="/login" class="mobile-nav-link">Login</a>
+                        <a href="/login" class="mobile-nav-link flex items-center gap-2"><Icon name="log-in" size={18} /> Login</a>
                     </div>
                 )}
             </li>
         </ul>
     </div>
 
-    {/* Mobile Menu Overlay */}
     <div id="mobile-menu-overlay" class="mobile-menu-overlay"></div>
 </nav>
 
 <style>
-    /* Header Gradient */
-    .header-gradient {
-        background: linear-gradient(135deg, #8c1d18 0%, #5a1410 28%, #000000 45%);
-        border-radius: 0 0 1rem 1rem;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    .site-nav {
+        margin-bottom: 2.5rem;
     }
 
-    /* Club Name Font */
-    .header-gradient h1 {
-        font-family: 'Libre Baskerville', serif;
-        font-weight: 700;
+    /* Wordmark — heavy sans, not serif */
+    .wordmark {
+        font-size: 1.05rem;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+        line-height: 1.05;
+        text-transform: uppercase;
+        color: #E9C86B;
+    }
+    .wordmark-sub {
+        font-size: 0.6875rem;
+        font-weight: 500;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: rgba(233, 200, 107, 0.7);
+        margin-top: 0.25rem;
+    }
+    @media (min-width: 640px)  { .wordmark { font-size: 1.4rem; } .wordmark-sub { font-size: 0.75rem; } }
+    @media (min-width: 1024px) { .wordmark { font-size: 1.75rem; } .wordmark-sub { font-size: 0.8125rem; } }
+
+    /* Nav links */
+    .nav-link {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.4rem 0.7rem;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        white-space: nowrap;
+        color: rgba(255, 255, 255, 0.88);
+        border-radius: 6px;
+        transition: color var(--dur-base) var(--ease-out),
+                    background-color var(--dur-base) var(--ease-out);
+    }
+    .nav-link:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+    .nav-link--sm { font-size: 0.8125rem; font-weight: 500; padding: 0.3rem 0.6rem; color: rgba(255,255,255,0.68); }
+    .nav-link--sm:hover { color: #fff; }
+
+    .nav-link.nav-active {
+        color: #E9C86B;
+        box-shadow: inset 0 -2px 0 #E9C86B;
+        border-radius: 0;
+    }
+
+    .member-strip {
+        margin-top: 0.15rem;
         padding-top: 0.5rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
     }
 
-    /* Desktop Navigation Links */
-    nav a {
-        color: white;
-        transition: color 0.2s;
+    .nav-icon-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        color: #E9C86B;
+        border-radius: 8px;
+        transition: background-color var(--dur-base) var(--ease-out);
     }
+    .nav-icon-btn:hover { background: rgba(255, 255, 255, 0.1); }
 
-    nav a:hover {
-        color: #d4af37; /* Gold */
-    }
-
-    nav .nav-active {
-        color: #d4af37; /* Gold */
-        text-decoration: underline;
-        text-decoration-color: #d4af37;
-        text-decoration-thickness: 2px;
-        text-underline-offset: 4px;
-    }
-
-    /* Dropdown Menu Styles */
-    .dropdown-container:hover .dropdown-menu {
-        opacity: 1;
-        visibility: visible;
-    }
-
+    /* Dropdown */
+    .dropdown-container:hover .dropdown-menu { opacity: 1; visibility: visible; }
     .dropdown-menu {
         z-index: 1000;
+        background: #241f1c;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: var(--shadow-lg);
     }
+    .dropdown-link {
+        display: block;
+        padding: 0.55rem 1rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: rgba(255, 255, 255, 0.85);
+        transition: background-color var(--dur-base) var(--ease-out), color var(--dur-base) var(--ease-out);
+    }
+    .dropdown-link:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+    .dropdown-link.is-active { color: #E9C86B; }
 
-    /* Mobile Menu Styles */
+    /* Mobile drawer */
     .mobile-menu {
         position: fixed;
-        top: 0;
-        right: 0;
-        bottom: 0;
-        width: 280px;
-        max-width: 85vw;
-        background: linear-gradient(135deg, #8c1d18 0%, #5a1410 28%, #000000 45%);
-        box-shadow: -2px 0 10px rgba(0, 0, 0, 0.3);
-        border-left: 4px solid #d4af37;
+        top: 0; right: 0; bottom: 0;
+        width: 300px;
+        max-width: 86vw;
+        background: #1A1614;
+        box-shadow: -8px 0 40px rgba(0, 0, 0, 0.35);
+        border-left: 3px solid #C9A227;
         transform: translateX(100%);
-        transition: transform 0.3s ease-in-out;
+        transition: transform 0.3s var(--ease-out);
         z-index: 1000;
         overflow-y: auto;
     }
-
-    .mobile-menu.active {
-        transform: translateX(0);
-    }
+    .mobile-menu.active { transform: translateX(0); }
 
     .mobile-menu-overlay {
         position: fixed;
@@ -406,54 +352,32 @@ const currentPath = Astro.url.pathname;
         opacity: 0;
         visibility: hidden;
         pointer-events: none;
-        transition:
-            opacity 0.3s ease-in-out,
-            visibility 0.3s ease-in-out;
+        transition: opacity 0.3s var(--ease-out), visibility 0.3s var(--ease-out);
         z-index: 999;
     }
-
-    .mobile-menu-overlay.active {
-        opacity: 1;
-        visibility: visible;
-        pointer-events: auto;
-    }
+    .mobile-menu-overlay.active { opacity: 1; visibility: visible; pointer-events: auto; }
 
     .mobile-nav-link {
         display: block;
         padding: 0.75rem 1.25rem;
-        font-size: 1.125rem;
-        font-weight: 700;
-        color: white;
+        font-size: 1.0625rem;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.9);
         border-radius: 8px;
-        transition:
-            background 0.2s,
-            color 0.2s;
+        transition: background 0.2s var(--ease-out), color 0.2s var(--ease-out);
     }
-
-    .mobile-nav-link:hover {
-        background: rgba(255, 255, 255, 0.1);
-        color: #d4af37;
-    }
-
+    .mobile-nav-link:hover { background: rgba(255, 255, 255, 0.08); color: #E9C86B; }
     .mobile-nav-active {
-        background: rgba(212, 175, 55, 0.2);
-        color: #d4af37;
-        text-decoration: underline;
-        text-decoration-color: #d4af37;
-        text-decoration-thickness: 2px;
-        text-underline-offset: 4px;
+        background: rgba(201, 162, 39, 0.16);
+        color: #E9C86B;
     }
 
     @media (min-width: 1024px) {
-        .mobile-menu,
-        .mobile-menu-overlay {
-            display: none;
-        }
+        .mobile-menu, .mobile-menu-overlay { display: none; }
     }
 </style>
 
 <script>
-    // Mobile menu toggle
     const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
     const mobileMenu = document.getElementById('mobile-menu');
     const mobileMenuOverlay = document.getElementById('mobile-menu-overlay');
@@ -466,19 +390,12 @@ const currentPath = Astro.url.pathname;
         menuIcon.classList.toggle('hidden');
         closeIcon.classList.toggle('hidden');
         mobileMenuToggle.setAttribute('aria-expanded', isActive.toString());
-
-        // Prevent body scroll when menu is open
-        if (isActive) {
-            document.body.style.overflow = 'hidden';
-        } else {
-            document.body.style.overflow = '';
-        }
+        document.body.style.overflow = isActive ? 'hidden' : '';
     }
 
     mobileMenuToggle?.addEventListener('click', toggleMobileMenu);
     mobileMenuOverlay?.addEventListener('click', toggleMobileMenu);
 
-    // Close menu on navigation
     const mobileNavLinks = mobileMenu?.querySelectorAll('a');
     mobileNavLinks?.forEach((link) => {
         link.addEventListener('click', () => {
@@ -490,14 +407,12 @@ const currentPath = Astro.url.pathname;
         });
     });
 
-    // Close menu on escape key
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && mobileMenu?.classList.contains('active')) {
             toggleMobileMenu();
         }
     });
 
-    // Mobile dropdown toggle
     const mobileDropdownToggles = document.querySelectorAll('.mobile-dropdown-toggle');
     mobileDropdownToggles?.forEach((toggle) => {
         toggle.addEventListener('click', (e) => {
@@ -505,7 +420,6 @@ const currentPath = Astro.url.pathname;
             const dropdownId = toggle.getAttribute('data-dropdown-id');
             const dropdownContent = document.getElementById(dropdownId);
             const icon = toggle.querySelector('.mobile-dropdown-icon');
-
             if (dropdownContent) {
                 dropdownContent.classList.toggle('hidden');
                 icon?.classList.toggle('rotate-180');

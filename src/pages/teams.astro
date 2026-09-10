@@ -3,7 +3,9 @@ export const prerender = false;
 
 import Layout from '../layouts/Layout.astro';
 import Section from '../components/Section.astro';
+import PageHeader from '../components/PageHeader.astro';
 import Card from '../components/Card.astro';
+import Icon from '../components/Icon.astro';
 
 // Fetch active season
 let activeSeason: any = null;
@@ -24,11 +26,11 @@ if (activeSeason?.id) {
 }
 
 const RESULT_PILL: Record<string, { letter: string; label: string; cls: string }> = {
-    win:       { letter: 'W', label: 'Won',       cls: 'bg-green-500 text-white' },
-    loss:      { letter: 'L', label: 'Lost',      cls: 'bg-red-500 text-white' },
-    tie:       { letter: 'T', label: 'Tied',      cls: 'bg-yellow-500 text-white' },
-    abandoned: { letter: 'A', label: 'Abandoned', cls: 'bg-gray-400 text-white' },
-    forfeit:   { letter: 'F', label: 'Forfeit',   cls: 'bg-gray-400 text-white' },
+    win:       { letter: 'W', label: 'Won',       cls: 'form-w' },
+    loss:      { letter: 'L', label: 'Lost',      cls: 'form-l' },
+    tie:       { letter: 'T', label: 'Tied',      cls: 'form-t' },
+    abandoned: { letter: 'A', label: 'Abandoned', cls: 'form-n' },
+    forfeit:   { letter: 'F', label: 'Forfeit',   cls: 'form-n' },
 };
 
 function fmtShortDate(d: string) {
@@ -58,85 +60,62 @@ function getTeamRecord(teamName: string) {
     return { total: played.length, win, loss, tie, other, decided, winRate, form };
 }
 
-function getTeamColors(name: string) {
-    if (name.includes('Tigers'))  return { header: '#fffbeb', border: '#fbbf24', badge: '#fef3c7', badgeBorder: '#fcd34d', badgeText: '#78350f' };
-    if (name.includes('Bulls'))   return { header: '#eff6ff', border: '#60a5fa', badge: '#dbeafe', badgeBorder: '#93c5fd', badgeText: '#1e40af' };
-    if (name.includes('Thunder')) return { header: '#faf5ff', border: '#c084fc', badge: '#f3e8ff', badgeBorder: '#d8b4fe', badgeText: '#6b21a8' };
-    if (name.includes('Bears'))   return { header: '#f0fdf4', border: '#4ade80', badge: '#dcfce7', badgeBorder: '#86efac', badgeText: '#166534' };
-    return { header: '#f9fafb', border: '#9ca3af', badge: '#f3f4f6', badgeBorder: '#d1d5db', badgeText: '#1f2937' };
+function teamAccent(name: string) {
+    if (name.includes('Tigers'))  return '#C9A227';
+    if (name.includes('Bulls'))   return '#64748B';
+    if (name.includes('Thunder')) return '#A82B24';
+    if (name.includes('Bears'))   return '#4B7B54';
+    return '#9CA3AF';
 }
 
 const playerDevelopment = [
-    {
-        title: 'Competitive League Exposure',
-        content: 'Regular participation in NCCA leagues provides players with consistent competitive cricket experience.'
-    },
-    {
-        title: 'Leadership Opportunities',
-        content: 'Members have opportunities to take on captaincy, coaching, and organizational roles within the club.'
-    },
-    {
-        title: 'Regional & National Tournaments',
-        content: 'Players participate in regional and national tournaments, expanding their cricket experience beyond local leagues.'
-    },
-    {
-        title: 'USA Minor & Masters Leagues',
-        content: 'Our members have the opportunity to play in USA Minor and Masters League competitions.'
-    }
+    { icon: 'activity', title: 'Competitive League Exposure', content: 'Regular participation in NCCA leagues gives players consistent competitive cricket experience.' },
+    { icon: 'crown', title: 'Leadership Opportunities', content: 'Members can take on captaincy, coaching, and organizational roles within the club.' },
+    { icon: 'trophy', title: 'Regional & National Tournaments', content: 'Players compete in regional and national tournaments beyond local leagues.' },
+    { icon: 'star', title: 'USA Minor & Masters Leagues', content: 'Our members have the opportunity to play in USA Minor and Masters League competitions.' }
 ];
 ---
 
 <Layout title="Teams - Golden State Cricket Club">
-    <h1 class="page-title heading-margin-sm">Our Teams</h1>
-    <p class="text-intro mb-8">{activeSeason ? activeSeason.name : 'Current Season'}</p>
+    <PageHeader kicker="Squads" title="Our Teams" subtitle={activeSeason ? activeSeason.name : 'Current Season'} />
 
-    <Section>
+    <Section title="" align="left">
         {seasonTeams.length === 0 ? (
-            <p class="text-center text-gray-500 py-12">No active season found. Please set an active season in the admin panel.</p>
+            <p class="text-center text-muted py-12">No active season found. Please set an active season in the admin panel.</p>
         ) : (
-            <div class="grid sm:grid-cols-2 gap-6 mb-12">
+            <div class="grid sm:grid-cols-2 gap-6">
                 {seasonTeams.map((team: any) => {
-                    const c = getTeamColors(team.teamName);
+                    const accent = teamAccent(team.teamName);
                     const rec = getTeamRecord(team.teamName);
                     return (
-                        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
-                            {/* Header — the only team-tinted area */}
-                            <div style={`background:${c.header};border-bottom:2px solid ${c.border};`} class="px-5 py-3.5 flex items-center justify-between gap-3">
+                        <div class="team-card flex flex-col" style={`border-top:3px solid ${accent};`}>
+                            <div class="px-5 pt-4 pb-3 flex items-start justify-between gap-3">
                                 <div class="min-w-0">
-                                    <h3 class="text-lg font-bold text-gray-900 leading-tight mb-1.5">{team.teamName}</h3>
-                                    <span class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold border" style={`background:${c.badge};border-color:${c.badgeBorder};color:${c.badgeText}`}>
-                                        {team.division}
-                                    </span>
+                                    <h3 class="text-lg font-bold text-heading leading-tight mb-1.5">{team.teamName}</h3>
+                                    <span class="badge badge-neutral badge-tier">{team.division}</span>
                                 </div>
                                 {rec.form.length > 0 && (
                                     <div class="flex gap-1.5 shrink-0">
                                         {rec.form.map((p: any) => (
-                                            <span
-                                                class={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${p.cls}`}
-                                                title={p.tip}
-                                                aria-label={p.tip}
-                                            >
-                                                {p.letter}
-                                            </span>
+                                            <span class={`form-pill ${p.cls}`} title={p.tip} aria-label={p.tip}>{p.letter}</span>
                                         ))}
                                     </div>
                                 )}
                             </div>
 
-                            {/* Body */}
-                            <div class="px-5 py-4 flex-1">
+                            <div class="px-5 py-4 flex-1 border-t border-[color:var(--color-hairline)]">
                                 {(team.captain || team.viceCaptain) && (
                                     <div class="grid grid-cols-2 gap-3">
                                         {team.captain && (
                                             <div>
-                                                <div class="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">Captain</div>
-                                                <div class="text-sm font-semibold text-gray-800">{team.captain}</div>
+                                                <div class="lbl">Captain</div>
+                                                <div class="text-sm font-semibold text-heading">{team.captain}</div>
                                             </div>
                                         )}
                                         {team.viceCaptain && (
                                             <div>
-                                                <div class="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">Vice-captain</div>
-                                                <div class="text-sm font-semibold text-gray-800">{team.viceCaptain}</div>
+                                                <div class="lbl">Vice-captain</div>
+                                                <div class="text-sm font-semibold text-heading">{team.viceCaptain}</div>
                                             </div>
                                         )}
                                     </div>
@@ -144,50 +123,43 @@ const playerDevelopment = [
 
                                 {team.homeGroundName && (
                                     <div class="flex gap-2 mt-3 text-sm">
-                                        <span class="shrink-0">📍</span>
+                                        <Icon name="map-pin" size={15} class="shrink-0 mt-0.5 text-muted" />
                                         <div>
-                                            <div class="font-semibold text-gray-800">{team.homeGroundName}</div>
-                                            {team.homeGroundAddress && (
-                                                <div class="text-xs text-gray-500 mt-0.5">{team.homeGroundAddress}</div>
-                                            )}
+                                            <div class="font-semibold text-heading">{team.homeGroundName}</div>
+                                            {team.homeGroundAddress && <div class="text-xs text-subtle mt-0.5">{team.homeGroundAddress}</div>}
                                         </div>
                                     </div>
                                 )}
 
-                                <div class="border-t border-gray-100 my-3.5"></div>
+                                <div class="border-t border-[color:var(--color-hairline)] my-3.5"></div>
 
-                                {/* Season record */}
                                 {rec.total === 0 ? (
-                                    <p class="text-sm text-gray-500">No results yet this season</p>
+                                    <p class="text-sm text-muted">No results yet this season</p>
                                 ) : (
                                     <>
                                         <div class="flex items-baseline gap-1.5 mb-2">
-                                            <span class="text-xl font-extrabold text-gray-900">{rec.winRate}%</span>
-                                            <span class="text-[13px] text-gray-500">win rate</span>
+                                            <span class="text-xl font-extrabold text-heading" style="font-variant-numeric:tabular-nums;">{rec.winRate}%</span>
+                                            <span class="text-[13px] text-muted">win rate</span>
                                         </div>
-                                        <div class="flex h-1.5 rounded-full overflow-hidden bg-gray-100">
-                                            {rec.win > 0 && <span class="bg-green-500" style={`width:${(rec.win / rec.decided) * 100}%`}></span>}
-                                            {rec.loss > 0 && <span class="bg-red-500" style={`width:${(rec.loss / rec.decided) * 100}%`}></span>}
-                                            {rec.tie > 0 && <span class="bg-yellow-500" style={`width:${(rec.tie / rec.decided) * 100}%`}></span>}
+                                        <div class="flex h-1.5 rounded-full overflow-hidden" style="background:var(--color-hairline);">
+                                            {rec.win > 0 && <span style={`width:${(rec.win / rec.decided) * 100}%;background:#1B6B3A;`}></span>}
+                                            {rec.loss > 0 && <span style={`width:${(rec.loss / rec.decided) * 100}%;background:#A82B24;`}></span>}
+                                            {rec.tie > 0 && <span style={`width:${(rec.tie / rec.decided) * 100}%;background:#A9821B;`}></span>}
                                         </div>
-                                        <div class="text-xs text-gray-500 mt-1.5">
-                                            <span class="font-bold text-gray-700">{rec.win}</span>W ·
-                                            <span class="font-bold text-gray-700"> {rec.loss}</span>L ·
-                                            <span class="font-bold text-gray-700"> {rec.tie}</span>T
-                                            {rec.other > 0 && <> · <span class="font-bold text-gray-700">{rec.other}</span> NR</>}
+                                        <div class="text-xs text-muted mt-1.5">
+                                            <span class="font-bold text-heading">{rec.win}</span>W ·
+                                            <span class="font-bold text-heading"> {rec.loss}</span>L ·
+                                            <span class="font-bold text-heading"> {rec.tie}</span>T
+                                            {rec.other > 0 && <> · <span class="font-bold text-heading">{rec.other}</span> NR</>}
                                             <span> · {rec.total} played</span>
                                         </div>
                                     </>
                                 )}
                             </div>
 
-                            {/* Footer */}
-                            <div class="border-t border-gray-100 px-5 py-3 text-center">
-                                <a
-                                    href={`/fixtures?team=${encodeURIComponent(team.teamName)}`}
-                                    class="text-sm font-bold text-primary hover:underline"
-                                >
-                                    View fixtures &rarr;
+                            <div class="border-t border-[color:var(--color-hairline)] px-5 py-3">
+                                <a href={`/fixtures?team=${encodeURIComponent(team.teamName)}`} class="card-link">
+                                    View fixtures <Icon name="arrow-right" size={15} />
                                 </a>
                             </div>
                         </div>
@@ -197,30 +169,53 @@ const playerDevelopment = [
         )}
     </Section>
 
-    <Section title="Player Development" variant="alternate">
+    <Section title="Player Development" kicker="Pathway" variant="alternate">
         <div class="grid sm:grid-cols-2 gap-6">
             {playerDevelopment.map(item => (
-                <Card title={item.title} content={item.content} />
+                <Card title={item.title} content={item.content} icon={item.icon} />
             ))}
         </div>
     </Section>
 
-    <Section>
-        <div class="section-centered bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg p-8">
-            <h2 class="subsection-heading">Interested in Joining a Team?</h2>
-            <p class="text-body-base text-justified mb-4">
-                Golden State Cricket Club (GSCC), part of <strong>Bengals Inc.</strong> (a 501(c)(3) non-profit),
+    <Section title="" align="left">
+        <div class="accent-box">
+            <h2 class="section-heading">Interested in joining a team?</h2>
+            <p class="text-body-base measure">
+                Golden State Cricket Club, part of <strong>Bengals Inc.</strong> (a 501(c)(3) non-profit),
                 welcomes players of all skill levels from Northern California. We are a meritocracy-based club
-                committed to fostering talent and providing opportunities for competitive cricket in BACA and NCCA leagues.
+                committed to fostering talent and providing opportunities for competitive cricket in the BACA and NCCA leagues.
             </p>
-            <div class="bg-white border-2 border-primary/30 rounded-lg p-4 mb-6">
-                <p class="text-body-base">
-                    <strong>Supporting Our Community:</strong> Your membership dues support Bengals Inc.'s mission—
-                    funding youth programs, inclusive membership for students, and community cricket initiatives
-                    that make the sport accessible to all.
-                </p>
-            </div>
-            <a href="/members" class="btn btn-lg">Learn About Membership</a>
+            <p class="text-body-base measure mt-3">
+                <strong>Supporting our community:</strong> your membership dues fund youth programs,
+                inclusive membership for students, and community cricket initiatives that make the sport accessible to all.
+            </p>
+            <a href="/members" class="btn btn-lg mt-6">Learn about membership <Icon name="arrow-right" size={16} /></a>
         </div>
     </Section>
 </Layout>
+
+<style>
+    .lbl {
+        font-size: 0.6875rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--color-subtle-text);
+        margin-bottom: 0.15rem;
+    }
+    .form-pill {
+        width: 1.5rem;
+        height: 1.5rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 9999px;
+        font-size: 0.6875rem;
+        font-weight: 800;
+        color: #fff;
+    }
+    .form-w { background: #1B6B3A; }
+    .form-l { background: #A82B24; }
+    .form-t { background: #A9821B; }
+    .form-n { background: #9CA3AF; }
+</style>

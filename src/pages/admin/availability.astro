@@ -413,7 +413,8 @@ if (!isAdminUser) {
     justify-content: space-between;
     align-items: center;
     padding: 1rem 1.5rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--color-ink, #1A1614);
+    border-bottom: 2px solid var(--color-gold-500, #C9A227);
     border-radius: 12px 12px 0 0;
     margin-bottom: 0;
   }
@@ -424,7 +425,7 @@ if (!isAdminUser) {
   }
 
   .section-header.clickable:hover {
-    background: linear-gradient(135deg, #5a6fd8 0%, #6a4090 100%);
+    background: #2a2521;
   }
 
   .section-title {
@@ -1396,7 +1397,7 @@ if (!isAdminUser) {
                 <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
                   <button
                     class="btn btn-sm"
-                    style="padding: 0.375rem 0.65rem; font-size: 0.8rem; background: #667eea; color: white; border: none; flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.3rem;"
+                    style="padding: 0.375rem 0.65rem; font-size: 0.8rem; background: #8C1D18; color: white; border: none; flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.3rem;"
                     onclick="event.stopPropagation(); generateInstagramPostForFixture('${fixture.id}')"
                     title="Generate Instagram post image"
                   >
@@ -1409,7 +1410,7 @@ if (!isAdminUser) {
                   </button>
                   <button
                     class="btn btn-sm"
-                    style="padding: 0.375rem 0.65rem; font-size: 0.8rem; background: #764ba2; color: white; border: none; flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.3rem;"
+                    style="padding: 0.375rem 0.65rem; font-size: 0.8rem; background: #3B3530; color: white; border: none; flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.3rem;"
                     onclick="event.stopPropagation(); generateInstagramStoryForFixture('${fixture.id}')"
                     title="Generate Instagram story image"
                   >

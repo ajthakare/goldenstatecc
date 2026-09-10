@@ -129,13 +129,13 @@ if (!session || !isMember(session)) {
     }
 
     .extra-players-select:hover:not(:disabled) {
-      border-color: #f67280;
+      border-color: #A82B24;
     }
 
     .extra-players-select:focus {
       outline: none;
-      border-color: #f67280;
-      box-shadow: 0 0 0 3px rgba(246, 114, 128, 0.1);
+      border-color: #A82B24;
+      box-shadow: 0 0 0 3px rgba(168, 43, 36, 0.12);
     }
 
     .extra-players-select:disabled {
@@ -222,11 +222,11 @@ if (!session || !isMember(session)) {
     }
 
     .players-section-title.available {
-      color: #2563eb;
+      color: #1B6B3A;
     }
 
     .players-section-title.bowling-only {
-      color: #7c3aed;
+      color: #8A6A15;
     }
 
     .player-names-list {
@@ -247,15 +247,15 @@ if (!session || !isMember(session)) {
     }
 
     .player-name-badge.available {
-      background: #dbeafe;
-      border-color: #3b82f6;
-      color: #1e40af;
+      background: #EAF6EE;
+      border-color: #9BC9AC;
+      color: #1B6B3A;
     }
 
     .player-name-badge.bowling-only {
-      background: #ede9fe;
-      border-color: #8b5cf6;
-      color: #5b21b6;
+      background: #F7EFD8;
+      border-color: #DFC77E;
+      color: #8A6A15;
     }
 
     .no-players-message {
@@ -300,9 +300,38 @@ if (!session || !isMember(session)) {
         margin-bottom: 1rem !important;
       }
     }
+
+    /* Icon treatment for client-rendered practice cards */
+    .practice-type-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: var(--color-maroon-100, #F6E7E4);
+      color: var(--color-maroon-600, #8C1D18);
+      font-size: 0 !important;
+    }
+    .practice-detail svg { color: var(--color-muted-text, #6B635C); }
+    .lock-message svg { color: var(--color-gold-600, #A9821B); }
   </style>
 
   <script>
+    // Inline icon helpers (client-rendered cards can't use the <Icon> component)
+    const _svg = (paths, sz = 16) =>
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.18em;flex-shrink:0">${paths}</svg>`;
+    const IC = {
+      activity: '<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>',
+      bat: '<g transform="rotate(-40 12 12)"><rect x="9" y="5" width="6" height="13" rx="3"/><line x1="12" y1="5" x2="12" y2="2.5"/></g><circle cx="17" cy="18" r="2.5"/>',
+      rings: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/>',
+      calendar: '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
+      clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+      pin: '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>',
+      check: '<path d="M20 6 9 17l-5-5"/>',
+      x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+      lock: '<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+    };
     let practices: any[] = [];
     let updatingPracticeId: string | null = null;
 
@@ -401,7 +430,7 @@ if (!session || !isMember(session)) {
         card.className = 'practice-card';
         card.id = `practice-${practice.id}`;
 
-        const typeEmoji = practice.type === 'net' ? '🎾' : '🏟️';
+        const typeIcon = _svg(practice.type === 'net' ? IC.bat : IC.rings, 22);
         const typeName = practice.type === 'net' ? 'Net Session' : 'Field Practice';
         const typeBadgeClass = practice.type === 'net' ? 'badge-net' : 'badge-field';
 
@@ -421,13 +450,13 @@ if (!session || !isMember(session)) {
 
           buttonsHTML = `
             <button class="availability-btn ${yesClass}" onclick="updateAvailability('${practice.id}', 'yes')" ${disabledAttr}>
-              ✓ Yes
+              ${_svg(IC.check, 15)} Yes
             </button>
             <button class="availability-btn ${bowlingClass}" onclick="updateAvailability('${practice.id}', 'bowling-only')" ${disabledAttr}>
               Bowling Only
             </button>
             <button class="availability-btn ${noClass}" onclick="updateAvailability('${practice.id}', 'not-available')" ${disabledAttr}>
-              ✗ Not Available
+              ${_svg(IC.x, 15)} Not Available
             </button>
           `;
         } else {
@@ -437,10 +466,10 @@ if (!session || !isMember(session)) {
 
           buttonsHTML = `
             <button class="availability-btn ${yesClass}" onclick="updateAvailability('${practice.id}', 'yes')" ${disabledAttr}>
-              ✓ Yes
+              ${_svg(IC.check, 15)} Yes
             </button>
             <button class="availability-btn ${noClass}" onclick="updateAvailability('${practice.id}', 'not-available')" ${disabledAttr}>
-              ✗ Not Available
+              ${_svg(IC.x, 15)} Not Available
             </button>
           `;
         }
@@ -448,7 +477,7 @@ if (!session || !isMember(session)) {
         // Add lock message if practice is locked
         const lockMessageHTML = isLocked ? `
           <div class="lock-message">
-            🔒 This practice session is locked by admin. Please reach out to admin to check if availability change is allowed.
+            ${_svg(IC.lock, 15)} This practice session is locked by admin. Please reach out to admin to check if availability change is allowed.
           </div>
         ` : '';
 
@@ -479,7 +508,7 @@ if (!session || !isMember(session)) {
 
         card.innerHTML = `
           <div class="practice-header">
-            <div class="practice-type-icon">${typeEmoji}</div>
+            <div class="practice-type-icon">${typeIcon}</div>
             <div class="practice-info">
               <h3 class="practice-title">${practice.title}</h3>
               <span class="practice-type-badge ${typeBadgeClass}">${typeName}</span>
@@ -488,13 +517,13 @@ if (!session || !isMember(session)) {
 
           <div class="practice-details">
             <div class="practice-detail">
-              📅 ${formattedDate}
+              ${_svg(IC.calendar)} ${formattedDate}
             </div>
             <div class="practice-detail">
-              🕐 ${practice.time}
+              ${_svg(IC.clock)} ${practice.time}
             </div>
             <div class="practice-detail">
-              📍 ${practice.location}
+              ${_svg(IC.pin)} ${practice.location}
             </div>
           </div>
 
@@ -750,7 +779,7 @@ if (!session || !isMember(session)) {
           if (data.totalYes > 0) {
             html += `
               <div class="players-section">
-                <div class="players-section-title available">✓ Available Players (${data.totalYes})</div>
+                <div class="players-section-title available">${_svg(IC.check, 14)} Available Players (${data.totalYes})</div>
                 <div class="player-names-list">
                   ${data.yesPlayers.map(p => `
                     <span class="player-name-badge available">
@@ -766,7 +795,7 @@ if (!session || !isMember(session)) {
           if (data.practiceType === 'net' && data.totalBowlingOnly > 0) {
             html += `
               <div class="players-section">
-                <div class="players-section-title bowling-only">🎾 Bowling Only (${data.totalBowlingOnly})</div>
+                <div class="players-section-title bowling-only">${_svg(IC.activity, 14)} Bowling Only (${data.totalBowlingOnly})</div>
                 <div class="player-names-list">
                   ${data.bowlingOnlyPlayers.map(p => `
                     <span class="player-name-badge bowling-only">

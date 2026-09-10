@@ -98,12 +98,12 @@
       left: 0;
       right: 0;
       z-index: 100;
-      background: linear-gradient(180deg, #0d1f2d 0%, #060e15 100%);
-      border-top: 1px solid rgba(246, 114, 128, 0.25);
+      background: var(--color-ink, #1A1614);
+      border-top: 2px solid var(--color-gold-500, #C9A227);
       padding-bottom: env(safe-area-inset-bottom);
       padding-left: env(safe-area-inset-left);
       padding-right: env(safe-area-inset-right);
-      box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.3);
     }
   }
 
@@ -115,7 +115,7 @@
     justify-content: center;
     gap: 3px;
     padding: 10px 4px;
-    color: rgba(255, 255, 255, 0.45);
+    color: rgba(255, 255, 255, 0.55);
     text-decoration: none;
     transition: color 0.2s;
     -webkit-tap-highlight-color: transparent;
@@ -123,12 +123,12 @@
   }
 
   .admin-pwa-tab:active {
-    color: rgba(246, 114, 128, 0.8);
+    color: #E9C86B;
     background: rgba(255, 255, 255, 0.05);
   }
 
   .admin-pwa-tab.active {
-    color: #f67280;
+    color: #E9C86B;
   }
 
   .admin-pwa-tab-icon {

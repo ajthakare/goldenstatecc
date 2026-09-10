@@ -3,6 +3,8 @@ export const prerender = false;
 
 import Layout from '../layouts/Layout.astro';
 import Section from '../components/Section.astro';
+import PageHeader from '../components/PageHeader.astro';
+import Icon from '../components/Icon.astro';
 import { SITE_CONFIG } from '../config';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -12,203 +14,140 @@ let galleryImages: { src: string; alt: string }[] = [];
 try {
     const mediaDir = join(process.cwd(), 'public', 'media');
     const files = await readdir(mediaDir);
-
     galleryImages = files
         .filter(file => /\.(jpg|jpeg|png|JPG|JPEG|PNG)$/i.test(file))
         .filter(file => file !== '.DS_Store')
         .sort()
-        .map(file => ({
-            src: `/media/${file}`,
-            alt: file.replace(/\.(jpg|jpeg|png|JPG|JPEG|PNG)$/i, '')
-        }));
+        .map(file => ({ src: `/media/${file}`, alt: file.replace(/\.(jpg|jpeg|png|JPG|JPEG|PNG)$/i, '') }));
 } catch (error) {
     console.error('Error loading gallery images:', error);
 }
 ---
 
 <Layout title="Gallery - Golden State Cricket Club">
-    <h1 class="page-title">Media Gallery</h1>
+    <PageHeader kicker="Gallery" title="From the ground" subtitle="Match days, milestones and moments from across the season." />
 
-    <Section>
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-            {galleryImages.map((image, index) => (
-                <div
-                    class="group border-2 border-gray-200 rounded-lg overflow-hidden hover:border-primary hover:shadow-xl transition-all cursor-pointer"
-                    data-image-index={index}
-                    onclick={`openLightbox(${index})`}
-                    style="height: 200px;"
-                >
-                    <img
-                        src={image.src}
-                        alt={image.alt}
-                        width="300"
-                        height="200"
-                        style="width: 100%; height: 100%; object-fit: cover; display: block;"
-                    />
-                </div>
-            ))}
+    <div class="gallery-grid">
+        {galleryImages.map((image, index) => (
+            <button
+                type="button"
+                class="gallery-tile"
+                data-image-index={index}
+                onclick={`openLightbox(${index})`}
+                aria-label={`Open image ${index + 1}`}
+            >
+                <img src={image.src} alt={image.alt} loading="lazy" />
+            </button>
+        ))}
+    </div>
+
+    {galleryImages.length === 0 && (
+        <div class="text-center py-12">
+            <p class="text-muted text-lg">No images available yet.</p>
         </div>
+    )}
 
-        {/* Lightbox Modal */}
-        <div id="lightbox" class="lightbox">
-            <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
-            <button class="lightbox-prev" onclick="navigateLightbox(-1)">&#10094;</button>
-            <button class="lightbox-next" onclick="navigateLightbox(1)">&#10095;</button>
-            <div class="lightbox-content">
-                <img id="lightbox-image" src="" alt="" />
-            </div>
-            <div class="lightbox-counter" id="lightbox-counter"></div>
+    {/* Lightbox Modal */}
+    <div id="lightbox" class="lightbox">
+        <button class="lightbox-btn lightbox-close" onclick="closeLightbox()" aria-label="Close"><Icon name="x" size={22} /></button>
+        <button class="lightbox-btn lightbox-prev" onclick="navigateLightbox(-1)" aria-label="Previous"><Icon name="chevron-left" size={24} /></button>
+        <button class="lightbox-btn lightbox-next" onclick="navigateLightbox(1)" aria-label="Next"><Icon name="chevron-right" size={24} /></button>
+        <div class="lightbox-content">
+            <img id="lightbox-image" src="" alt="" />
         </div>
+        <div class="lightbox-counter" id="lightbox-counter"></div>
+    </div>
 
-        {galleryImages.length === 0 && (
-            <div class="text-center py-12">
-                <p class="text-gray-500 text-lg">No images available yet. Add images to /public/media to display them here.</p>
-            </div>
-        )}
-    </Section>
-
-    <Section variant="alternate">
-        <div class="section-centered">
-            <h2 class="subsection-heading">Follow Us on Social Media</h2>
-            <p class="text-body-lg mb-6">
-                Stay updated with our latest photos, videos, and match highlights on Instagram and YouTube.
-            </p>
-            <div class="flex flex-wrap gap-4 justify-center">
-                <a href={SITE_CONFIG.social.instagram.url} target="_blank" rel="noopener noreferrer" class="btn inline-flex items-center gap-2">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path fill-rule="evenodd" d="M12.315 2c2.43 0 2.784.013 3.808.06 1.064.049 1.791.218 2.427.465a4.902 4.902 0 011.772 1.153 4.902 4.902 0 011.153 1.772c.247.636.416 1.363.465 2.427.048 1.067.06 1.407.06 4.123v.08c0 2.643-.012 2.987-.06 4.043-.049 1.064-.218 1.791-.465 2.427a4.902 4.902 0 01-1.153 1.772 4.902 4.902 0 01-1.772 1.153c-.636.247-1.363.416-2.427.465-1.067.048-1.407.06-4.123.06h-.08c-2.643 0-2.987-.012-4.043-.06-1.064-.049-1.791-.218-2.427-.465a4.902 4.902 0 01-1.772-1.153 4.902 4.902 0 01-1.153-1.772c-.247-.636-.416-1.363-.465-2.427-.047-1.024-.06-1.379-.06-3.808v-.63c0-2.43.013-2.784.06-3.808.049-1.064.218-1.791.465-2.427a4.902 4.902 0 011.153-1.772A4.902 4.902 0 015.45 2.525c.636-.247 1.363-.416 2.427-.465C8.901 2.013 9.256 2 11.685 2h.63zm-.081 1.802h-.468c-2.456 0-2.784.011-3.807.058-.975.045-1.504.207-1.857.344-.467.182-.8.398-1.15.748-.35.35-.566.683-.748 1.15-.137.353-.3.882-.344 1.857-.047 1.023-.058 1.351-.058 3.807v.468c0 2.456.011 2.784.058 3.807.045.975.207 1.504.344 1.857.182.466.399.8.748 1.15.35.35.683.566 1.15.748.353.137.882.3 1.857.344 1.054.048 1.37.058 4.041.058h.08c2.597 0 2.917-.01 3.96-.058.976-.045 1.505-.207 1.858-.344.466-.182.8-.398 1.15-.748.35-.35.566-.683.748-1.15.137-.353.3-.882.344-1.857.048-1.055.058-1.37.058-4.041v-.08c0-2.597-.01-2.917-.058-3.96-.045-.976-.207-1.505-.344-1.858a3.097 3.097 0 00-.748-1.15 3.098 3.098 0 00-1.15-.748c-.353-.137-.882-.3-1.857-.344-1.023-.047-1.351-.058-3.807-.058zM12 6.865a5.135 5.135 0 110 10.27 5.135 5.135 0 010-10.27zm0 1.802a3.333 3.333 0 100 6.666 3.333 3.333 0 000-6.666zm5.338-3.205a1.2 1.2 0 110 2.4 1.2 1.2 0 010-2.4z" clip-rule="evenodd" />
-                    </svg>
-                    {SITE_CONFIG.social.instagram.label}
-                </a>
-                <a href={SITE_CONFIG.social.youtube.url} target="_blank" rel="noopener noreferrer" class="btn btn-secondary inline-flex items-center gap-2">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path fill-rule="evenodd" d="M19.812 5.418c.861.23 1.538.907 1.768 1.768C21.998 8.746 22 12 22 12s0 3.255-.418 4.814a2.504 2.504 0 0 1-1.768 1.768c-1.56.419-7.814.419-7.814.419s-6.255 0-7.814-.419a2.505 2.505 0 0 1-1.768-1.768C2 15.255 2 12 2 12s0-3.255.417-4.814a2.507 2.507 0 0 1 1.768-1.768C5.744 5 11.998 5 11.998 5s6.255 0 7.814.418ZM15.194 12 10 15V9l5.194 3Z" clip-rule="evenodd" />
-                    </svg>
-                    {SITE_CONFIG.social.youtube.label}
-                </a>
-            </div>
+    <Section variant="alternate" kicker="Follow along" title="More on social media">
+        <p class="text-body-lg text-center mx-auto measure mb-6" style="margin-inline:auto;">
+            Latest photos, videos and match highlights on Instagram and YouTube.
+        </p>
+        <div class="flex flex-wrap gap-3 justify-center">
+            <a href={SITE_CONFIG.social.instagram.url} target="_blank" rel="noopener noreferrer" class="btn">
+                <Icon name="instagram" size={18} /> Instagram
+            </a>
+            <a href={SITE_CONFIG.social.youtube.url} target="_blank" rel="noopener noreferrer" class="btn btn-secondary">
+                <Icon name="youtube" size={18} /> YouTube
+            </a>
         </div>
     </Section>
 </Layout>
 
 <style>
-    /* Lightbox Styles */
+    .gallery-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+    @media (min-width: 640px) { .gallery-grid { grid-template-columns: repeat(3, 1fr); gap: 1rem; } }
+    @media (min-width: 1024px) { .gallery-grid { grid-template-columns: repeat(4, 1fr); } }
+
+    .gallery-tile {
+        display: block;
+        padding: 0;
+        border: 0;
+        background: none;
+        cursor: pointer;
+        aspect-ratio: 1 / 1;
+        border-radius: var(--radius-card);
+        overflow: hidden;
+        box-shadow: var(--shadow-xs);
+    }
+    .gallery-tile img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        transition: transform var(--dur-slow) var(--ease-out);
+    }
+    .gallery-tile:hover img { transform: scale(1.05); }
+
+    /* Lightbox */
     .lightbox {
         display: none;
         position: fixed;
+        inset: 0;
         z-index: 9999;
-        left: 0;
-        top: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.95);
-        overflow: hidden;
+        background: rgba(16, 8, 7, 0.94);
+        backdrop-filter: blur(4px);
     }
+    .lightbox.active { display: flex; align-items: center; justify-content: center; }
+    .lightbox-content { max-width: 92%; max-height: 88vh; display: flex; }
+    .lightbox-content img { max-width: 100%; max-height: 88vh; object-fit: contain; border-radius: 10px; }
 
-    .lightbox.active {
+    .lightbox-btn {
+        position: absolute;
         display: flex;
         align-items: center;
         justify-content: center;
-    }
-
-    .lightbox-content {
-        max-width: 90%;
-        max-height: 90vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .lightbox-content img {
-        max-width: 100%;
-        max-height: 90vh;
-        object-fit: contain;
-        border-radius: 8px;
-    }
-
-    .lightbox-close {
-        position: absolute;
-        top: 20px;
-        right: 30px;
-        font-size: 48px;
-        color: white;
-        background: none;
-        border: none;
+        color: #fff;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 9999px;
+        width: 44px;
+        height: 44px;
         cursor: pointer;
-        padding: 0;
-        width: 50px;
-        height: 50px;
-        line-height: 40px;
-        z-index: 10000;
-        transition: transform 0.2s;
-    }
-
-    .lightbox-close:hover {
-        transform: scale(1.2);
-        color: #f67280;
-    }
-
-    .lightbox-prev,
-    .lightbox-next {
-        position: absolute;
-        top: 50%;
-        transform: translateY(-50%);
-        font-size: 48px;
-        color: white;
-        background: rgba(0, 0, 0, 0.5);
-        border: none;
-        cursor: pointer;
-        padding: 10px 20px;
-        border-radius: 8px;
-        transition: background 0.3s;
+        transition: background var(--dur-base) var(--ease-out);
         z-index: 10000;
     }
-
-    .lightbox-prev {
-        left: 20px;
-    }
-
-    .lightbox-next {
-        right: 20px;
-    }
-
-    .lightbox-prev:hover,
-    .lightbox-next:hover {
-        background: rgba(246, 114, 128, 0.8);
-    }
+    .lightbox-btn:hover { background: rgba(255, 255, 255, 0.22); }
+    .lightbox-close { top: 20px; right: 20px; }
+    .lightbox-prev { left: 16px; top: 50%; transform: translateY(-50%); }
+    .lightbox-next { right: 16px; top: 50%; transform: translateY(-50%); }
 
     .lightbox-counter {
         position: absolute;
-        bottom: 30px;
+        bottom: 24px;
         left: 50%;
         transform: translateX(-50%);
-        color: white;
-        font-size: 18px;
-        background: rgba(0, 0, 0, 0.7);
-        padding: 10px 20px;
-        border-radius: 20px;
-    }
-
-    @media (max-width: 640px) {
-        .lightbox-close {
-            font-size: 36px;
-            top: 10px;
-            right: 10px;
-        }
-
-        .lightbox-prev,
-        .lightbox-next {
-            font-size: 32px;
-            padding: 5px 15px;
-        }
-
-        .lightbox-prev {
-            left: 10px;
-        }
-
-        .lightbox-next {
-            right: 10px;
-        }
+        color: rgba(255, 255, 255, 0.85);
+        font-size: 0.875rem;
+        font-variant-numeric: tabular-nums;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        padding: 0.4rem 0.9rem;
+        border-radius: 9999px;
     }
 </style>
 
@@ -220,61 +159,41 @@ try {
         const lightbox = document.getElementById('lightbox');
         const lightboxImage = document.getElementById('lightbox-image');
         const counter = document.getElementById('lightbox-counter');
-
         lightboxImage.src = galleryImages[index].src;
         lightboxImage.alt = galleryImages[index].alt;
         counter.textContent = `${index + 1} / ${galleryImages.length}`;
-
         lightbox.classList.add('active');
         document.body.style.overflow = 'hidden';
     }
 
     function closeLightbox() {
-        const lightbox = document.getElementById('lightbox');
-        lightbox.classList.remove('active');
+        document.getElementById('lightbox').classList.remove('active');
         document.body.style.overflow = '';
     }
 
     function navigateLightbox(direction) {
         currentImageIndex += direction;
-
-        // Loop around
-        if (currentImageIndex < 0) {
-            currentImageIndex = galleryImages.length - 1;
-        } else if (currentImageIndex >= galleryImages.length) {
-            currentImageIndex = 0;
-        }
-
+        if (currentImageIndex < 0) currentImageIndex = galleryImages.length - 1;
+        else if (currentImageIndex >= galleryImages.length) currentImageIndex = 0;
         const lightboxImage = document.getElementById('lightbox-image');
         const counter = document.getElementById('lightbox-counter');
-
         lightboxImage.src = galleryImages[currentImageIndex].src;
         lightboxImage.alt = galleryImages[currentImageIndex].alt;
         counter.textContent = `${currentImageIndex + 1} / ${galleryImages.length}`;
     }
 
-    // Close lightbox on ESC key
     document.addEventListener('keydown', (e) => {
         const lightbox = document.getElementById('lightbox');
-        if (!lightbox) return;
-
-        if (e.key === 'Escape' && lightbox.classList.contains('active')) {
-            closeLightbox();
-        } else if (e.key === 'ArrowLeft' && lightbox.classList.contains('active')) {
-            navigateLightbox(-1);
-        } else if (e.key === 'ArrowRight' && lightbox.classList.contains('active')) {
-            navigateLightbox(1);
-        }
+        if (!lightbox || !lightbox.classList.contains('active')) return;
+        if (e.key === 'Escape') closeLightbox();
+        else if (e.key === 'ArrowLeft') navigateLightbox(-1);
+        else if (e.key === 'ArrowRight') navigateLightbox(1);
     });
 
-    // Close lightbox when clicking on background
     document.getElementById('lightbox')?.addEventListener('click', (e) => {
-        if (e.target.id === 'lightbox') {
-            closeLightbox();
-        }
+        if (e.target.id === 'lightbox') closeLightbox();
     });
 
-    // Make functions globally available
     window.openLightbox = openLightbox;
     window.closeLightbox = closeLightbox;
     window.navigateLightbox = navigateLightbox;

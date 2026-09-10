@@ -1,0 +1,117 @@
+---
+export const prerender = false;
+
+import Layout from '../layouts/Layout.astro';
+import PageHeader from '../components/PageHeader.astro';
+import Section from '../components/Section.astro';
+import Card from '../components/Card.astro';
+import Icon from '../components/Icon.astro';
+import StatsGrid from '../components/StatsGrid.astro';
+
+const swatches = [
+    ['--color-maroon-700', 'Maroon 700'],
+    ['--color-maroon-600', 'Maroon 600 · brand'],
+    ['--color-maroon-500', 'Maroon 500 · hover'],
+    ['--color-gold-600', 'Gold 600 · text'],
+    ['--color-gold-500', 'Gold 500 · accent'],
+    ['--color-gold-400', 'Gold 400 · decorative'],
+    ['--color-ink', 'Ink'],
+    ['--color-body-text', 'Body'],
+    ['--color-muted-text', 'Muted'],
+    ['--color-hairline', 'Hairline'],
+    ['--color-surface-sunken', 'Surface sunken'],
+];
+
+const icons = ['cricket-bat','field-rings','trophy','medal','star','crown','shield','calendar','map-pin','mail','phone','users','graduation-cap','heart','arrow-right','chevron-down','check-circle','external-link','instagram','youtube','ticket','sparkles','handshake','building','activity','hourglass','home'];
+---
+
+<Layout title="Style Guide - GSCC">
+    <PageHeader kicker="Design system" title="Style Guide" subtitle="Tokens, components and patterns for the Golden State Cricket Club site." />
+
+    <Section title="Colour" kicker="Palette" align="left">
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {swatches.map(([v, label]) => (
+                <div class="card card-static">
+                    <div style={`height:56px;border-radius:8px;background:var(${v});border:1px solid var(--color-hairline);`}></div>
+                    <div class="text-sm font-semibold mt-2">{label}</div>
+                    <code class="text-xs">{v}</code>
+                </div>
+            ))}
+        </div>
+    </Section>
+
+    <Section title="Type scale" kicker="Typography" variant="alternate" align="left">
+        <div class="space-y-4">
+            <div><span class="kicker">Kicker label</span></div>
+            <h1 style="margin:0;">Display / H1 — heavy, tight</h1>
+            <h2 style="margin:0;">Section heading / H2</h2>
+            <h3 style="margin:0;">Subsection / H3</h3>
+            <p class="text-intro measure">Intro paragraph — used under headers and for lead copy.</p>
+            <p class="text-body-lg measure">Body large — the default reading size for long-form content on the site.</p>
+            <p class="text-body-base measure">Body base — dense supporting text, captions and helper copy.</p>
+        </div>
+    </Section>
+
+    <Section title="Buttons" kicker="Actions" align="left">
+        <div class="flex flex-wrap gap-3 items-center">
+            <button class="btn">Primary</button>
+            <button class="btn btn-lg">Primary large <Icon name="arrow-right" size={16} /></button>
+            <button class="btn btn-secondary">Secondary</button>
+            <button class="btn btn-ghost">Ghost</button>
+            <button class="btn btn-sm">Small</button>
+            <button class="btn" disabled>Disabled</button>
+        </div>
+    </Section>
+
+    <Section title="Badges &amp; tags" kicker="Labels" variant="alternate" align="left">
+        <div class="flex flex-wrap gap-3 items-center">
+            <span class="badge"><Icon name="trophy" size={14} /> Maroon</span>
+            <span class="badge badge-gold"><Icon name="star" size={14} /> Gold</span>
+            <span class="badge badge-neutral">Neutral</span>
+            <span class="badge badge-success"><Icon name="check" size={14} /> Success</span>
+            <span class="tag">Tag</span>
+        </div>
+    </Section>
+
+    <Section title="Cards" kicker="Containers" align="left">
+        <div class="grid sm:grid-cols-3 gap-6">
+            <Card title="Icon card" content="One card primitive: surface, hairline, soft shadow, 1px lift on hover." icon="shield" />
+            <div class="card card-static">
+                <h3 class="subsection-heading">Static card</h3>
+                <p class="text-body-base mb-0">No hover lift — for non-interactive panels.</p>
+            </div>
+            <div class="accent-box">
+                <span class="kicker">Accent box</span>
+                <p class="text-body-base mt-1 mb-0">Gold-tinted highlight panel.</p>
+            </div>
+        </div>
+    </Section>
+
+    <Section title="Stats" kicker="Numbers" variant="alternate">
+        <StatsGrid stats={[{label:'Founded',value:'2018'},{label:'Members',value:'160+'},{label:'Teams',value:'4'},{label:'Counties',value:'8'}]} />
+    </Section>
+
+    <Section title="Form controls" kicker="Inputs" align="left">
+        <div class="max-w-md space-y-4">
+            <div>
+                <label class="field-label" for="sg-in">Label</label>
+                <input id="sg-in" class="input w-full" placeholder="Placeholder text" />
+            </div>
+            <div>
+                <label class="field-label" for="sg-ta">Message</label>
+                <textarea id="sg-ta" class="input w-full resize-none" rows="3" placeholder="Multi-line input"></textarea>
+            </div>
+        </div>
+    </Section>
+
+    <Section title="Icons" kicker="Iconography" variant="alternate" align="left">
+        <div class="flex flex-wrap gap-4">
+            {icons.map(n => (
+                <span class="flex flex-col items-center gap-1 text-muted" style="width:74px;">
+                    <span class="card card-static" style="padding:0.6rem;"><Icon name={n} size={20} class="text-heading" /></span>
+                    <span class="text-[11px]">{n}</span>
+                </span>
+            ))}
+        </div>
+    </Section>
+</Layout>

@@ -6,7 +6,9 @@ import Section from '../../components/Section.astro';
 import Card from '../../components/Card.astro';
 import MemberCard from '../../components/MemberCard.astro';
 import Markdown from '../../components/Markdown.astro';
+import PageHeader from '../../components/PageHeader.astro';
 import NonProfitBadge from '../../components/NonProfitBadge.astro';
+import Icon from '../../components/Icon.astro';
 import { SITE_CONFIG } from '../../config';
 
 const ourStory = `
@@ -18,22 +20,10 @@ The evolution from Bengals Cricket Club to Golden State Cricket Club in 2026 ref
 `;
 
 const clubValues = [
-    {
-        title: 'Meritocracy',
-        content: 'Selection based purely on performance and commitment'
-    },
-    {
-        title: 'Accessibility',
-        content: 'Open and transparent communication'
-    },
-    {
-        title: 'Democracy',
-        content: 'Collective decision-making'
-    },
-    {
-        title: 'Trust',
-        content: 'Transparent operations for all members'
-    }
+    { icon: 'trophy', title: 'Meritocracy', content: 'Selection based purely on performance and commitment.' },
+    { icon: 'users', title: 'Accessibility', content: 'Open and transparent communication.' },
+    { icon: 'check-circle', title: 'Democracy', content: 'Collective decision-making.' },
+    { icon: 'shield', title: 'Trust', content: 'Transparent operations for all members.' }
 ];
 
 const executiveCommittee = [
@@ -48,94 +38,93 @@ const boardMembers = [
     { name: 'Anirban Paul', role: 'Board Member' },
     { name: 'Razab Chowdhury', role: 'Board Member' }
 ];
+
+const impactIcons: Record<string, string> = {
+    'Active Members': 'users',
+    'Youth & Students': 'graduation-cap',
+    'Counties Represented': 'map-pin',
+    'Years of Service': 'hourglass'
+};
 ---
 
 <Layout title="About Us - Golden State Cricket Club">
-    <h1 class="page-title">About Us</h1>
+    <PageHeader kicker="Our club" title="About Us" subtitle="Founded 2018 · part of Bengals Inc., a 501(c)(3) non-profit." />
 
-    <Section title="Our Story">
-        <Markdown content={ourStory} class="text-body-lg max-w-3xl mx-auto text-justified" />
+    <Section title="Our Story" kicker="History" align="left">
+        <Markdown content={ourStory} class="markdown text-body-lg measure" />
     </Section>
 
-    <Section variant="alternate">
-        <div class="accent-box section-centered">
-            <h2 class="section-heading">Our Vision</h2>
-            <p class="text-body-lg">
-                To build a competitive yet inclusive cricketing ecosystem that promotes talent, teamwork, and community engagement across the Bay Area.
+    <Section variant="alternate" align="left">
+        <div class="accent-box">
+            <span class="kicker">Our vision</span>
+            <p class="text-body-lg measure mt-2 mb-0">
+                To build a competitive yet inclusive cricketing ecosystem that promotes talent, teamwork,
+                and community engagement across the Bay Area.
             </p>
         </div>
     </Section>
 
-    <Section title="Club Culture & Values">
+    <Section title="Club Culture & Values" kicker="What we stand for">
         <div class="grid sm:grid-cols-2 gap-6">
             {clubValues.map(value => (
-                <Card title={value.title} content={value.content} />
+                <Card title={value.title} content={value.content} icon={value.icon} />
             ))}
         </div>
     </Section>
 
-    <Section title="Leadership & Management" variant="alternate">
+    <Section title="Leadership & Management" kicker="The people" variant="alternate">
         <div class="mb-12">
             <h3 class="subsection-heading text-center">Executive Committee</h3>
             <div class="member-grid-3 mx-auto">
-                {executiveCommittee.map(member => (
-                    <MemberCard name={member.name} role={member.role} />
-                ))}
+                {executiveCommittee.map(member => <MemberCard name={member.name} role={member.role} />)}
             </div>
         </div>
-
         <div>
             <h3 class="subsection-heading text-center">Non-Profit Board Members</h3>
             <div class="member-grid mx-auto">
-                {boardMembers.map(member => (
-                    <MemberCard name={member.name} role={member.role} />
-                ))}
+                {boardMembers.map(member => <MemberCard name={member.name} role={member.role} />)}
             </div>
         </div>
     </Section>
 
-    <Section title="Our Non-Profit Foundation">
+    <Section title="Our Non-Profit Foundation" kicker="Bengals Inc.">
         <div class="max-w-4xl mx-auto">
             <div class="text-center mb-8">
                 <NonProfitBadge size="lg" showEIN={false} />
             </div>
 
-            <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-8 border-2 border-blue-200 mb-8">
-                <h3 class="subsection-heading text-center">
-                    {SITE_CONFIG.nonProfit.name}
-                </h3>
-                <p class="text-body-lg text-center max-w-3xl mx-auto mb-6">
+            <div class="card card-static mb-8">
+                <h3 class="subsection-heading text-center">{SITE_CONFIG.nonProfit.name}</h3>
+                <p class="text-body-lg text-center measure mx-auto mb-6" style="margin-inline:auto;">
                     {SITE_CONFIG.nonProfit.mission}
                 </p>
-                <p class="text-body-base text-center text-justified max-w-3xl mx-auto">
-                    Golden State Cricket Club (GSCC) is proud to be part of Bengals Inc., fostering community connection through sport.
+                <p class="text-body-base text-center measure mx-auto" style="margin-inline:auto;">
+                    GSCC is proud to be part of Bengals Inc., fostering community connection through sport.
                     Through our non-profit, we provide youth training programs, inclusive membership opportunities,
-                    and pathways for competitive cricket development. Our mission extends beyond the game to building
-                    strong community bonds and creating opportunities for all to participate in cricket.
+                    and pathways for competitive cricket development.
                 </p>
             </div>
 
-            {/* Impact Stats */}
-            <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                 {SITE_CONFIG.nonProfit.impactStats.map(stat => (
-                    <div class="bg-white rounded-lg p-6 border-2 border-gray-200 text-center hover:border-primary hover:shadow-lg transition-all">
-                        <div class="text-4xl mb-3">{stat.icon}</div>
-                        <div class="text-3xl font-bold text-primary mb-2">{stat.value}</div>
-                        <div class="text-sm text-gray-600">{stat.label}</div>
+                    <div class="stat-box text-center">
+                        <span class="inline-flex items-center justify-center w-10 h-10 rounded-[10px] mb-3" style="background:var(--color-gold-100);color:var(--color-gold-600);">
+                            <Icon name={impactIcons[stat.label] ?? 'star'} size={20} />
+                        </span>
+                        <div class="text-3xl font-extrabold" style="color:var(--color-maroon-600);font-variant-numeric:tabular-nums;">{stat.value}</div>
+                        <div class="text-sm text-muted mt-1">{stat.label}</div>
                     </div>
                 ))}
             </div>
 
-            {/* CTA to Non-Profit Page */}
-            <div class="text-center bg-amber-50 border-2 rounded-xl p-8" style="border-color: #E5C878;">
-                <h3 class="subsection-heading">Support Our Community Programs</h3>
-                <p class="text-body-base mb-6 max-w-2xl mx-auto">
-                    Learn more about our foundation's programs, see our impact in the community,
-                    and discover how you can make a tax-deductible donation to support cricket in Northern California.
+            <div class="accent-box text-center">
+                <h3 class="subsection-heading">Support our community programs</h3>
+                <p class="text-body-base measure mx-auto mb-6" style="margin-inline:auto;">
+                    Learn more about our foundation's programs, see our impact, and discover how you can
+                    make a tax-deductible donation to support cricket in Northern California.
                 </p>
-                <a href="/non-profit" class="btn btn-lg inline-flex items-center gap-2">
-                    <span class="text-xl">🤝</span>
-                    Learn More About Our Foundation
+                <a href="/aboutus/non-profit" class="btn btn-lg">
+                    <Icon name="handshake" size={18} /> Learn more about our foundation
                 </a>
             </div>
         </div>

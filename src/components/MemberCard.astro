@@ -7,27 +7,27 @@ interface Props {
 }
 
 const { name, role, image, bio } = Astro.props;
+const initials = name.split(' ').map(n => n[0]).slice(0, 2).join('');
 ---
 
-<div class="card text-center member-card-wrapper">
+<div class="card card-static text-center member-card-wrapper">
     <div class="mb-4 flex justify-center">
         {image ? (
-            <img src={image} alt={name} class="w-24 h-24 rounded-full object-cover" loading="lazy" />
+            <img src={image} alt={name} class="w-20 h-20 rounded-full object-cover" loading="lazy" />
         ) : (
-            <div class="w-24 h-24 rounded-full hero-bg flex items-center justify-center text-3xl font-bold text-primary">
-                {name.split(' ').map(n => n[0]).join('')}
+            <div class="w-20 h-20 rounded-full flex items-center justify-center text-xl font-bold member-avatar">
+                {initials}
             </div>
         )}
     </div>
-    <h3 class="subsection-heading heading-margin-none mb-1">
-        {name}
-    </h3>
-    <p class="text-primary text-sm font-semibold mb-3">
-        {role}
-    </p>
-    {bio && (
-        <p class="text-muted text-sm">
-            {bio}
-        </p>
-    )}
+    <h3 class="subsection-heading heading-margin-none mb-1">{name}</h3>
+    <p class="kicker" style="color: var(--color-maroon-600);">{role}</p>
+    {bio && <p class="text-muted text-sm mt-3">{bio}</p>}
 </div>
+
+<style>
+    .member-avatar {
+        background: var(--color-gold-100);
+        color: var(--color-gold-600);
+    }
+</style>

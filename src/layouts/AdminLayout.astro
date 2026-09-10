@@ -32,7 +32,7 @@ const isSuperAdmin = userRole === 'super_admin';
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="GSCC Admin" />
-    <meta name="theme-color" content="#355c7d" />
+    <meta name="theme-color" content="#1A1614" />
     <link rel="preload" as="font" type="font/woff2" href={interWoff2} crossorigin />
   </head>
   <body class="antialiased text-body">
@@ -801,8 +801,8 @@ const isSuperAdmin = userRole === 'super_admin';
         align-items: center;
         gap: 12px;
         padding: 12px max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
-        background: linear-gradient(135deg, #355c7d 0%, #1e3a52 100%);
-        border-top: 1px solid rgba(229, 200, 120, 0.3);
+        background: var(--color-ink, #1A1614);
+        border-top: 2px solid var(--color-gold-500, #C9A227);
         box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
       }
 
@@ -822,8 +822,8 @@ const isSuperAdmin = userRole === 'super_admin';
       .admin-pwa-install-action {
         flex-shrink: 0;
         padding: 8px 20px;
-        background: #E5C878;
-        color: #1e3a52;
+        background: #E9C86B;
+        color: #1A1614;
         border: none;
         border-radius: 8px;
         font-size: 14px;
