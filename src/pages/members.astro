@@ -38,16 +38,12 @@ const joinSteps = [
 <Layout title="Membership - Golden State Cricket Club">
     <PageHeader kicker="Join us" title="Become a Member" subtitle="Join Bengals Inc. through GSCC — competitive cricket and a community mission." />
 
-    <div class="flex flex-wrap gap-3 -mt-2 mb-2">
-        {signedInMember ? (
-            <a href="/myfixtures" class="btn btn-lg">Go to My Fixtures <Icon name="arrow-right" size={16} /></a>
-        ) : (
-            <>
-                <a href="/register" class="btn btn-lg">Register now <Icon name="arrow-right" size={16} /></a>
-                <a href="/contact" class="btn btn-lg btn-secondary">Ask a question</a>
-            </>
-        )}
-    </div>
+    {!signedInMember && (
+        <div class="flex flex-wrap gap-3 -mt-2 mb-2">
+            <a href="/register" class="btn btn-lg">Register now <Icon name="arrow-right" size={16} /></a>
+            <a href="/contact" class="btn btn-lg btn-secondary">Ask a question</a>
+        </div>
+    )}
 
     <Section align="left">
         <div class="accent-box">
