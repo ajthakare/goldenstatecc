@@ -5,13 +5,14 @@ import { validateAdminSession } from '../middleware/auth';
 
 export const prerender = false;
 
-// Check if already logged in
+// Already-registered users don't need this page — send them to their
+// account rather than bouncing to the marketing home (which reads as a
+// broken link when you click "Register now" while signed in).
 const cookieHeader = Astro.request.headers.get('cookie');
 const session = validateAdminSession(cookieHeader || '');
 
-// Redirect to home if already logged in
 if (session) {
-  return Astro.redirect('/');
+  return Astro.redirect('/profile');
 }
 ---
 

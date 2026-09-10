@@ -102,7 +102,7 @@ const currentPath = Astro.url.pathname;
                     {/* Mobile Menu Button */}
                     <button
                         id="mobile-menu-toggle"
-                        class="nav-icon-btn lg:hidden"
+                        class="nav-icon-btn flex lg:hidden"
                         aria-label="Toggle navigation menu"
                         aria-expanded="false"
                     >
@@ -298,8 +298,10 @@ const currentPath = Astro.url.pathname;
         border-top: 1px solid rgba(255, 255, 255, 0.12);
     }
 
+    /* No `display` here — it would beat Tailwind's hidden/lg:hidden/lg:flex
+       (unlayered component CSS wins over @layer utilities). Each button
+       carries its own display utility instead. */
     .nav-icon-btn {
-        display: flex;
         align-items: center;
         justify-content: center;
         width: 40px;

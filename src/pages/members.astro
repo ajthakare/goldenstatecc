@@ -7,6 +7,13 @@ import StatsGrid from '../components/StatsGrid.astro';
 import Card from '../components/Card.astro';
 import PageHeader from '../components/PageHeader.astro';
 import Icon from '../components/Icon.astro';
+import { validateAdminSession, isMember } from '../middleware/auth';
+
+const signedInMember = (() => {
+    const cookie = Astro.request.headers.get('cookie');
+    const session = cookie ? validateAdminSession(cookie) : null;
+    return !!(session && isMember(session));
+})();
 
 const membershipStats = [
     { label: 'Total Members', value: '160+' },
@@ -30,6 +37,13 @@ const joinSteps = [
 
 <Layout title="Membership - Golden State Cricket Club">
     <PageHeader kicker="Join us" title="Become a Member" subtitle="Join Bengals Inc. through GSCC — competitive cricket and a community mission." />
+
+    {!signedInMember && (
+        <div class="flex flex-wrap gap-3 -mt-2 mb-2">
+            <a href="/register" class="btn btn-lg">Register now <Icon name="arrow-right" size={16} /></a>
+            <a href="/contact" class="btn btn-lg btn-secondary">Ask a question</a>
+        </div>
+    )}
 
     <Section align="left">
         <div class="accent-box">
@@ -72,9 +86,19 @@ const joinSteps = [
         </div>
 
         <div class="accent-box text-center mt-10">
-            <h3 class="subsection-heading">Ready to join?</h3>
-            <p class="text-body-lg mb-6">Start your membership today. Register online and an admin will review your application.</p>
-            <a href="/register" class="btn btn-lg">Register now <Icon name="arrow-right" size={16} /></a>
+            {signedInMember ? (
+                <>
+                    <h3 class="subsection-heading">You're already a member</h3>
+                    <p class="text-body-lg mb-6">Head to your fixtures to mark availability for upcoming matches.</p>
+                    <a href="/myfixtures" class="btn btn-lg">Go to My Fixtures <Icon name="arrow-right" size={16} /></a>
+                </>
+            ) : (
+                <>
+                    <h3 class="subsection-heading">Ready to join?</h3>
+                    <p class="text-body-lg mb-6">Start your membership today. Register online and an admin will review your application.</p>
+                    <a href="/register" class="btn btn-lg">Register now <Icon name="arrow-right" size={16} /></a>
+                </>
+            )}
         </div>
 
         <div class="text-center mt-6">
