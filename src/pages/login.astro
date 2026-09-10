@@ -2,6 +2,7 @@
 export const prerender = false;
 
 import Layout from '../layouts/Layout.astro';
+import PageHeader from '../components/PageHeader.astro';
 
 // Optional post-login destination (?redirect=/some/path). Only same-origin
 // absolute paths are honored, to avoid open-redirect abuse.
@@ -40,40 +41,28 @@ if (cookieHeader) {
         <img src="/icons/icon-192.png" alt="GSCC" width="72" height="72" />
       </div>
 
-      <div class="text-center">
-        <h1 class="text-4xl font-bold text-[#355c7d] mb-2">Login</h1>
-        <p class="text-gray-600">Golden State Cricket Club</p>
-      </div>
+      <PageHeader align="center" rule={false} kicker="Members" title="Log in" subtitle="Golden State Cricket Club" />
 
-      <div class="bg-white rounded-lg shadow-lg p-8">
-        <form id="login-form" class="space-y-6">
+      <div class="card card-static p-8">
+        <form id="login-form" class="space-y-5">
           <div>
-            <label for="email" class="block text-sm font-medium text-gray-700 mb-2">
-              Email or Username
-            </label>
+            <label for="email" class="field-label">Email or username</label>
             <input
               type="text"
               id="email"
               name="email"
               required
               autocomplete="username"
-              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f67280] focus:border-transparent"
+              class="input w-full"
               placeholder="Enter your email or username"
             />
           </div>
 
           <div>
-            <div class="flex justify-between items-center mb-2">
-              <label for="password" class="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <button
-                type="button"
-                id="forgot-password-link"
-                class="text-sm text-[#f67280] hover:underline"
-                data-pwa-href="/forgot-password"
-              >
-                Forgot Password?
+            <div class="flex justify-between items-center mb-1.5">
+              <label for="password" class="field-label mb-0">Password</label>
+              <button type="button" id="forgot-password-link" class="link text-sm" data-pwa-href="/forgot-password">
+                Forgot password?
               </button>
             </div>
             <input
@@ -82,37 +71,25 @@ if (cookieHeader) {
               name="password"
               required
               autocomplete="current-password"
-              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f67280] focus:border-transparent"
+              class="input w-full"
               placeholder="Enter your password"
             />
           </div>
 
           <div id="error-message" class="hidden">
-            <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            <div class="px-4 py-3 rounded-lg text-sm" style="background:#FDECEA;border:1px solid #F5C6C0;color:#991B1B;">
               <span id="error-text"></span>
             </div>
           </div>
 
-          <button
-            type="submit"
-            id="submit-button"
-            class="w-full bg-[#f67280] text-white py-3 px-4 rounded-lg font-medium hover:bg-[#e55a6a] transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#f67280]"
-          >
-            Sign In
-          </button>
+          <button type="submit" id="submit-button" class="btn btn-lg btn-block">Sign in</button>
         </form>
-
       </div>
 
-      <div class="text-center text-sm text-gray-600 space-y-2">
-        <div>
-          Don't have an account?
-          <a href="/register" class="text-[#f67280] font-semibold hover:underline">Register</a>
-        </div>
+      <div class="text-center text-sm text-muted space-y-2">
+        <div>Don't have an account? <a href="/register" class="link font-semibold">Register</a></div>
         <div class="browser-only-link">
-          <a href="/" class="hover:text-[#f67280] transition-colors">
-            &larr; Back to Website
-          </a>
+          <a href="/" class="link">&larr; Back to website</a>
         </div>
       </div>
     </div>
@@ -133,46 +110,25 @@ if (cookieHeader) {
 
         <form id="forgot-password-form">
           <div class="mb-4">
-            <label for="reset-email" class="block text-sm font-medium text-gray-700 mb-2">
-              Email Address
-            </label>
-            <input
-              type="email"
-              id="reset-email"
-              name="email"
-              required
-              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f67280] focus:border-transparent"
-              placeholder="Enter your email"
-            />
+            <label for="reset-email" class="field-label">Email address</label>
+            <input type="email" id="reset-email" name="email" required class="input w-full" placeholder="Enter your email" />
           </div>
 
           <div id="forgot-error-message" class="hidden mb-4">
-            <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            <div class="px-4 py-3 rounded-lg text-sm" style="background:#FDECEA;border:1px solid #F5C6C0;color:#991B1B;">
               <span id="forgot-error-text"></span>
             </div>
           </div>
 
           <div id="forgot-success-message" class="hidden mb-4">
-            <div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
+            <div class="px-4 py-3 rounded-lg text-sm" style="background:#EAF6EE;border:1px solid #BFE3CC;color:#1B6B3A;">
               <span id="forgot-success-text"></span>
             </div>
           </div>
 
           <div class="flex gap-3">
-            <button
-              type="button"
-              id="modal-cancel"
-              class="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              id="forgot-submit-button"
-              class="flex-1 bg-[#f67280] text-white py-3 px-4 rounded-lg font-medium hover:bg-[#e55a6a] transition-colors"
-            >
-              Submit Request
-            </button>
+            <button type="button" id="modal-cancel" class="btn btn-secondary flex-1">Cancel</button>
+            <button type="submit" id="forgot-submit-button" class="btn flex-1">Submit request</button>
           </div>
         </form>
       </div>
@@ -359,27 +315,6 @@ if (cookieHeader) {
 </script>
 
 <style>
-  /* Override hardcoded colors with theme variables */
-  input:focus {
-    --tw-ring-color: var(--color-primary) !important;
-  }
-
-  button[type="submit"] {
-    background-color: var(--color-primary) !important;
-  }
-
-  button[type="submit"]:hover {
-    background-color: color-mix(in srgb, var(--color-primary) 90%, black) !important;
-  }
-
-  button[type="submit"]:focus {
-    --tw-ring-color: var(--color-primary) !important;
-  }
-
-  a:hover {
-    color: var(--color-primary) !important;
-  }
-
   /* Modal Styles */
   .modal {
     display: none;

@@ -1,23 +1,179 @@
 ---
+import Icon from '../components/Icon.astro';
 import { SITE_CONFIG } from '../config';
+
+const year = new Date().getFullYear();
+
+const explore = [
+    { label: 'The Club', href: '/aboutus/club' },
+    { label: 'Teams', href: '/teams' },
+    { label: 'Fixtures', href: '/fixtures' },
+    { label: 'Gallery', href: '/gallery' },
+    { label: 'Membership', href: '/members' },
+];
+
+const support = [
+    { label: 'Non-Profit', href: '/aboutus/non-profit' },
+    { label: 'Sponsorships', href: '/aboutus/sponsorships' },
+    { label: 'Contact Us', href: '/contact' },
+    { label: 'Member Login', href: '/login' },
+];
 ---
 
-<footer class="pt-8 pb-6 sm:pt-12 sm:pb-8" style="border-top: 1px solid var(--color-border);">
-    <div class="text-sm text-muted space-y-3">
-        <p>&copy; {new Date().getFullYear()} {SITE_CONFIG.name} &ndash; {SITE_CONFIG.location}</p>
+<footer class="site-footer mt-12 sm:mt-16 rounded-t-2xl px-6 sm:px-10 pt-8 pb-6 sm:pt-12 sm:pb-8">
+    <div class="max-w-5xl mx-auto">
+        <div class="grid grid-cols-1 gap-y-4 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-8 lg:grid-cols-4 lg:gap-10">
+            <div class="sm:col-span-2 lg:col-span-1">
+                <div class="wm">{SITE_CONFIG.name}</div>
+                <p class="text-sm text-muted mt-2 max-w-md">
+                    Competitive cricket and community across the Bay Area since 2018.
+                </p>
+                <div class="flex gap-2 mt-3">
+                    <a href={SITE_CONFIG.social.instagram.url} target="_blank" rel="noopener noreferrer" class="foot-social" aria-label="Instagram">
+                        <Icon name="instagram" size={18} />
+                    </a>
+                    <a href={SITE_CONFIG.social.youtube.url} target="_blank" rel="noopener noreferrer" class="foot-social" aria-label="YouTube">
+                        <Icon name="youtube" size={18} />
+                    </a>
+                    <a href={`mailto:${SITE_CONFIG.email}`} class="foot-social" aria-label="Email">
+                        <Icon name="mail" size={18} />
+                    </a>
+                </div>
+            </div>
 
-        <div class="flex items-center gap-2 flex-wrap">
-            <span class="inline-flex items-center gap-1 px-3 py-1 bg-green-50 border border-green-300 rounded-full text-xs font-semibold text-green-800">
-                <span>✓</span>
-                {SITE_CONFIG.nonProfit.status}
-            </span>
-            <span class="text-xs">EIN: {SITE_CONFIG.nonProfit.ein}</span>
+            <details class="foot-acc">
+                <summary class="foot-acc__sum">
+                    <span class="foot-h">Explore</span>
+                    <Icon name="chevron-down" size={16} class="acc-chev" />
+                </summary>
+                <ul>
+                    {explore.map((l) => <li><a href={l.href} class="foot-link">{l.label}</a></li>)}
+                </ul>
+            </details>
+
+            <details class="foot-acc">
+                <summary class="foot-acc__sum">
+                    <span class="foot-h">Club</span>
+                    <Icon name="chevron-down" size={16} class="acc-chev" />
+                </summary>
+                <ul>
+                    {support.map((l) => <li><a href={l.href} class="foot-link">{l.label}</a></li>)}
+                </ul>
+            </details>
+
+            <div class="sm:col-span-2 lg:col-span-1">
+                <div class="foot-h">Non-Profit</div>
+                <span class="badge badge-success">
+                    <Icon name="check" size={14} /> {SITE_CONFIG.nonProfit.status}
+                </span>
+                <p class="text-xs text-subtle mt-2.5 leading-relaxed">
+                    {SITE_CONFIG.nonProfit.name} is a registered 501(c)(3) non-profit.
+                    EIN: {SITE_CONFIG.nonProfit.ein}. Donations are tax-deductible to the
+                    extent allowed by law.
+                </p>
+            </div>
         </div>
 
-        <div class="text-xs text-gray-500 text-center mt-2">
-            {SITE_CONFIG.nonProfit.name} is a registered 501(c)(3) non-profit organization.
-            EIN: {SITE_CONFIG.nonProfit.ein}.
-            Donations are tax-deductible to the extent allowed by law.
+        <div class="mt-8 pt-5 border-t border-[color:var(--color-hairline)] text-xs text-subtle flex flex-col sm:flex-row gap-1 sm:justify-between">
+            <span>&copy; {year} {SITE_CONFIG.name} — {SITE_CONFIG.location}</span>
+            <span>All rights reserved.</span>
         </div>
     </div>
 </footer>
+
+<script>
+    // Guarantee the disclosure toggles even where the UA <details> rendering
+    // misbehaves; no-op on desktop where the groups are always shown.
+    const mq = window.matchMedia('(min-width: 1024px)');
+    document.querySelectorAll('.site-footer .foot-acc > summary').forEach((sum) => {
+        sum.addEventListener('click', (e) => {
+            if (mq.matches) { e.preventDefault(); return; }
+            e.preventDefault();
+            const d = sum.parentElement as HTMLDetailsElement;
+            d.open = !d.open;
+        });
+    });
+</script>
+
+<style>
+    .site-footer .wm {
+        font-size: 1rem;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+        text-transform: uppercase;
+        color: var(--color-ink);
+    }
+    .foot-h {
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--color-muted-text);
+        margin-bottom: 0.6rem;
+    }
+    .foot-link {
+        display: block;
+        font-size: 0.9375rem;
+        line-height: 1.35;
+        padding: 0.4rem 0;
+        color: var(--color-body-text);
+        transition: color var(--dur-base) var(--ease-out);
+    }
+    .foot-link:hover { color: var(--color-maroon-600); }
+    .foot-social {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        border-radius: 9px;
+        color: var(--color-body-text);
+        background: var(--color-surface);
+        border: 1px solid var(--color-hairline);
+        transition: all var(--dur-base) var(--ease-out);
+    }
+    .foot-social:hover {
+        color: #fff;
+        background: var(--color-maroon-600);
+        border-color: var(--color-maroon-600);
+    }
+
+    /* ── Collapsible link groups (mobile only) ── */
+    .foot-acc { min-width: 0; }
+    .foot-acc__sum {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        cursor: pointer;
+        list-style: none;
+        padding: 0.5rem 0;
+        min-height: 44px;
+    }
+    .foot-acc__sum::-webkit-details-marker { display: none; }
+    .foot-acc__sum .foot-h { margin-bottom: 0; }
+    .foot-acc .acc-chev {
+        color: var(--color-subtle-text);
+        transition: transform var(--dur-base) var(--ease-out);
+    }
+    .foot-acc[open] .acc-chev { transform: rotate(180deg); }
+    .foot-acc > ul { padding-bottom: 0.5rem; }
+
+    /* Explicit collapse — don't depend on the UA details rendering */
+    @media (max-width: 1023px) {
+        .foot-acc:not([open]) > ul { display: none; }
+    }
+
+    @media (min-width: 1024px) {
+        .site-footer .foot-acc > ul { display: block; padding-bottom: 0; }
+        .site-footer .foot-acc__sum {
+            cursor: default;
+            pointer-events: none;
+            padding: 0;
+            min-height: 0;
+        }
+        .site-footer .foot-acc__sum .foot-h { margin-bottom: 0.6rem; }
+        .site-footer .foot-acc .acc-chev { display: none; }
+    }
+</style>

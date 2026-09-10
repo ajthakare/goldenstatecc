@@ -2,131 +2,115 @@
 export const prerender = false;
 
 import Layout from '../layouts/Layout.astro';
-import Section from '../components/Section.astro';
+import PageHeader from '../components/PageHeader.astro';
 import SocialMediaLinks from '../components/SocialMediaLinks.astro';
+import Icon from '../components/Icon.astro';
 import { SITE_CONFIG } from '../config';
 ---
 
 <Layout title="Contact Us - Golden State Cricket Club">
-    <h1 class="page-title heading-margin-sm">Contact Us</h1>
-    <p class="text-intro mb-8">Get in touch with Golden State Cricket Club</p>
+    <PageHeader kicker="Say hello" title="Contact Us" subtitle="Questions about joining, sponsorship, or the club? Send us a note." />
 
-    <div class="grid md:grid-cols-2 gap-8 sm:gap-12">
-        <Section>
-            <h2 class="section-heading">Send Us a Message</h2>
+    <div class="grid md:grid-cols-[1.3fr_1fr] gap-10 sm:gap-14">
+        <div>
+            <h2 class="section-heading">Send us a message</h2>
 
-            {/* Success message */}
-            <div id="success-message" class="hidden mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div class="flex items-center gap-2 text-green-800">
-                    <span class="text-2xl">✅</span>
+            <div id="success-message" class="hidden mb-6 p-4 rounded-xl" style="background:#EAF6EE;border:1px solid #BFE3CC;">
+                <div class="flex items-center gap-3" style="color:#1B6B3A;">
+                    <Icon name="check-circle" size={22} />
                     <div>
-                        <div class="font-semibold">Message sent successfully!</div>
+                        <div class="font-semibold">Message sent</div>
                         <div class="text-sm">We'll get back to you soon.</div>
                     </div>
                 </div>
             </div>
 
-            <form name="contact" method="POST" action="/contact?success=true" data-netlify="true" netlify-honeypot="bot-field" class="space-y-6">
-                {/* Hidden fields for Netlify */}
+            <form name="contact" method="POST" action="/contact?success=true" data-netlify="true" netlify-honeypot="bot-field" class="space-y-5">
                 <input type="hidden" name="form-name" value="contact" />
-                <div style="display: none;">
-                    <label>Don't fill this out if you're human: <input name="bot-field" /></label>
-                </div>
+                <div style="display:none;"><label>Don't fill this out if you're human: <input name="bot-field" /></label></div>
 
                 <div>
-                    <label for="name" class="block text-sm font-medium mb-2">Name *</label>
-                    <input
-                        type="text"
-                        id="name"
-                        name="name"
-                        required
-                        class="input w-full"
-                        placeholder="Your name"
-                    />
+                    <label for="name" class="field-label">Name *</label>
+                    <input type="text" id="name" name="name" required class="input w-full" placeholder="Your name" />
                 </div>
-
                 <div>
-                    <label for="email" class="block text-sm font-medium mb-2">Email</label>
-                    <input
-                        type="email"
-                        id="email"
-                        name="email"
-                        class="input w-full"
-                        placeholder="your.email@example.com"
-                    />
+                    <label for="email" class="field-label">Email</label>
+                    <input type="email" id="email" name="email" class="input w-full" placeholder="your.email@example.com" />
                 </div>
-
                 <div>
-                    <label for="phone" class="block text-sm font-medium mb-2">Phone Number *</label>
-                    <input
-                        type="tel"
-                        id="phone"
-                        name="phone"
-                        required
-                        class="input w-full"
-                        placeholder="+1 (555) 123-4567"
-                    />
+                    <label for="phone" class="field-label">Phone number *</label>
+                    <input type="tel" id="phone" name="phone" required class="input w-full" placeholder="+1 (555) 123-4567" />
                 </div>
-
                 <div>
-                    <label for="message" class="block text-sm font-medium mb-2">Message *</label>
-                    <textarea
-                        id="message"
-                        name="message"
-                        required
-                        rows="6"
-                        class="input w-full resize-none"
-                        placeholder="Tell us about your interest in joining or your questions..."
-                    ></textarea>
+                    <label for="message" class="field-label">Message *</label>
+                    <textarea id="message" name="message" required rows="6" class="input w-full resize-none" placeholder="Tell us about your interest in joining or your questions…"></textarea>
                 </div>
-
-                <button type="submit" id="submit-btn" class="btn btn-lg w-full">
-                    Send Message
-                </button>
+                <button type="submit" id="submit-btn" class="btn btn-lg btn-block">Send message</button>
             </form>
-        </Section>
+        </div>
 
         <div class="space-y-8">
-            <Section>
-                <h2 class="section-heading">Contact Information</h2>
-                <div class="space-y-4">
-                    <a
-                        href={`mailto:${SITE_CONFIG.email}`}
-                        class="flex items-center gap-3 p-4 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:border-primary transition-colors"
-                    >
-                        <span class="text-2xl">📧</span>
-                        <div>
-                            <div class="font-semibold text-gray-900">Email</div>
-                            <div class="text-sm text-gray-600">{SITE_CONFIG.email}</div>
-                        </div>
+            <div>
+                <h2 class="section-heading">Contact information</h2>
+                <div class="space-y-3">
+                    <a href={`mailto:${SITE_CONFIG.email}`} class="contact-row">
+                        <span class="contact-row__ico"><Icon name="mail" size={18} /></span>
+                        <span>
+                            <span class="contact-row__k">Email</span>
+                            <span class="contact-row__v">{SITE_CONFIG.email}</span>
+                        </span>
                     </a>
-
-                    <div class="flex items-center gap-3 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                        <span class="text-2xl">📍</span>
-                        <div>
-                            <div class="font-semibold text-gray-900">Location</div>
-                            <div class="text-sm text-gray-600">{SITE_CONFIG.location}</div>
-                        </div>
+                    <div class="contact-row contact-row--static">
+                        <span class="contact-row__ico"><Icon name="map-pin" size={18} /></span>
+                        <span>
+                            <span class="contact-row__k">Location</span>
+                            <span class="contact-row__v">{SITE_CONFIG.location}</span>
+                        </span>
                     </div>
                 </div>
-            </Section>
+            </div>
 
-            <Section>
-                <h2 class="text-2xl sm:text-3xl font-bold mb-6">Follow Us</h2>
+            <div>
+                <h2 class="section-heading">Follow us</h2>
                 <SocialMediaLinks layout="vertical" size="md" />
-            </Section>
+            </div>
         </div>
     </div>
 </Layout>
 
+<style>
+    .contact-row {
+        display: flex;
+        align-items: center;
+        gap: 0.9rem;
+        padding: 1rem;
+        border-radius: var(--radius-card);
+        background: var(--color-surface);
+        border: 1px solid var(--color-hairline);
+        transition: border-color var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
+    }
+    a.contact-row:hover { border-color: var(--color-maroon-500); box-shadow: var(--shadow-sm); }
+    .contact-row__ico {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        background: var(--color-maroon-100);
+        color: var(--color-maroon-600);
+        flex-shrink: 0;
+    }
+    .contact-row__k { display: block; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-subtle-text); }
+    .contact-row__v { display: block; font-weight: 600; color: var(--color-ink); margin-top: 0.1rem; }
+</style>
+
 <script>
-    // Show success message if form was submitted
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('success') === 'true') {
         const successMessage = document.getElementById('success-message');
         if (successMessage) {
             successMessage.classList.remove('hidden');
-            // Scroll to top to show message
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
     }

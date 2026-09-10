@@ -2,13 +2,14 @@
 export const prerender = false;
 
 import Layout from '../layouts/Layout.astro';
-import HeroSection from '../components/HeroSection.astro';
-import StatsGrid from '../components/StatsGrid.astro';
 import Section from '../components/Section.astro';
-import Card from '../components/Card.astro';
+import StatsGrid from '../components/StatsGrid.astro';
+import Icon from '../components/Icon.astro';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { SPONSORS } from '../config';
+
+const HERO_IMAGE = '/images/hero-home.jpg';
 
 const highlights = [
     { label: 'Founded', value: '2018' },
@@ -18,169 +19,288 @@ const highlights = [
 ];
 
 const achievements = [
-    { year: '2025', title: 'Summer League – Winners (T20 Division 1)', icon: '🏆' },
-    { year: '2024', title: 'Winter League – Runners Up (T20)', icon: '🥈' },
-    { year: '2023', title: 'Summer League Stage 1st Place (T20)', icon: '🥇' },
-    { year: '2022', title: 'Semi-Finalists (T30)', icon: '🏅' },
-    { year: '2022', title: 'Quarter Finalists (T20)', icon: '🎖️' },
-    { year: '2021', title: 'Winter Semi-Finalists (T25 BACA League)', icon: '⭐' }
+    { year: '2025', title: 'Summer League — Winners (T20 Division 1)', icon: 'trophy' },
+    { year: '2024', title: 'Winter League — Runners Up (T20)', icon: 'medal' },
+    { year: '2023', title: 'Summer League Stage 1st Place (T20)', icon: 'medal' },
+    { year: '2022', title: 'Semi-Finalists (T30)', icon: 'star' },
+    { year: '2022', title: 'Quarter Finalists (T20)', icon: 'star' },
+    { year: '2021', title: 'Winter Semi-Finalists (T25 BACA League)', icon: 'star' }
 ];
+
+const venues = ['San Jose', 'Sunnyvale', 'Fremont', 'Milpitas', 'Livermore', 'Morgan Hill', 'Tracy', 'Davis'];
 
 // Read images from public/media folder for carousel
 let carouselImages: { src: string; alt: string }[] = [];
 try {
     const mediaDir = join(process.cwd(), 'public', 'media');
     const files = await readdir(mediaDir);
-
     carouselImages = files
         .filter(file => /\.(jpg|jpeg|png|JPG|JPEG|PNG)$/i.test(file))
         .filter(file => file !== '.DS_Store')
         .sort()
         .slice(0, 8)
-        .map(file => ({
-            src: `/media/${file}`,
-            alt: file.replace(/\.(jpg|jpeg|png|JPG|JPEG|PNG)$/i, '')
-        }));
+        .map(file => ({ src: `/media/${file}`, alt: file.replace(/\.(jpg|jpeg|png|JPG|JPEG|PNG)$/i, '') }));
 } catch (error) {
     console.error('Error loading carousel images:', error);
 }
 ---
 
 <Layout title="Golden State Cricket Club - Bay Area, California">
-    <section class="relative py-8 sm:py-12 -mx-4 sm:-mx-6 lg:-mx-8 mb-16">
-        <div class="absolute inset-0 hero-bg"></div>
-        <div class="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <div class="inline-block bg-primary/20 border-2 border-primary px-6 py-2 rounded-full text-base sm:text-lg font-semibold uppercase">
-                <span class="animate-shine">🏆 2025 Summer League – T20 Division 1 Champions 🏆</span>
+    <!-- Hero -->
+    <section class="hero">
+        <img src={HERO_IMAGE} alt="Golden State Cricket Club team on the field" class="hero__img" fetchpriority="high" />
+        <div class="hero__scrim"></div>
+        <div class="hero__body">
+            <span class="badge badge-gold">
+                <Icon name="trophy" size={14} /> 2025 T20 Division 1 Champions
+            </span>
+            <h1 class="hero__title">Bay Area cricket,<br />played to win.</h1>
+            <p class="hero__lede">
+                160+ players. Four competitive teams. One club competing across
+                Northern California — and a 501(c)(3) non-profit off the field.
+            </p>
+            <div class="hero__cta">
+                <a href="/members" class="btn btn-lg">
+                    Become a Member <Icon name="arrow-right" size={16} />
+                </a>
+                <a href="/fixtures" class="btn btn-lg btn-on-dark">View Fixtures</a>
             </div>
         </div>
     </section>
 
-    <Section title="Quick Highlights">
+    <!-- Quick highlights -->
+    <Section kicker="At a glance" title="The club in numbers">
         <StatsGrid stats={highlights} />
     </Section>
 
-    <Section variant="alternate">
-        <div class="section-centered">
-            <h2 class="section-heading">About GSCC</h2>
-            <p class="text-body-lg text-justified mb-6">
-                Founded in 2018, Golden State Cricket Club (GSCC) is part of Bengals Inc., a 501(c)(3) non-profit organization. We bring together 160+ players from diverse backgrounds with a shared passion for competitive cricket, sportsmanship, and continuous growth. We compete in Northern California Cricket Association (NCCA) and Bay Area Cricket Alliance (BACA) leagues.
-            </p>
-            <a href="/aboutus/club" class="btn">Learn More About Us</a>
+    <!-- About -->
+    <Section variant="alternate" title="" align="left">
+        <div class="grid lg:grid-cols-[1.2fr_1fr] gap-10 items-center">
+            <div>
+                <span class="kicker">About GSCC</span>
+                <h2 class="section-heading mt-2">A competitive club with a community mission</h2>
+                <p class="text-body-lg measure">
+                    Founded in 2018, Golden State Cricket Club is part of Bengals Inc., a
+                    501(c)(3) non-profit. We bring together 160+ players from across the Bay
+                    Area with a shared passion for competitive cricket, sportsmanship, and
+                    growth — competing in the NCCA and BACA leagues.
+                </p>
+                <a href="/aboutus/club" class="btn mt-6">
+                    Learn more about us <Icon name="arrow-right" size={15} />
+                </a>
+            </div>
+            <div class="about-photo">
+                <img src="/media/4cf2014d-c8da-4740-85f4-e9ee94b49d0f.JPG" alt="GSCC players with league trophies" loading="lazy" />
+            </div>
         </div>
     </Section>
 
-    <Section title="Recent Achievements">
-        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {achievements.map(achievement => (
-                <div class="card">
-                    <div class="flex items-center gap-3 mb-3">
-                        <span class="text-3xl">{achievement.icon}</span>
-                        <div class="text-2xl font-bold text-primary">{achievement.year}</div>
-                    </div>
-                    <p class="text-body">{achievement.title}</p>
-                </div>
+    <!-- Achievements -->
+    <Section kicker="Honours" title="Recent achievements">
+        <ul class="honours">
+            {achievements.map(a => (
+                <li class="honour">
+                    <span class="honour__ico"><Icon name={a.icon} size={20} /></span>
+                    <span class="honour__year">{a.year}</span>
+                    <span class="honour__title">{a.title}</span>
+                </li>
+            ))}
+        </ul>
+    </Section>
+
+    <!-- Where we play -->
+    <Section variant="alternate" kicker="Grounds" title="Where we play">
+        <p class="text-body-lg text-center mx-auto measure mb-6" style="margin-inline:auto;">
+            Our teams compete across the Bay Area at premier cricket grounds.
+        </p>
+        <div class="flex flex-wrap justify-center gap-2.5">
+            {venues.map(v => (
+                <span class="tag"><Icon name="map-pin" size={14} class="mr-1.5 opacity-60" />{v}</span>
             ))}
         </div>
     </Section>
 
-    <Section title="Where We Play" variant="alternate">
-        <div class="section-centered">
-            <p class="text-body-lg mb-6">
-                Our teams compete across the Bay Area at premier cricket grounds:
-            </p>
-            <div class="flex flex-wrap justify-center gap-3">
-                <span class="tag">San Jose</span>
-                <span class="tag">Sunnyvale</span>
-                <span class="tag">Fremont</span>
-                <span class="tag">Milpitas</span>
-                <span class="tag">Livermore</span>
-                <span class="tag">Morgan Hill</span>
-                <span class="tag">Tracy</span>
-                <span class="tag">Davis</span>
-            </div>
-        </div>
-    </Section>
-
-    <Section title="Media Gallery">
-        <div class="relative mb-8">
-            {/* Horizontal scrolling container */}
-            <div class="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide" style="scroll-behavior: smooth;">
-                {carouselImages.map((image) => (
-                    <div
-                        class="flex-shrink-0 snap-center border-2 border-gray-200 rounded-lg overflow-hidden hover:border-primary hover:shadow-lg transition-all cursor-pointer"
-                        style="width: 200px; height: 200px;"
-                    >
-                        <img
-                            src={image.src}
-                            alt={image.alt}
-                            width="200"
-                            height="200"
-                            style="width: 100%; height: 100%; object-fit: cover; display: block;"
-                        />
-                    </div>
-                ))}
-            </div>
-
-            {/* Scroll hint on mobile */}
-            <div class="text-center text-sm text-gray-500 mb-4 sm:hidden">
-                ← Swipe to see more →
-            </div>
-        </div>
-
-        <div class="text-center">
-            <a href="/gallery" class="btn btn-lg">View Full Gallery</a>
-        </div>
-    </Section>
-
-    <!-- Current Sponsors Section -->
-    <Section title="Our Sponsors" variant="alternate">
-        <div class="section-centered mb-6">
-            <p class="text-body-lg text-center text-gray-600">
-                Thank you to our valued sponsors who support Golden State Cricket Club
-            </p>
-        </div>
-
-        <!-- Sponsor logos in a responsive grid -->
-        <div class="flex flex-wrap justify-center items-center gap-8 max-w-4xl mx-auto">
-            {SPONSORS.current.map(sponsor => (
-                <div class="sponsor-logo-home">
-                    {sponsor.website && sponsor.website !== '#' ? (
-                        <a href={sponsor.website} target="_blank" rel="noopener noreferrer" class="block hover:opacity-80 transition-opacity">
-                            <img
-                                src={sponsor.logo}
-                                alt={`${sponsor.name} logo`}
-                                class="h-20 w-auto object-contain grayscale hover:grayscale-0 transition-all"
-                            />
-                        </a>
-                    ) : (
-                        <img
-                            src={sponsor.logo}
-                            alt={`${sponsor.name} logo`}
-                            class="h-20 w-auto object-contain grayscale hover:grayscale-0 transition-all"
-                        />
-                    )}
-                </div>
+    <!-- Media -->
+    <Section kicker="Gallery" title="From the ground">
+        <div class="media-strip">
+            {carouselImages.map((image) => (
+                <a href="/gallery" class="media-tile">
+                    <img src={image.src} alt={image.alt} loading="lazy" />
+                </a>
             ))}
         </div>
-
-        <!-- CTA to sponsorships page -->
         <div class="text-center mt-8">
-            <a href="/aboutus/sponsorships" class="btn-secondary">
-                Learn About Sponsorship Opportunities
+            <a href="/gallery" class="btn btn-secondary btn-lg">
+                View full gallery <Icon name="arrow-right" size={15} />
+            </a>
+        </div>
+    </Section>
+
+    <!-- Sponsors -->
+    <Section variant="alternate" kicker="Partners" title="Our sponsors">
+        <p class="text-body-lg text-center mx-auto measure mb-8" style="margin-inline:auto;">
+            Thank you to the businesses that support Golden State Cricket Club.
+        </p>
+        <div class="flex flex-wrap justify-center items-center gap-x-10 gap-y-6 max-w-3xl mx-auto">
+            {SPONSORS.current.map(sponsor => (
+                sponsor.website && sponsor.website !== '#' ? (
+                    <a href={sponsor.website} target="_blank" rel="noopener noreferrer" class="sponsor-logo">
+                        <img src={sponsor.logo} alt={`${sponsor.name} logo`} />
+                    </a>
+                ) : (
+                    <span class="sponsor-logo"><img src={sponsor.logo} alt={`${sponsor.name} logo`} /></span>
+                )
+            ))}
+        </div>
+        <div class="text-center mt-10">
+            <a href="/aboutus/sponsorships" class="btn-ghost btn">
+                Sponsorship opportunities <Icon name="arrow-right" size={15} />
             </a>
         </div>
     </Section>
 </Layout>
 
 <style>
-    /* Hide scrollbar for horizontal scroll */
-    .scrollbar-hide {
-        -ms-overflow-style: none;  /* IE and Edge */
-        scrollbar-width: none;  /* Firefox */
+    /* ---- Hero ---- */
+    .hero {
+        position: relative;
+        border-radius: var(--radius-card);
+        overflow: hidden;
+        min-height: 480px;
+        display: flex;
+        align-items: flex-end;
+        margin-bottom: 1rem;
+        box-shadow: var(--shadow-md);
+    }
+    .hero__img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center 35%;
+    }
+    .hero__scrim {
+        position: absolute;
+        inset: 0;
+        background: var(--scrim-hero);
+    }
+    .hero__body {
+        position: relative;
+        padding: 2rem 1.75rem 2.25rem;
+        max-width: 42rem;
+    }
+    .hero__title {
+        color: #fff;
+        font-size: clamp(2.25rem, 1.6rem + 3.2vw, 3.5rem);
+        font-weight: 800;
+        letter-spacing: -0.025em;
+        line-height: 1.05;
+        margin: 0.9rem 0 0;
+        text-shadow: 0 2px 24px rgba(0, 0, 0, 0.35);
+    }
+    .hero__lede {
+        color: rgba(255, 255, 255, 0.92);
+        font-size: 1.0625rem;
+        line-height: 1.6;
+        margin: 1rem 0 0;
+        max-width: 34rem;
+        text-shadow: 0 1px 12px rgba(0, 0, 0, 0.35);
+    }
+    .hero__cta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-top: 1.75rem;
+    }
+    @media (min-width: 640px) {
+        .hero { min-height: 560px; }
+        .hero__body { padding: 3rem 3rem 3.25rem; }
     }
 
-    .scrollbar-hide::-webkit-scrollbar {
-        display: none;  /* Chrome, Safari and Opera */
+    /* ---- About photo ---- */
+    .about-photo {
+        border-radius: var(--radius-card);
+        overflow: hidden;
+        box-shadow: var(--shadow-md);
+        aspect-ratio: 4 / 3;
     }
-</style>
+    .about-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    @media (max-width: 1023px) { .about-photo { max-height: 320px; } }
+
+    /* ---- Honours list ---- */
+    .honours {
+        display: grid;
+        gap: 0.5rem;
+        max-width: 46rem;
+        margin: 0 auto;
+    }
+    .honour {
+        display: grid;
+        grid-template-columns: auto auto 1fr;
+        align-items: center;
+        gap: 0.9rem;
+        padding: 1rem 1.1rem;
+        background: var(--color-surface);
+        border: 1px solid var(--color-hairline);
+        border-radius: var(--radius-card);
+        box-shadow: var(--shadow-xs);
+    }
+    .honour__ico {
+        display: inline-flex;
+        width: 38px; height: 38px;
+        align-items: center; justify-content: center;
+        border-radius: 10px;
+        background: var(--color-gold-100);
+        color: var(--color-gold-600);
+    }
+    .honour__year {
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        color: var(--color-maroon-600);
+    }
+    .honour__title { color: var(--color-body-text); font-size: 0.95rem; }
+    @media (max-width: 520px) {
+        .honour { grid-template-columns: auto 1fr; }
+        .honour__year { grid-column: 2; font-size: 0.85rem; }
+        .honour__title { grid-column: 2; }
+        .honour__ico { grid-row: span 2; }
+    }
+
+    /* ---- Media strip ---- */
+    .media-strip {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: 220px;
+        gap: 0.9rem;
+        overflow-x: auto;
+        padding-bottom: 0.75rem;
+        scroll-snap-type: x mandatory;
+        scrollbar-width: none;
+    }
+    .media-strip::-webkit-scrollbar { display: none; }
+    .media-tile {
+        display: block;
+        aspect-ratio: 1 / 1;
+        border-radius: var(--radius-card);
+        overflow: hidden;
+        scroll-snap-align: center;
+        box-shadow: var(--shadow-xs);
+    }
+    .media-tile img {
+        width: 100%; height: 100%;
+        object-fit: cover; display: block;
+        transition: transform var(--dur-slow) var(--ease-out);
+    }
+    .media-tile:hover img { transform: scale(1.04); }
+
+    /* ---- Sponsor logos ---- */
+    .sponsor-logo img {
+        height: 4.5rem;
+        width: auto;
+        object-fit: contain;
+        filter: grayscale(1);
+        opacity: 0.7;
+        transition: filter var(--dur-base) var(--ease-out), opacity var(--dur-base) var(--ease-out);
+    }
+    .sponsor-logo:hover img { filter: grayscale(0); opacity: 1; }

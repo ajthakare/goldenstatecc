@@ -1,33 +1,60 @@
 ---
+import Icon from './Icon.astro';
+
 interface Props {
     title: string;
     content?: string;
     image?: string;
     link?: string;
     linkText?: string;
+    icon?: string;
 }
 
-const { title, content, image, link, linkText = "Learn More" } = Astro.props;
+const { title, content, image, link, linkText = "Learn more", icon } = Astro.props;
 ---
 
 <div class="card">
     {image && (
-        <div class="mb-4 rounded overflow-hidden">
-            <img src={image} alt={title} class="w-full h-48 object-cover" loading="lazy" />
+        <div class="mb-4 rounded-lg overflow-hidden" style="aspect-ratio: 16/10;">
+            <img src={image} alt={title} class="w-full h-full object-cover" loading="lazy" />
         </div>
     )}
-    <h3 class="text-xl sm:text-2xl font-bold mb-3 text-heading">
-        {title}
-    </h3>
-    {content && (
-        <p class="text-muted mb-4">
-            {content}
-        </p>
+    {icon && (
+        <span class="card-ico">
+            <Icon name={icon} size={20} />
+        </span>
     )}
+    <h3 class="subsection-heading">{title}</h3>
+    {content && <p class="text-muted text-body-base">{content}</p>}
     <slot />
     {link && (
-        <a href={link} class="inline-block mt-4 text-primary hover:text-primary/80 transition-colors">
-            {linkText} →
+        <a href={link} class="card-link">
+            {linkText} <Icon name="arrow-right" size={15} />
         </a>
     )}
 </div>
+
+<style>
+    .card-ico {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        background: var(--color-maroon-100);
+        color: var(--color-maroon-600);
+        margin-bottom: 0.9rem;
+    }
+    .card-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        margin-top: 1rem;
+        font-weight: 600;
+        font-size: 0.9375rem;
+        color: var(--color-maroon-600);
+        transition: gap var(--dur-base) var(--ease-out), color var(--dur-base) var(--ease-out);
+    }
+    .card-link:hover { gap: 0.6rem; color: var(--color-maroon-500); }
+</style>

@@ -1,0 +1,71 @@
+---
+/**
+ * PageHeader — the one page-title block for the whole site.
+ * Kicker (tracked uppercase) + heavy title + gold rule + optional subtitle.
+ *
+ * align="center" + rule={false} is the auth-screen presentation.
+ */
+interface Props {
+    title: string;
+    kicker?: string;
+    subtitle?: string;
+    align?: 'left' | 'center';
+    rule?: boolean;
+}
+
+const { title, kicker, subtitle, align = 'left', rule = true } = Astro.props;
+const centered = align === 'center';
+---
+<header class:list={["page-head", { "page-head--center": centered }]}>
+    {kicker && <span class="kicker">{kicker}</span>}
+    <h1 class="page-head__title">{title}</h1>
+    {rule && <div class="rule-gold page-head__rule"></div>}
+    {subtitle && <p class="page-head__subtitle">{subtitle}</p>}
+</header>
+
+<style>
+    .page-head {
+        margin-bottom: 1.5rem;
+    }
+    .page-head--center {
+        text-align: center;
+    }
+    .page-head .kicker {
+        margin-bottom: 0.75rem;
+    }
+    .page-head__title {
+        font-size: var(--text-h1);
+        font-weight: var(--font-weight-display);
+        letter-spacing: var(--tracking-tight);
+        line-height: 1.08;
+        color: var(--color-ink);
+        margin: 0;
+    }
+    .page-head__rule {
+        margin-top: 1.25rem;
+    }
+    .page-head--center .page-head__rule {
+        margin-left: auto;
+        margin-right: auto;
+    }
+    .page-head__subtitle {
+        margin: 1.25rem 0 0;
+        font-size: 1.125rem;
+        line-height: 1.6;
+        color: var(--color-muted-text);
+        max-width: var(--w-prose);
+    }
+    .page-head--center .page-head__subtitle {
+        margin-left: auto;
+        margin-right: auto;
+        max-width: 34rem;
+    }
+    /* When there's no rule, the subtitle sits closer to the title */
+    .page-head__title + .page-head__subtitle {
+        margin-top: 0.5rem;
+    }
+    @media (max-width: 640px) {
+        .page-head { margin-bottom: 1.25rem; }
+        .page-head__subtitle { font-size: 1.0625rem; }
+    }
+</style>

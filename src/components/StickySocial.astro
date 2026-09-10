@@ -5,7 +5,7 @@ import { SITE_CONFIG } from '../config';
 <div class="sticky-social-wrapper fixed bottom-4 right-4 sm:bottom-6 sm:right-6 flex flex-col gap-2 sm:gap-3 z-50">
     <button
         id="back-to-top"
-        class="group flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 bg-gray-700 rounded-full shadow-lg hover:scale-110 hover:bg-gray-800 transition-all duration-200 opacity-0 pointer-events-none"
+        class="group flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 rounded-full shadow-lg transition-transform duration-200 hover:-translate-y-0.5 opacity-0 pointer-events-none" style="background:var(--color-ink);"
         aria-label="Back to top"
     >
         <svg class="w-5 h-5 sm:w-6 sm:h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -17,7 +17,7 @@ import { SITE_CONFIG } from '../config';
         href={SITE_CONFIG.social.instagram.url}
         target="_blank"
         rel="noopener noreferrer"
-        class="group flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 bg-primary rounded-full shadow-lg hover:scale-110 transition-transform duration-200"
+        class="group flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 bg-primary rounded-full shadow-lg transition-transform duration-200 hover:-translate-y-0.5"
         aria-label={SITE_CONFIG.social.instagram.label}
     >
         <svg class="w-5 h-5 sm:w-6 sm:h-6 text-white" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -29,7 +29,7 @@ import { SITE_CONFIG } from '../config';
         href={SITE_CONFIG.social.youtube.url}
         target="_blank"
         rel="noopener noreferrer"
-        class="group flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 bg-primary rounded-full shadow-lg hover:scale-110 transition-transform duration-200"
+        class="group flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 bg-primary rounded-full shadow-lg transition-transform duration-200 hover:-translate-y-0.5"
         aria-label={SITE_CONFIG.social.youtube.label}
     >
         <svg class="w-5 h-5 sm:w-6 sm:h-6 text-white" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">

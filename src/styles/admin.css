@@ -482,13 +482,13 @@
 }
 
 .badge-net {
-  background-color: #E0F2FE;
-  color: #0369A1;
+  background-color: #F7EFD8;
+  color: #8A6A15;
 }
 
 .badge-field {
-  background-color: #D1FAE5;
-  color: #047857;
+  background-color: #EAF6EE;
+  color: #1B6B3A;
 }
 
 .practice-details {
@@ -607,21 +607,21 @@
 }
 
 .availability-btn.active-yes {
-  background-color: #D1FAE5;
-  border-color: #10B981;
-  color: #047857;
+  background-color: #EAF6EE;
+  border-color: #1B6B3A;
+  color: #1B6B3A;
 }
 
 .availability-btn.active-bowling {
-  background-color: #FEF3C7;
-  border-color: #F59E0B;
-  color: #92400E;
+  background-color: #F7EFD8;
+  border-color: #C9A227;
+  color: #8A6A15;
 }
 
 .availability-btn.active-no {
-  background-color: #FEE2E2;
-  border-color: #EF4444;
-  color: #991B1B;
+  background-color: #FBEBE9;
+  border-color: #A82B24;
+  color: #A82B24;
 }
 
 .team-status {

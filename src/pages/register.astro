@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import PageHeader from '../components/PageHeader.astro';
 import { validateAdminSession } from '../middleware/auth';
 
 export const prerender = false;
@@ -23,13 +24,9 @@ if (session) {
       <img src="/icons/icon-192.png" alt="GSCC" width="64" height="64" />
     </div>
 
+    <PageHeader align="center" rule={false} kicker="Members" title="Member Registration" subtitle="Join Golden State Cricket Club as a member. After registration, an admin will review your request." />
+
     <div class="card">
-      <h1 class="page-title text-center mb-6">Member Registration</h1>
-
-      <p class="text-body mb-6 text-center text-gray-600">
-        Join Golden State Cricket Club as a member. After registration, an admin will review your request.
-      </p>
-
       <form id="register-form" name="registration" method="POST" data-netlify="true" netlify-honeypot="bot-field" class="space-y-4">
         <!-- Hidden fields for Netlify -->
         <input type="hidden" name="form-name" value="registration" />
@@ -40,7 +37,7 @@ if (session) {
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <!-- Email -->
           <div>
-            <label for="email" class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="email" class="field-label">
               Email <span class="text-red-500">*</span>
             </label>
             <input
@@ -48,7 +45,7 @@ if (session) {
               id="email"
               name="email"
               required
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#f67280]"
+              class="input w-full"
               placeholder="john@example.com"
             />
             <p class="text-xs text-gray-600 mt-1 font-medium">Choose wisely - this will be your login username and cannot be changed later.</p>
@@ -56,14 +53,14 @@ if (session) {
 
           <!-- Phone -->
           <div>
-            <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="phone" class="field-label">
               Phone <span class="text-gray-400">(Optional)</span>
             </label>
             <div class="flex gap-2">
               <select
                 id="phone-country"
                 name="phoneCountry"
-                class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#f67280] w-28"
+                class="input w-28"
               >
                 <option value="+1">🇺🇸 +1</option>
                 <option value="+91">🇮🇳 +91</option>
@@ -80,7 +77,7 @@ if (session) {
                 type="tel"
                 id="phone"
                 name="phoneNumber"
-                class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#f67280]"
+                class="input flex-1"
                 placeholder="1234567890"
                 pattern="[0-9]{7,15}"
               />
@@ -93,7 +90,7 @@ if (session) {
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <!-- Password -->
           <div>
-            <label for="password" class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="password" class="field-label">
               Password <span class="text-red-500">*</span>
             </label>
             <div class="relative">
@@ -103,7 +100,7 @@ if (session) {
                 name="password"
                 required
                 minlength="8"
-                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#f67280]"
+                class="input w-full"
                 placeholder="Minimum 8 characters"
               />
               <button
@@ -122,7 +119,7 @@ if (session) {
 
           <!-- Confirm Password -->
           <div>
-            <label for="confirmPassword" class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="confirmPassword" class="field-label">
               Confirm Password <span class="text-red-500">*</span>
             </label>
             <input
@@ -131,7 +128,7 @@ if (session) {
               name="confirmPassword"
               required
               minlength="8"
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#f67280]"
+              class="input w-full"
               placeholder="Re-enter password"
             />
             <p id="password-match-error" class="text-xs text-red-600 mt-1 hidden">Passwords do not match</p>
@@ -142,7 +139,7 @@ if (session) {
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <!-- First Name -->
           <div>
-            <label for="firstName" class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="firstName" class="field-label">
               First Name <span class="text-red-500">*</span>
             </label>
             <input
@@ -151,14 +148,14 @@ if (session) {
               name="firstName"
               required
               maxlength="100"
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#f67280]"
+              class="input w-full"
               placeholder="John"
             />
           </div>
 
           <!-- Last Name -->
           <div>
-            <label for="lastName" class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="lastName" class="field-label">
               Last Name <span class="text-red-500">*</span>
             </label>
             <input
@@ -167,7 +164,7 @@ if (session) {
               name="lastName"
               required
               maxlength="100"
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#f67280]"
+              class="input w-full"
               placeholder="Doe"
             />
           </div>
@@ -177,7 +174,7 @@ if (session) {
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <!-- Emergency Contact Name -->
           <div>
-            <label for="emergencyContactName" class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="emergencyContactName" class="field-label">
               Emergency Contact Name <span class="text-red-500">*</span>
             </label>
             <input
@@ -186,7 +183,7 @@ if (session) {
               name="emergencyContactName"
               required
               maxlength="100"
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#f67280]"
+              class="input w-full"
               placeholder="Jane Doe"
             />
             <p class="text-xs text-gray-500 mt-1">Person to contact in case of emergency</p>
@@ -194,14 +191,14 @@ if (session) {
 
           <!-- Emergency Contact Number -->
           <div>
-            <label for="emergencyContactNumber" class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="emergencyContactNumber" class="field-label">
               Emergency Contact Number <span class="text-red-500">*</span>
             </label>
             <div class="flex gap-2">
               <select
                 id="emergency-country"
                 name="emergencyCountry"
-                class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#f67280] w-28"
+                class="input w-28"
               >
                 <option value="+1">🇺🇸 +1</option>
                 <option value="+91">🇮🇳 +91</option>
@@ -219,7 +216,7 @@ if (session) {
                 id="emergencyContactNumber"
                 name="emergencyNumber"
                 required
-                class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#f67280]"
+                class="input flex-1"
                 placeholder="1234567890"
                 pattern="[0-9]{7,15}"
               />
@@ -232,7 +229,7 @@ if (session) {
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <!-- Job Company (Optional) -->
           <div>
-            <label for="jobCompany" class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="jobCompany" class="field-label">
               Company <span class="text-gray-400">(Optional)</span>
             </label>
             <input
@@ -240,7 +237,7 @@ if (session) {
               id="jobCompany"
               name="jobCompany"
               maxlength="200"
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#f67280]"
+              class="input w-full"
               placeholder="ABC Corp"
             />
             <p class="text-xs text-gray-500 mt-1">Help the community with job referrals</p>
@@ -248,7 +245,7 @@ if (session) {
 
           <!-- Job Title (Optional) -->
           <div>
-            <label for="jobTitle" class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="jobTitle" class="field-label">
               Job Title <span class="text-gray-400">(Optional)</span>
             </label>
             <input
@@ -256,7 +253,7 @@ if (session) {
               id="jobTitle"
               name="jobTitle"
               maxlength="200"
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#f67280]"
+              class="input w-full"
               placeholder="Software Engineer"
             />
             <p class="text-xs text-gray-500 mt-1">Help the community with job referrals</p>
@@ -280,7 +277,7 @@ if (session) {
       </form>
 
       <p class="text-center text-sm text-gray-600 mt-6">
-        Already have an account? <a href="/login" class="text-[#f67280] hover:underline">Login here</a>
+        Already have an account? <a href="/login" class="link">Login here</a>
       </p>
     </div>
   </div>

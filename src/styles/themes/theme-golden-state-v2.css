@@ -1,71 +1,149 @@
 /**
- * GOLDEN STATE CRICKET CLUB THEME V2 - CHARCOAL + DEEP RED + GOLD
- * Primary: Deep Red/Maroon (#8C1D18)
- * Complementary: Gold (#D4AF37)
- * Base: Charcoal (#111827)
+ * GOLDEN STATE CRICKET CLUB — THEME V2 (modern refresh)
+ * Brand:   Deep maroon (#8C1D18) · Gold (#D4AF37) · Warm charcoal ink (#1A1614)
+ * Feel:    Premium heritage-modern — restrained, photographic, generous whitespace.
+ *          Depth comes from soft shadow + hairlines, not heavy borders or gradients.
  *
- * Sophisticated, premium, elegant theme.
- * This is a complete standalone theme.
+ * Direction validated against MCC/Lord's, Surrey (Kia Oval), Lancashire, Yorkshire,
+ * Mumbai Indians: dark brand base + single metallic accent, heavy sans display,
+ * tracked uppercase labels, full-bleed hero imagery, flat soft-shadow cards,
+ * subtle button radius (not pills), calm motion.
+ *
+ * Legacy variable names (--color-bg-card, --gradient-primary, --shadow-card, …)
+ * are kept and re-pointed so existing components/pages keep working.
  */
 
 @theme {
-    /* ===== BRAND COLORS ===== */
-    --color-primary: #8C1D18;          /* Deep red/maroon - buttons, CTAs */
+    /* ============================================================
+       BRAND SCALE
+       ============================================================ */
+    --color-maroon-800: #5A1410;
+    --color-maroon-700: #6E1712;
+    --color-maroon-600: #8C1D18;   /* core brand */
+    --color-maroon-500: #A82B24;   /* interactive hover / lighter fills */
+    --color-maroon-100: #F6E7E4;   /* tint wash */
+
+    --color-gold-600: #A9821B;     /* text-safe gold on light (AA) */
+    --color-gold-500: #C9A227;     /* accent lines, small marks */
+    --color-gold-400: #D4AF37;     /* decorative only — never text on light */
+    --color-gold-100: #F7EFD8;     /* tint fill */
+
+    /* ============================================================
+       WARM NEUTRAL RAMP  (replaces raw cool Tailwind grays)
+       ============================================================ */
+    --color-ink:            #1A1614;   /* near-black, headings */
+    --color-body-text:      #3B3530;   /* long-form body copy */
+    --color-muted-text:     #6B635C;   /* secondary text */
+    --color-subtle-text:    #94897F;   /* meta / captions */
+    --color-hairline:       #E9E4DD;   /* 1px dividers & card borders */
+    --color-hairline-strong:#DAD3C9;
+    --color-surface:        #FFFFFF;   /* cards on body */
+    --color-surface-sunken: #FAF7F2;   /* alternating sections, inputs */
+    --color-surface-raised: #FFFFFF;
+
+    /* ============================================================
+       SEMANTIC ALIASES  (legacy names — kept for compatibility)
+       ============================================================ */
+    --color-primary: var(--color-maroon-600);
+    --color-primary-hover: var(--color-maroon-500);
     --color-primary-content: #ffffff;
-    --color-complementary: #D4AF37;    /* Gold - highlights, badges, accents */
+    --color-complementary: var(--color-gold-500);
+    --color-accent: var(--color-gold-500);   /* was referenced, never defined */
 
-    /* ===== BACKGROUND COLORS ===== */
-    --color-bg-body: #FFFFFF;
-    --color-bg-card: #F8FAFC;          /* Very light gray-blue */
-    --color-bg-card-hover: #F1F5F9;    /* Slightly darker gray */
-    --color-bg-section-alt: #F8FAFC;   /* Alternate sections */
-    --color-bg-hero: #FEF9F3;          /* Very light gold tint */
-    --color-bg-hero-dark: #FDF3E7;     /* Light gold cream */
-    --color-bg-input: #F8FAFC;         /* Input backgrounds */
+    --color-bg-body: var(--color-surface);
+    --color-bg-card: var(--color-surface);
+    --color-bg-card-hover: var(--color-surface-sunken);
+    --color-bg-section-alt: var(--color-surface-sunken);
+    --color-bg-hero: var(--color-surface-sunken);
+    --color-bg-hero-dark: #F3ECE1;
+    --color-bg-input: var(--color-surface-sunken);
 
-    /* ===== TEXT COLORS ===== */
-    --color-text-body: #111827;        /* Charcoal - main text */
-    --color-text-heading: #111827;     /* Charcoal - headings */
-    --color-text-muted: #64748B;       /* Medium gray */
-    --color-text-subtle: #94A3B8;      /* Light gray */
-    --color-text-placeholder: #CBD5E1; /* Very light gray */
+    --color-text-body: var(--color-body-text);
+    --color-text-heading: var(--color-ink);
+    --color-text-muted: var(--color-muted-text);
+    --color-text-subtle: var(--color-subtle-text);
+    --color-text-placeholder: #B7ADA1;
 
-    /* ===== BORDER COLORS ===== */
-    --color-border: #E5E7EB;           /* Light border */
-    --color-border-strong: #D1D5DB;    /* Stronger border */
+    --color-border: var(--color-hairline);
+    --color-border-strong: var(--color-hairline-strong);
 
-    /* ===== BUTTON COLORS ===== */
-    --color-btn-secondary: #E5E7EB;    /* Light gray */
-    --color-btn-secondary-hover: #D1D5DB;
-    --color-btn-secondary-text: #111827;
+    --color-btn-secondary: var(--color-surface);
+    --color-btn-secondary-hover: var(--color-surface-sunken);
+    --color-btn-secondary-text: var(--color-ink);
 
-    /* ===== SHADOWS & DEPTH ===== */
-    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08);
-    --shadow-card-hover: 0 10px 25px rgba(0, 0, 0, 0.15), 0 4px 10px rgba(0, 0, 0, 0.1);
-    --shadow-button: 0 2px 4px rgba(140, 29, 24, 0.3), 0 1px 2px rgba(140, 29, 24, 0.2);
-    --shadow-elevated: 0 20px 40px rgba(0, 0, 0, 0.15), 0 8px 16px rgba(0, 0, 0, 0.1);
+    /* ============================================================
+       ELEVATION — soft, warm-tinted, low opacity
+       ============================================================ */
+    --shadow-xs: 0 1px 2px rgba(26, 22, 20, 0.06);
+    --shadow-sm: 0 2px 8px rgba(26, 22, 20, 0.06), 0 1px 2px rgba(26, 22, 20, 0.04);
+    --shadow-md: 0 10px 28px rgba(26, 22, 20, 0.09), 0 3px 8px rgba(26, 22, 20, 0.05);
+    --shadow-lg: 0 24px 56px rgba(26, 22, 20, 0.13), 0 8px 18px rgba(26, 22, 20, 0.07);
 
-    /* ===== GRADIENTS ===== */
-    --gradient-hero: linear-gradient(135deg, #FEF9F3 0%, #FDF3E7 50%, #FCECD2 100%);
-    --gradient-section: linear-gradient(to bottom, #FFFFFF 0%, #F8FAFC 100%);
-    --gradient-card-header: linear-gradient(135deg, rgba(140, 29, 24, 0.1) 0%, rgba(140, 29, 24, 0.05) 100%);
-    --gradient-primary: linear-gradient(135deg, #8C1D18 0%, #B02520 100%);
+    /* legacy aliases */
+    --shadow-card: var(--shadow-sm);
+    --shadow-card-hover: var(--shadow-md);
+    --shadow-button: 0 1px 2px rgba(90, 20, 16, 0.28);
+    --shadow-elevated: var(--shadow-lg);
 
-    /* ===== TYPOGRAPHY ===== */
+    /* ============================================================
+       GRADIENTS — kept minimal. Mostly flat now.
+       ============================================================ */
+    --gradient-primary: var(--color-maroon-600);
+    --gradient-hero: linear-gradient(180deg, #FDFBF7 0%, #FAF7F2 100%);
+    --gradient-section: linear-gradient(180deg, #FFFFFF 0%, #FAF7F2 100%);
+    --gradient-card-header: linear-gradient(135deg, rgba(140, 29, 24, 0.06) 0%, rgba(140, 29, 24, 0.02) 100%);
+    /* dark scrim for text over photography */
+    --scrim-hero: linear-gradient(180deg, rgba(20, 8, 7, 0.15) 0%, rgba(20, 8, 7, 0.55) 55%, rgba(20, 8, 7, 0.82) 100%);
+    --scrim-hero-left: linear-gradient(90deg, rgba(20, 8, 7, 0.80) 0%, rgba(20, 8, 7, 0.45) 45%, rgba(20, 8, 7, 0.05) 100%);
+
+    /* ============================================================
+       TYPOGRAPHY
+       ============================================================ */
     --font-weight-display: 800;
-    --font-weight-heading: 700;
-    --font-weight-subheading: 600;
+    --font-weight-heading: 750;
+    --font-weight-subheading: 650;
 
-    /* ===== TRANSITIONS ===== */
-    --transition-base: 300ms cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-hover: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    /* fluid display scale */
+    --text-display: clamp(2.5rem, 1.6rem + 3.6vw, 3.75rem);
+    --text-h1: clamp(2rem, 1.5rem + 2vw, 2.75rem);
+    --text-h2: clamp(1.5rem, 1.25rem + 1vw, 1.875rem);
+    --text-h3: 1.25rem;
+    --tracking-tight: -0.02em;
+    --tracking-label: 0.12em;
 
-    /* ===== BORDER RADIUS ===== */
-    --border-radius-card: 0.75rem;
-    --border-radius-button: 0.5rem;
+    /* ============================================================
+       RADIUS
+       ============================================================ */
+    --radius-btn: 8px;
+    --radius-input: 10px;
+    --radius-card: 14px;
+    --radius-pill: 9999px;
+    /* legacy aliases */
+    --border-radius-card: var(--radius-card);
+    --border-radius-button: var(--radius-btn);
 
-    /* ===== TEXTURE ===== */
-    --texture-opacity: 0.05;
+    /* ============================================================
+       MOTION
+       ============================================================ */
+    --ease-out: cubic-bezier(0.22, 0.61, 0.28, 1);
+    --dur-fast: 130ms;
+    --dur-base: 220ms;
+    --dur-slow: 380ms;
+    /* legacy aliases */
+    --transition-base: var(--dur-slow) var(--ease-out);
+    --transition-hover: var(--dur-base) var(--ease-out);
+
+    /* ============================================================
+       LAYOUT RHYTHM
+       ============================================================ */
+    --w-content: 72rem;   /* 1152px — cards, grids */
+    --w-prose: 68ch;      /* long-form reading measure */
+    --space-section: clamp(2.25rem, 1.6rem + 2.4vw, 3.5rem);
+
+    /* ============================================================
+       TEXTURE
+       ============================================================ */
+    --texture-opacity: 0.03;
     --background-image-noise: linear-gradient(
             to bottom,
             color-mix(in oklab, var(--color-gray-50) 0%, transparent),
@@ -76,660 +154,304 @@
 
 /* ===== ANIMATIONS ===== */
 @keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-@keyframes pulse-subtle {
-    0%, 100% {
-        transform: scale(1);
-    }
-    50% {
-        transform: scale(1.02);
-    }
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes slideInUp {
-    from {
-        opacity: 0;
-        transform: translateY(30px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes shine {
-    0% {
-        background-position: -200% center;
-    }
-    100% {
-        background-position: 200% center;
-    }
+@keyframes pulse-subtle {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.02); }
 }
 
 /* ===== UTILITY CLASSES ===== */
 @layer utilities {
-    .animate-fade-in {
-        animation: fadeIn 0.6s ease-out forwards;
+    .animate-fade-in     { animation: fadeIn 0.6s var(--ease-out) both; }
+    .animate-slide-in-up { animation: slideInUp 0.7s var(--ease-out) both; }
+    .animate-pulse-subtle{ animation: pulse-subtle 2.4s ease-in-out infinite; }
+
+    .shadow-card      { box-shadow: var(--shadow-sm); }
+    .shadow-card-hover{ box-shadow: var(--shadow-md); }
+    .shadow-button    { box-shadow: var(--shadow-button); }
+    .shadow-elevated  { box-shadow: var(--shadow-lg); }
+
+    .gradient-primary     { background: var(--gradient-primary); }
+    .gradient-hero-rich   { background: var(--gradient-hero); }
+    .gradient-section     { background: var(--gradient-section); }
+    .gradient-card-header { background: var(--gradient-card-header); }
+
+    /* tracked uppercase eyebrow / kicker label */
+    .kicker {
+        display: inline-block;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: var(--tracking-label);
+        text-transform: uppercase;
+        color: var(--color-gold-600);
     }
 
-    .animate-slide-in-up {
-        animation: slideInUp 0.8s ease-out forwards;
-    }
-
-    .animate-pulse-subtle {
-        animation: pulse-subtle 2s ease-in-out infinite;
-    }
-
-    .animate-shine {
-        background: linear-gradient(
-            90deg,
-            rgba(140, 29, 24, 1) 0%,
-            rgba(255, 255, 255, 0.8) 50%,
-            rgba(140, 29, 24, 1) 100%
-        );
-        background-size: 200% auto;
-        background-clip: text;
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        animation: shine 3s linear infinite;
-    }
-
-    .shadow-card {
-        box-shadow: var(--shadow-card);
-    }
-
-    .shadow-card-hover {
-        box-shadow: var(--shadow-card-hover);
-    }
-
-    .shadow-button {
-        box-shadow: var(--shadow-button);
-    }
-
-    .shadow-elevated {
-        box-shadow: var(--shadow-elevated);
-    }
-
-    .gradient-primary {
-        background: var(--gradient-primary);
-    }
-
-    .gradient-hero-rich {
-        background: var(--gradient-hero);
-    }
-
-    .gradient-section {
-        background: var(--gradient-section);
-    }
-
-    .gradient-card-header {
-        background: var(--gradient-card-header);
-    }
-}
-
-/* ===== HEADER & FOOTER ENHANCEMENTS ===== */
-@layer components {
-    /* Header Navigation Styling - CHARCOAL with Gold Accent */
-    nav {
-        background: linear-gradient(135deg, #1F2937 0%, #111827 50%, #0F172A 100%);
-        padding: 0.84rem 0.84rem 1.05rem 0.84rem !important;
-        margin-bottom: 2rem;
-        border-radius: 0.75rem;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.2);
-        position: relative;
-        align-items: flex-end !important;
-        border-bottom: 3px solid #D4AF37;
-    }
-
-    /* White text for nav links with larger font */
-    nav a {
-        color: white !important;
-        text-decoration: none !important;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        font-size: 1rem !important;
-        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
-        position: relative;
-        padding: 0.5rem 0.75rem;
-        border-radius: 0.5rem;
-    }
-
-    nav a:hover {
-        transform: translateY(-3px) scale(1.05);
-        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.6);
-        background: rgba(212, 175, 55, 0.15);
-        backdrop-filter: blur(10px);
-    }
-
-    nav a::after {
-        content: '';
-        position: absolute;
-        bottom: 0;
-        left: 50%;
-        transform: translateX(-50%) scaleX(0);
-        width: 80%;
-        height: 2px;
-        background: #D4AF37;
-        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    nav a:hover::after {
-        transform: translateX(-50%) scaleX(1);
-    }
-
-    /* Active/Current page highlight - Gold */
-    nav a.nav-active {
-        background: rgba(212, 175, 55, 0.25) !important;
-        backdrop-filter: blur(10px);
-        font-weight: 900 !important;
-        transform: scale(1.05);
-        color: #D4AF37 !important;
-    }
-
-    nav a.nav-active::after {
-        transform: translateX(-50%) scaleX(1);
+    /* thin brand rule used under section headers */
+    .rule-gold {
+        width: 3rem;
         height: 3px;
-        background: #D4AF37;
+        border-radius: 2px;
+        background: var(--color-gold-500);
     }
 
-    /* Logo visibility - remove filter to keep original colors */
-    nav a:first-child {
-        filter: none;
+    .measure { max-width: var(--w-prose); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .animate-fade-in,
+    .animate-slide-in-up,
+    .animate-pulse-subtle {
+        animation: none !important;
+    }
+}
+
+/* ===== HEADER & FOOTER ===== */
+@layer components {
+    /* Top navigation — flat charcoal, calm. No text-shadow / scale / blur. */
+    nav.site-nav {
+        background: var(--color-ink);
+        border-bottom: 2px solid var(--color-gold-500);
+        border-radius: 0 0 var(--radius-card) var(--radius-card);
+        box-shadow: var(--shadow-sm);
     }
 
-    /* Nav list alignment */
-    nav ul {
-        margin-top: 0.5rem;
-    }
-
-    /* Footer Styling - Light with Gold Accent */
-    footer {
-        background: linear-gradient(to bottom, #F8FAFC 0%, #F1F5F9 100%);
-        border-top: 3px solid #D4AF37 !important;
-        padding: 2rem !important;
-        margin-top: 2rem;
-        border-radius: 0.75rem;
-        box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
-    }
-
-    /* Footer text color */
-    footer,
-    footer p {
-        color: #111827 !important;
-    }
-
-    /* Footer links - Deep Red hover */
-    footer a {
-        color: #111827 !important;
-        font-weight: 600;
+    nav.site-nav a {
+        color: rgba(255, 255, 255, 0.88);
         text-decoration: none !important;
-        transition: all 0.2s ease;
+        transition: color var(--dur-base) var(--ease-out),
+                    background-color var(--dur-base) var(--ease-out);
+        border-radius: 6px;
     }
 
-    footer a:hover {
-        color: #8C1D18 !important;
-        opacity: 1 !important;
+    nav.site-nav a:hover {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.08);
     }
 
-    /* Responsive adjustments */
-    @media (max-width: 640px) {
-        nav {
-            padding: 0.63rem 0.63rem 0.84rem 0.63rem !important;
-            margin-bottom: 1.5rem;
-        }
-
-        nav a {
-            font-size: 0.875rem !important;
-        }
-
-        footer {
-            padding: 1.5rem !important;
-            margin-top: 1.5rem;
-        }
-    }
-}
-
-/* ===== FIXTURES CARDS - TEAM-SPECIFIC STYLING ===== */
-@layer components {
-    /* Bengal Tigers - Gold gradient (premium look!) */
-    .fixture-card[data-team="Bengal Tigers"] {
-        background: linear-gradient(135deg, #FFFEF8 0%, #FEF9F3 50%, #FDF3E7 100%) !important;
-        border-color: #E5C878 !important;
-        border-width: 2px;
+    nav.site-nav a.nav-active {
+        color: var(--color-gold-400);
+        box-shadow: inset 0 -2px 0 var(--color-gold-400);
+        border-radius: 0;
+        font-weight: 800;
     }
 
-    .fixture-card[data-team="Bengal Tigers"]:hover {
-        background: linear-gradient(135deg, #FEF9F3 0%, #FDF3E7 50%, #FCECD2 100%) !important;
-        border-color: #D4AF37 !important;
-        box-shadow: 0 8px 20px rgba(212, 175, 55, 0.2) !important;
+    /* Footer — warm sunken surface, hairline top, gold keyline */
+    footer.site-footer {
+        background: var(--color-surface-sunken);
+        border-top: 1px solid var(--color-hairline);
+        box-shadow: inset 0 3px 0 var(--color-gold-500);
     }
 
-    /* Bengal Bulls - Cool gray gradient */
-    .fixture-card[data-team="Bengal Bulls"] {
-        background: linear-gradient(135deg, #FAFBFC 0%, #F8FAFC 50%, #F1F5F9 100%) !important;
-        border-color: #CBD5E1 !important;
-        border-width: 2px;
+    footer.site-footer,
+    footer.site-footer p {
+        color: var(--color-body-text);
     }
 
-    .fixture-card[data-team="Bengal Bulls"]:hover {
-        background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 50%, #E2E8F0 100%) !important;
-        border-color: #94A3B8 !important;
-        box-shadow: 0 8px 20px rgba(100, 116, 139, 0.15) !important;
+    footer.site-footer a {
+        color: var(--color-body-text);
+        text-decoration: none !important;
+        transition: color var(--dur-base) var(--ease-out);
     }
 
-    /* Bengal Thunder Cats - Deep red gradient */
-    .fixture-card[data-team="Bengal Thunder Cats"] {
-        background: linear-gradient(135deg, #FEF8F8 0%, #FEF2F2 50%, #FECACA 100%) !important;
-        border-color: #FCA5A5 !important;
-        border-width: 2px;
-    }
-
-    .fixture-card[data-team="Bengal Thunder Cats"]:hover {
-        background: linear-gradient(135deg, #FEF2F2 0%, #FECACA 50%, #FCA5A5 100%) !important;
-        border-color: #F87171 !important;
-        box-shadow: 0 8px 20px rgba(140, 29, 24, 0.2) !important;
-    }
-
-    /* Past fixtures - maintain subtle appearance */
-    .fixture-card[data-is-past="true"] {
-        opacity: 0.7;
-    }
-
-    .fixture-card[data-is-past="true"]:hover {
-        opacity: 0.85;
-    }
-
-    /* Team Filter Buttons - Match fixture card colors */
-    .filter-btn[data-team="Bengal Tigers"] {
-        background: linear-gradient(135deg, #FEF9F3 0%, #FDF3E7 100%) !important;
-        border-color: #E5C878 !important;
-        color: #A68B2E !important;
-    }
-
-    .filter-btn[data-team="Bengal Tigers"]:hover {
-        background: linear-gradient(135deg, #FDF3E7 0%, #FCECD2 100%) !important;
-        border-color: #D4AF37 !important;
-    }
-
-    .filter-btn[data-team="Bengal Bulls"] {
-        background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%) !important;
-        border-color: #CBD5E1 !important;
-        color: #475569 !important;
-    }
-
-    .filter-btn[data-team="Bengal Bulls"]:hover {
-        background: linear-gradient(135deg, #F1F5F9 0%, #E2E8F0 100%) !important;
-        border-color: #94A3B8 !important;
-    }
-
-    .filter-btn[data-team="Bengal Thunder Cats"] {
-        background: linear-gradient(135deg, #FEF2F2 0%, #FECACA 100%) !important;
-        border-color: #FCA5A5 !important;
-        color: #991B1B !important;
-    }
-
-    .filter-btn[data-team="Bengal Thunder Cats"]:hover {
-        background: linear-gradient(135deg, #FECACA 0%, #FCA5A5 100%) !important;
-        border-color: #F87171 !important;
-    }
-
-    /* Active/Selected Team Filter Buttons - Deep Red */
-    .filter-btn[data-team="Bengal Tigers"].active {
-        background: linear-gradient(135deg, #E5C878 0%, #D4AF37 100%) !important;
-        border-color: #C49A2E !important;
-        color: white !important;
-    }
-
-    .filter-btn[data-team="Bengal Bulls"].active {
-        background: linear-gradient(135deg, #64748B 0%, #475569 100%) !important;
-        border-color: #334155 !important;
-        color: white !important;
-    }
-
-    .filter-btn[data-team="Bengal Thunder Cats"].active {
-        background: linear-gradient(135deg, #B02520 0%, #8C1D18 100%) !important;
-        border-color: #7C1612 !important;
-        color: white !important;
+    footer.site-footer a:hover {
+        color: var(--color-maroon-600);
     }
 }
 
-/* ===== PAGE TITLE ENHANCEMENTS ===== */
+/* ===== FIXTURE CARDS — calm team accents (left keyline, no gradient fills) ===== */
 @layer components {
-    /* Style for main page titles (h1 at start of pages) - RED TO BLACK with Gold Accent */
+    .fixture-card {
+        background: var(--color-surface) !important;
+        border: 1px solid var(--color-hairline) !important;
+        border-left-width: 3px !important;
+        border-radius: var(--radius-card);
+        box-shadow: var(--shadow-xs);
+        transition: box-shadow var(--dur-base) var(--ease-out),
+                    transform var(--dur-base) var(--ease-out);
+    }
+
+    .fixture-card:hover {
+        box-shadow: var(--shadow-md);
+        transform: translateY(-2px);
+    }
+
+    .fixture-card[data-team="Bengal Tigers"]        { border-left-color: var(--color-gold-500) !important; }
+    .fixture-card[data-team="Bengal Bulls"]         { border-left-color: #64748B !important; }
+    .fixture-card[data-team="Bengal Thunder Cats"]  { border-left-color: var(--color-maroon-500) !important; }
+    .fixture-card[data-team="Bengal Bears"]         { border-left-color: #4B7B54 !important; }
+
+    .fixture-card[data-is-past="true"] { opacity: 0.72; }
+    .fixture-card[data-is-past="true"]:hover { opacity: 1; }
+
+    /* Team filter buttons — quiet by default, brand fill when active */
+    .filter-btn {
+        background: var(--color-surface) !important;
+        border: 1px solid var(--color-hairline-strong) !important;
+        color: var(--color-muted-text) !important;
+        border-radius: var(--radius-pill);
+        transition: all var(--dur-base) var(--ease-out);
+    }
+
+    .filter-btn:hover {
+        border-color: var(--color-ink) !important;
+        color: var(--color-ink) !important;
+    }
+
+    .filter-btn.active {
+        background: var(--color-ink) !important;
+        border-color: var(--color-ink) !important;
+        color: #fff !important;
+    }
+}
+
+/* ===== PAGE HEADER — clean. Kicker + heavy title + optional gold rule. ===== */
+@layer components {
+    /* Applies to public pages using <h1 class="page-title"> or a bare first <h1>.
+       No gradient slab, no ::before/::after bars. */
     main > h1:first-child,
-    .page-title {
-        background: linear-gradient(135deg, #8C1D18 0%, #5A1410 28%, #000000 45%);
-        color: white !important;
-        padding: 2rem 2.5rem;
-        margin-bottom: 2.5rem;
-        border-radius: 0.75rem;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.2);
-        position: relative;
-        overflow: hidden;
-        border-bottom: 4px solid #D4AF37;
-    }
-
-    /* When there's a subtitle (p) after h1, reduce h1 bottom margin and adjust subtitle */
-    main > h1:first-child:has(+ p) {
-        margin-bottom: 0;
-        padding-bottom: 1rem;
-        border-radius: 0.75rem 0.75rem 0 0;
-        border-bottom: 2px solid #D4AF37;
-    }
-
-    /* Style the subtitle paragraph that comes after h1 - Deep Red gradient */
-    main > h1:first-child + p,
-    .page-description {
-        background: linear-gradient(135deg, #8C1D18 0%, #B02520 100%);
-        color: #FDF3E7 !important;
-        padding: 1rem 2.5rem 1.75rem 2.5rem;
-        margin-top: 0 !important;
-        margin-bottom: 2.5rem;
-        border-radius: 0 0 0.75rem 0.75rem;
-        box-shadow: 0 4px 12px rgba(140, 29, 24, 0.3), 0 2px 6px rgba(140, 29, 24, 0.2);
-        position: relative;
-        border-bottom: 4px solid #D4AF37;
+    .page-title:not(.admin-title) {
+        font-size: var(--text-h1);
+        font-weight: var(--font-weight-display);
+        letter-spacing: var(--tracking-tight);
+        line-height: 1.1;
+        color: var(--color-ink);
+        background: none;
+        padding: 0;
+        margin: 0 0 1rem 0;
+        border: 0;
+        box-shadow: none;
+        border-radius: 0;
+        overflow: visible;
     }
 
     main > h1:first-child::before,
-    .page-title::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: linear-gradient(135deg, rgba(212, 175, 55, 0.15) 0%, transparent 60%);
-        pointer-events: none;
-    }
-
     main > h1:first-child::after,
-    .page-title::after {
-        content: '';
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 4px;
-        background: linear-gradient(90deg, #D4AF37 0%, #E5C878 50%, #D4AF37 100%);
-        opacity: 1;
-    }
-
-    /* Hide the accent bar when there's a subtitle */
-    main > h1:first-child:has(+ p)::after {
+    .page-title:not(.admin-title)::before,
+    .page-title:not(.admin-title)::after {
+        content: none;
         display: none;
     }
 
-    /* Add accent bar to subtitle instead */
-    main > h1:first-child + p::after,
-    .page-description::after {
-        content: '';
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 4px;
-        background: linear-gradient(90deg, #D4AF37 0%, #E5C878 50%, #D4AF37 100%);
-        opacity: 1;
+    /* subtitle paragraph directly after the page title */
+    main > h1:first-child + p,
+    .page-description:not(.admin-desc) {
+        font-size: 1.125rem;
+        line-height: 1.6;
+        color: var(--color-muted-text);
+        background: none;
+        padding: 0;
+        margin: 0 0 2.5rem 0;
+        border: 0;
+        box-shadow: none;
+        border-radius: 0;
+        max-width: var(--w-prose);
     }
 
-    /* Responsive adjustments for page titles */
+    main > h1:first-child + p::after,
+    .page-description:not(.admin-desc)::after {
+        content: none;
+        display: none;
+    }
+
     @media (max-width: 640px) {
         main > h1:first-child,
-        .page-title {
-            padding: 1.5rem 1.5rem;
-            margin-bottom: 2rem;
-            font-size: 1.875rem;
-        }
-
-        main > h1:first-child:has(+ p) {
-            padding-bottom: 0.75rem;
-        }
-
+        .page-title:not(.admin-title) { margin-bottom: 0.75rem; }
         main > h1:first-child + p,
-        .page-description {
-            padding: 0.75rem 1.5rem 1.25rem 1.5rem;
-            margin-bottom: 2rem;
-            font-size: 1.125rem;
-        }
+        .page-description:not(.admin-desc) { font-size: 1.0625rem; margin-bottom: 2rem; }
     }
+}
 
-    /* ===== ADMIN COMPONENT COLORS ===== */
+/* ===== ADMIN COMPONENT COLORS (unchanged behaviour, new neutrals) ===== */
+@layer components {
+    .page-header { border-bottom-color: var(--color-border); }
 
-    /* Page Header */
-    .page-header {
-        border-bottom-color: var(--color-border);
-    }
-
-    /* Buttons */
-    .btn-primary {
-        background: var(--color-primary);
-        color: white;
-    }
-
+    .btn-primary { background: var(--color-primary); color: #fff; }
     .btn-primary:hover {
-        background: #B02520; /* Lighter red */
-        box-shadow: 0 4px 12px rgba(140, 29, 24, 0.3);
+        background: var(--color-maroon-500);
+        box-shadow: 0 4px 12px rgba(140, 29, 24, 0.22);
     }
 
     .btn-secondary {
-        background: white;
+        background: var(--color-surface);
         color: var(--color-text-body);
         border-color: var(--color-border);
     }
-
     .btn-secondary:hover {
-        background: var(--color-bg-card);
+        background: var(--color-surface-sunken);
         border-color: var(--color-border-strong);
     }
 
-    .btn-danger-outline {
-        background: white;
-        color: #dc2626;
-        border-color: #dc2626;
-    }
+    .btn-danger-outline { background: #fff; color: #dc2626; border-color: #dc2626; }
+    .btn-danger-outline:hover { background: #fef2f2; }
+    .btn-success { background: #10b981; color: #fff; }
+    .btn-success:hover { background: #059669; }
 
-    .btn-danger-outline:hover {
-        background: #fef2f2;
-    }
+    .stat-card { background: var(--color-surface); border-color: var(--color-border); }
+    .stat-label { color: var(--color-text-muted); }
+    .stat-value { color: var(--color-text-heading); }
+    .stat-success { color: #16a34a; }
+    .stat-primary { color: var(--color-primary); }
+    .stat-muted { color: var(--color-text-muted); }
 
-    .btn-success {
-        background: #10b981;
-        color: white;
-    }
+    .table-container { background: var(--color-surface); border-color: var(--color-border); }
+    .data-table thead { background: var(--color-surface-sunken); border-bottom-color: var(--color-border); }
+    .data-table th { color: var(--color-text-heading); }
+    .data-table td { border-top-color: var(--color-border); }
+    .data-table tbody tr:hover { background: var(--color-surface-sunken); }
 
-    .btn-success:hover {
-        background: #059669;
-    }
+    .modal { background: rgba(26, 22, 20, 0.5); }
+    .modal-content { background: var(--color-surface); }
+    .modal-header { border-bottom-color: var(--color-border); }
+    .modal-title { color: var(--color-text-heading); }
+    .modal-close { background: none; color: var(--color-text-muted); }
+    .modal-close:hover { background: var(--color-surface-sunken); color: var(--color-text-heading); }
+    .modal-footer { border-top-color: var(--color-border); background: var(--color-surface); }
 
-    /* Stats Grid */
-    .stat-card {
-        background: white;
+    .form-label { color: var(--color-text-heading); }
+    .form-input, .form-select {
         border-color: var(--color-border);
-    }
-
-    .stat-label {
-        color: var(--color-text-muted);
-    }
-
-    .stat-value {
-        color: var(--color-text-heading);
-    }
-
-    .stat-success {
-        color: #16a34a;
-    }
-
-    .stat-primary {
-        color: var(--color-primary);
-    }
-
-    .stat-muted {
-        color: var(--color-text-muted);
-    }
-
-    /* Tables */
-    .table-container {
-        background: white;
-        border-color: var(--color-border);
-    }
-
-    .data-table thead {
-        background: var(--color-bg-card);
-        border-bottom-color: var(--color-border);
-    }
-
-    .data-table th {
-        color: var(--color-text-heading);
-    }
-
-    .data-table td {
-        border-top-color: var(--color-border);
-    }
-
-    .data-table tbody tr:hover {
-        background: var(--color-bg-card);
-    }
-
-    /* Modals */
-    .modal {
-        background: rgba(0, 0, 0, 0.5);
-    }
-
-    .modal-content {
-        background: white;
-    }
-
-    .modal-header {
-        border-bottom-color: var(--color-border);
-    }
-
-    .modal-title {
-        color: var(--color-text-heading);
-    }
-
-    .modal-close {
-        background: none;
-        color: var(--color-text-muted);
-    }
-
-    .modal-close:hover {
-        background: var(--color-bg-card);
-        color: var(--color-text-heading);
-    }
-
-    .modal-footer {
-        border-top-color: var(--color-border);
-        background: white;
-    }
-
-    /* Forms */
-    .form-label {
-        color: var(--color-text-heading);
-    }
-
-    .form-input,
-    .form-select {
-        border-color: var(--color-border);
-        background: white;
+        background: var(--color-surface);
         color: var(--color-text-body);
     }
-
-    .form-input:focus,
-    .form-select:focus {
+    .form-input:focus, .form-select:focus {
         border-color: var(--color-primary);
-        box-shadow: 0 0 0 3px rgba(140, 29, 24, 0.1);
+        box-shadow: 0 0 0 3px rgba(140, 29, 24, 0.12);
     }
 
-    /* Alerts */
-    .alert-error {
-        background: #fef2f2;
-        border-color: #fecaca;
-        color: #991b1b;
-    }
+    .alert-error { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+    .alert-success { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
 
-    .alert-success {
-        background: #f0fdf4;
-        border-color: #bbf7d0;
-        color: #166534;
-    }
+    .state-title { color: var(--color-text-heading); }
+    .state-text { color: var(--color-text-muted); }
+    .spinner { border-color: var(--color-border); border-top-color: var(--color-primary); }
 
-    /* States */
-    .state-title {
-        color: var(--color-text-heading);
-    }
-
-    .state-text {
-        color: var(--color-text-muted);
-    }
-
-    /* Spinner */
-    .spinner {
-        border-color: var(--color-border);
-        border-top-color: var(--color-primary);
-    }
-
-    /* Season Cards */
-    .season-card {
-        background: white;
-        border-color: transparent;
-    }
-
+    .season-card { background: var(--color-surface); border-color: transparent; }
     .season-card.active {
         border-color: #10b981 !important;
         box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2) !important;
     }
-
-    .season-name {
-        color: #1f2937;
-    }
-
-    .active-badge {
-        background: #10b981 !important;
-        color: white !important;
-    }
-
-    .season-dates {
-        color: #6b7280;
-    }
-
-    .teams-label {
-        color: #374151;
-    }
-
+    .season-name { color: var(--color-ink); }
+    .active-badge { background: #10b981 !important; color: #fff !important; }
+    .season-dates { color: var(--color-muted-text); }
+    .teams-label { color: var(--color-body-text); }
     .team-badge {
-        background: #f3f4f6;
-        border-color: #d1d5db;
-        color: #374151;
+        background: var(--color-surface-sunken);
+        border-color: var(--color-border-strong);
+        color: var(--color-body-text);
     }
+    .season-actions { border-top-color: var(--color-border); }
 
-    .season-actions {
-        border-top-color: #e5e7eb;
-    }
+    .text-body { color: var(--color-text-body); }
 
-    /* Utility Classes */
-    .text-body {
-        color: var(--color-text-body);
-    }
-
-    /* Scrollbar */
-    .scroll-wrapper::-webkit-scrollbar-track {
-        background: #f3f4f6;
-    }
-
-    .scroll-wrapper::-webkit-scrollbar-thumb {
-        background: #d1d5db;
-    }
-
-    .scroll-wrapper::-webkit-scrollbar-thumb:hover {
-        background: #9ca3af;
-    }
+    .scroll-wrapper::-webkit-scrollbar-track { background: var(--color-surface-sunken); }
+    .scroll-wrapper::-webkit-scrollbar-thumb { background: var(--color-hairline-strong); }
+    .scroll-wrapper::-webkit-scrollbar-thumb:hover { background: var(--color-subtle-text); }
 }

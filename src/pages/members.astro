@@ -5,6 +5,8 @@ import Layout from '../layouts/Layout.astro';
 import Section from '../components/Section.astro';
 import StatsGrid from '../components/StatsGrid.astro';
 import Card from '../components/Card.astro';
+import PageHeader from '../components/PageHeader.astro';
+import Icon from '../components/Icon.astro';
 
 const membershipStats = [
     { label: 'Total Members', value: '160+' },
@@ -13,111 +15,87 @@ const membershipStats = [
 ];
 
 const eligibleMembers = [
-    {
-        title: 'Adult Players',
-        content: 'All skill levels welcome, from beginners to experienced cricketers'
-    },
-    {
-        title: 'Youth & Students',
-        content: 'Young cricketers looking to develop their skills in a competitive environment'
-    },
-    {
-        title: 'Competitive & Recreational',
-        content: 'Whether you play for competition or just for fun, there\'s a place for you'
-    }
+    { icon: 'users', title: 'Adult Players', content: 'All skill levels welcome, from beginners to experienced cricketers.' },
+    { icon: 'graduation-cap', title: 'Youth & Students', content: 'Young cricketers looking to develop their skills in a competitive environment.' },
+    { icon: 'activity', title: 'Competitive & Recreational', content: "Whether you play for competition or just for fun, there's a place for you." }
 ];
 
 const joinSteps = [
-    {
-        number: '1',
-        title: 'Complete Membership Form',
-        content: 'Fill out our membership application with your details and cricket experience'
-    },
-    {
-        number: '2',
-        title: 'Register for NCCA League',
-        content: 'Register with the Northern California Cricket Association to be eligible for league play'
-    },
-    {
-        number: '3',
-        title: 'Pay Annual Club Dues',
-        content: 'Complete payment of annual membership dues to activate your membership'
-    },
-    {
-        number: '4',
-        title: 'Join Communication Channels',
-        content: 'Get added to team WhatsApp groups and email lists to stay connected'
-    }
+    { number: '1', title: 'Complete the membership form', content: 'Fill out our application with your details and cricket experience.' },
+    { number: '2', title: 'Register for the NCCA league', content: 'Register with the Northern California Cricket Association to be eligible for league play.' },
+    { number: '3', title: 'Pay annual club dues', content: 'Complete payment of annual membership dues to activate your membership.' },
+    { number: '4', title: 'Join communication channels', content: 'Get added to team WhatsApp groups and email lists to stay connected.' }
 ];
 ---
 
 <Layout title="Membership - Golden State Cricket Club">
-    <h1 class="page-title">Become a Member</h1>
+    <PageHeader kicker="Join us" title="Become a Member" subtitle="Join Bengals Inc. through GSCC — competitive cricket and a community mission." />
 
-    <Section>
-        <div class="accent-box section-centered mb-8">
-            <h2 class="subsection-heading">Join Bengals Inc. Through GSCC</h2>
-            <p class="text-body-base text-justified mb-4">
-                When you become a member of Golden State Cricket Club (GSCC), you're joining
-                <strong>Bengals Inc.</strong>, a 501(c)(3) non-profit organization. Your membership
-                dues support not just competitive cricket, but also youth development, community programs,
-                and cricket growth across Northern California.
+    <Section align="left">
+        <div class="accent-box">
+            <h2 class="section-heading">Join Bengals Inc. through GSCC</h2>
+            <p class="text-body-base measure">
+                When you become a member of Golden State Cricket Club, you're joining <strong>Bengals Inc.</strong>,
+                a 501(c)(3) non-profit. Your dues support not just competitive cricket, but also youth development,
+                community programs, and cricket growth across Northern California.
             </p>
-            <p class="text-body-base">
+            <p class="text-body-base measure mt-3 mb-0">
                 We currently have <strong>160+ active members</strong> including <strong>30+ youth and students</strong>
-                from 8 counties across the Bay Area, united by a shared passion for cricket and community.
+                from 8 counties across the Bay Area.
             </p>
         </div>
     </Section>
 
-    <Section title="Who Can Join" variant="alternate">
+    <Section title="Who Can Join" kicker="Eligibility" variant="alternate">
         <div class="grid md:grid-cols-3 gap-6">
-            {eligibleMembers.map(item => (
-                <Card title={item.title} content={item.content} />
-            ))}
+            {eligibleMembers.map(item => <Card title={item.title} content={item.content} icon={item.icon} />)}
         </div>
     </Section>
 
-    <Section variant="alternate">
-        <div class="section-centered-wide">
-            <h2 class="section-heading text-center">Membership Overview</h2>
-            <StatsGrid stats={membershipStats} />
-        </div>
+    <Section title="Membership Overview" kicker="Snapshot">
+        <StatsGrid stats={membershipStats} />
     </Section>
 
-    <Section title="How to Join">
-        <div class="grid sm:grid-cols-2 gap-6 mb-12 max-w-5xl mx-auto">
+    <Section title="How to Join" kicker="Four steps" variant="alternate">
+        <div class="grid sm:grid-cols-2 gap-5 max-w-4xl mx-auto">
             {joinSteps.map(step => (
-                <div class="bg-gray-50 border border-gray-200 rounded-lg p-6 hover:bg-gray-100 transition-colors">
+                <div class="card card-static">
                     <div class="flex items-start gap-4">
-                        <div class="flex-shrink-0 w-12 h-12 bg-primary rounded-full flex items-center justify-center text-2xl font-bold text-white">
-                            {step.number}
-                        </div>
-                        <div class="flex-1">
+                        <span class="step-num">{step.number}</span>
+                        <div>
                             <h3 class="subsection-heading heading-margin-sm">{step.title}</h3>
-                            <p class="text-body-base">{step.content}</p>
+                            <p class="text-body-base mb-0">{step.content}</p>
                         </div>
                     </div>
                 </div>
             ))}
         </div>
 
-        <div class="accent-box section-centered">
-            <h3 class="subsection-heading">Ready to Join?</h3>
-            <p class="text-body-lg mb-6">
-                Start your membership journey today! Register online and an admin will review your application.
-            </p>
-            <a href="/register" class="btn btn-lg">Register Now</a>
+        <div class="accent-box text-center mt-10">
+            <h3 class="subsection-heading">Ready to join?</h3>
+            <p class="text-body-lg mb-6">Start your membership today. Register online and an admin will review your application.</p>
+            <a href="/register" class="btn btn-lg">Register now <Icon name="arrow-right" size={16} /></a>
         </div>
 
-        <div class="section-centered mt-8">
-            <div class="bg-gray-50 border-2 border-gray-300 rounded-lg p-8 text-center">
-                <h3 class="subsection-heading">Have Questions?</h3>
-                <p class="text-body-lg mb-6">
-                    Not sure where to start or have questions about membership? We're here to help! Reach out to us and we'll get back to you shortly.
-                </p>
-                <button onclick="window.location.href='/contact'" class="btn-secondary btn-lg">Contact Us</button>
-            </div>
+        <div class="text-center mt-6">
+            <p class="text-muted mb-3">Not sure where to start?</p>
+            <a href="/contact" class="btn btn-secondary">Contact us</a>
         </div>
     </Section>
 </Layout>
+
+<style>
+    .step-num {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 9999px;
+        background: var(--color-maroon-600);
+        color: #fff;
+        font-weight: 800;
+        font-size: 1.1rem;
+    }
+</style>

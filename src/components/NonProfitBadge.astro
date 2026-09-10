@@ -1,4 +1,5 @@
 ---
+import Icon from './Icon.astro';
 import { SITE_CONFIG } from '../config';
 
 interface Props {
@@ -8,19 +9,26 @@ interface Props {
 
 const { size = 'md', showEIN = false } = Astro.props;
 
-const sizeClasses = {
+const pad = {
     sm: 'text-xs px-3 py-1.5',
     md: 'text-sm px-4 py-2',
-    lg: 'text-base px-6 py-3'
+    lg: 'text-base px-5 py-2.5'
 };
+const iconSize = size === 'sm' ? 14 : size === 'md' ? 16 : 18;
 ---
 
-<div class={`inline-flex items-center gap-2 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-500 rounded-full ${sizeClasses[size]} font-semibold text-green-800`}>
-    <span class={size === 'sm' ? 'text-base' : size === 'md' ? 'text-lg' : 'text-xl'}>✓</span>
-    <div class="flex flex-col">
+<div class={`inline-flex items-center gap-2 rounded-full font-semibold np-badge ${pad[size]}`}>
+    <Icon name="check-circle" size={iconSize} />
+    <div class="flex flex-col leading-tight text-left">
         <span>{SITE_CONFIG.nonProfit.status}</span>
-        {showEIN && (
-            <span class="text-xs opacity-75">EIN: {SITE_CONFIG.nonProfit.ein}</span>
-        )}
+        {showEIN && <span class="text-xs font-normal opacity-70">EIN: {SITE_CONFIG.nonProfit.ein}</span>}
     </div>
 </div>
+
+<style>
+    .np-badge {
+        background: #EAF6EE;
+        color: #1B6B3A;
+        border: 1px solid #BFE3CC;
+    }
+</style>

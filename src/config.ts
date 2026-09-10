@@ -40,7 +40,7 @@ export const SITE_CONFIG = {
             icon: '📷'
         },
         youtube: {
-            url: 'https://www.youtube.com/@BengalsCricketClubBayArea',
+            url: 'https://www.youtube.com/@GoldenstateCCBayArea',
             label: 'YouTube',
             description: 'Match videos',
             icon: '🎥'

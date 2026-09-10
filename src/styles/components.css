@@ -1,297 +1,305 @@
 /**
  * SHARED COMPONENT STYLES
- *
- * Reusable component classes used across both public and admin pages.
- * All components use CSS custom properties (variables) from the active theme.
- *
- * Last updated: February 2026
+ * Buttons, cards, badges, inputs, stats — public + admin.
+ * All colours/tokens come from the active theme file.
  */
 
-/* ========================================
-   BUTTON COMPONENTS
-   ======================================== */
-
+/* ========================================================
+   BUTTONS  — solid fill, subtle 8px radius (not pills),
+   1px lift on hover, no gradient.
+   ======================================================== */
 .btn {
-    @apply inline-flex items-center justify-center gap-2 text-primary-content cursor-pointer text-center font-semibold no-underline;
-    background: var(--gradient-primary);
-    padding: var(--btn-py, 0.875rem) var(--btn-px, 1.25rem);
-    font-size: var(--btn-font-size, 0.875rem);
-    border-radius: var(--border-radius-button);
+    @apply inline-flex items-center justify-center gap-2 cursor-pointer text-center font-semibold no-underline;
+    color: var(--color-primary-content);
+    background: var(--color-maroon-600);
+    padding: var(--btn-py, 0.8125rem) var(--btn-px, 1.375rem);
+    font-size: var(--btn-font-size, 0.9375rem);
+    line-height: 1.2;
+    border: 1px solid transparent;
+    border-radius: var(--radius-btn);
     box-shadow: var(--shadow-button);
-    transition: all var(--transition-hover);
-
-    &:hover {
-        @apply bg-primary/85;
-        box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
-        transform: translateY(-2px);
-    }
-
-    &:active {
-        transform: translateY(0);
-        box-shadow: 0 1px 2px rgba(249, 115, 22, 0.2);
-    }
-
-    &:disabled {
-        @apply text-gray-400 bg-gray-700;
-        box-shadow: none;
-        transform: none;
-    }
+    transition: background-color var(--dur-base) var(--ease-out),
+                box-shadow var(--dur-base) var(--ease-out),
+                transform var(--dur-fast) var(--ease-out);
 }
 
-.btn-secondary {
-    background-color: var(--color-btn-secondary);
-    color: var(--color-btn-secondary-text);
+.btn:hover {
+    background: var(--color-maroon-500);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
 
-    &:hover {
-        background-color: var(--color-btn-secondary-hover);
-    }
+.btn:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-xs);
+}
+
+.btn:disabled {
+    background: var(--color-hairline-strong);
+    color: var(--color-subtle-text);
+    box-shadow: none;
+    transform: none;
+    cursor: not-allowed;
+}
+
+/* Secondary — outline on surface */
+.btn-secondary {
+    color: var(--color-ink);
+    background: var(--color-surface);
+    border: 1px solid var(--color-hairline-strong);
+    box-shadow: var(--shadow-xs);
+}
+.btn-secondary:hover {
+    background: var(--color-surface-sunken);
+    border-color: var(--color-ink);
+}
+
+/* Ghost — quiet tertiary */
+.btn-ghost {
+    color: var(--color-maroon-600);
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+}
+.btn-ghost:hover {
+    background: var(--color-maroon-100);
+    box-shadow: none;
+    transform: none;
+}
+
+/* On dark / photographic backgrounds */
+.btn-on-dark {
+    color: var(--color-ink);
+    background: #fff;
+    border-color: #fff;
+}
+.btn-on-dark:hover {
+    background: var(--color-gold-100);
+    border-color: var(--color-gold-100);
 }
 
 .btn-lg {
-    --btn-font-size: 1.125rem;
-    --btn-px: 1.5rem;
-    --btn-py: 1.125rem;
+    --btn-font-size: 1.0625rem;
+    --btn-px: 1.75rem;
+    --btn-py: 1rem;
 }
 
-/* ========================================
-   CARD COMPONENTS
-   ======================================== */
+.btn-sm {
+    --btn-font-size: 0.8125rem;
+    --btn-px: 1rem;
+    --btn-py: 0.5rem;
+}
 
+.btn-block { display: flex; width: 100%; }
+
+/* ========================================================
+   CARDS  — one primitive: surface + hairline + soft shadow,
+   14px radius, 1px lift on hover.
+   ======================================================== */
 .card {
-    background-color: var(--color-bg-card);
-    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    border: 1px solid var(--color-hairline);
     padding: 1.5rem;
-    border-radius: var(--border-radius-card);
-    box-shadow: var(--shadow-card);
-    transition: all var(--transition-hover);
-
-    &:hover {
-        background-color: var(--color-bg-card-hover);
-        box-shadow: var(--shadow-card-hover);
-        transform: translateY(-4px);
-        border-color: var(--color-primary);
-    }
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow var(--dur-base) var(--ease-out),
+                transform var(--dur-base) var(--ease-out);
 }
+.card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+/* Non-interactive card (no hover lift) */
+.card-static:hover { transform: none; box-shadow: var(--shadow-sm); }
 
 .card-elevated {
-    background: white;
-    border-radius: var(--border-radius-card);
-    box-shadow: var(--shadow-elevated);
+    background: var(--color-surface);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-md);
     padding: 2rem;
 }
 
 .card-bordered {
-    background-color: var(--color-bg-card);
-    border: 2px solid var(--color-border-strong);
+    background: var(--color-surface);
+    border: 1px solid var(--color-hairline-strong);
     padding: 1.5rem;
-    border-radius: var(--border-radius-card);
+    border-radius: var(--radius-card);
 }
 
-/* ========================================
-   TEAM CARD COMPONENTS
-   ======================================== */
+/* Highlighted / accent panel — soft gold-tinted, no heavy border */
+.accent-box {
+    background: var(--color-gold-100);
+    border: 1px solid color-mix(in srgb, var(--color-gold-500) 35%, transparent);
+    padding: 2rem;
+    border-radius: var(--radius-card);
+}
 
+/* Full-bleed section washes */
+.hero-bg { background: var(--gradient-hero); }
+.section-gradient { background: var(--gradient-section); }
+
+/* ========================================================
+   TEAM CARDS
+   ======================================================== */
 .team-card {
-    background: white;
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius-card);
-    box-shadow: var(--shadow-card);
-    transition: all var(--transition-hover);
+    background: var(--color-surface);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow var(--dur-base) var(--ease-out),
+                transform var(--dur-base) var(--ease-out);
     overflow: hidden;
-
-    &:hover {
-        box-shadow: var(--shadow-elevated);
-        transform: translateY(-6px);
-        border-color: var(--color-primary);
-    }
 }
-
+.team-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
 .team-card-header {
-    background: var(--gradient-card-header);
     padding: 1.5rem;
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-hairline);
 }
 
-/* ========================================
-   BADGE COMPONENTS
-   ======================================== */
-
+/* ========================================================
+   BADGES / PILLS  — brand-tinted only
+   ======================================================== */
 .badge {
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    border-radius: 9999px;
-    font-size: 0.875rem;
+    gap: 0.4rem;
+    padding: 0.375rem 0.875rem;
+    border-radius: var(--radius-pill);
+    font-size: 0.8125rem;
     font-weight: 600;
-    background: linear-gradient(135deg, rgba(249, 115, 22, 0.1) 0%, rgba(249, 115, 22, 0.05) 100%);
-    color: var(--color-primary);
-    border: 1px solid rgba(249, 115, 22, 0.2);
+    background: var(--color-maroon-100);
+    color: var(--color-maroon-700);
+    border: 1px solid color-mix(in srgb, var(--color-maroon-600) 18%, transparent);
+}
+
+.badge-gold {
+    background: var(--color-gold-100);
+    color: var(--color-gold-600);
+    border-color: color-mix(in srgb, var(--color-gold-500) 35%, transparent);
+}
+
+.badge-neutral {
+    background: var(--color-surface-sunken);
+    color: var(--color-body-text);
+    border-color: var(--color-hairline-strong);
+}
+
+.badge-success {
+    background: #EAF6EE;
+    color: #1B6B3A;
+    border-color: #BFE3CC;
 }
 
 .badge-tier {
-    padding: 0.375rem 0.75rem;
-    font-size: 0.75rem;
+    padding: 0.3rem 0.7rem;
+    font-size: 0.6875rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.08em;
 }
 
-.badge-team {
-    padding: 0.5rem 1rem;
-    font-size: 0.875rem;
-    font-weight: 600;
-}
+.badge-team { padding: 0.375rem 0.875rem; font-size: 0.8125rem; font-weight: 600; }
 
-/* ========================================
-   STAT & FEATURE BOX COMPONENTS
-   ======================================== */
-
+/* ========================================================
+   STAT BOXES
+   ======================================================== */
 .stat-box {
-    background-color: var(--color-bg-card);
-    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    border: 1px solid var(--color-hairline);
     padding: 1.5rem;
-    border-radius: var(--border-radius-card);
-    box-shadow: var(--shadow-card);
-    transition: all var(--transition-hover);
-
-    &:hover {
-        box-shadow: var(--shadow-card-hover);
-        transform: translateY(-2px);
-    }
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-xs);
+    transition: box-shadow var(--dur-base) var(--ease-out),
+                transform var(--dur-base) var(--ease-out);
+}
+.stat-box:hover {
+    box-shadow: var(--shadow-sm);
+    transform: translateY(-2px);
 }
 
 .stat-grid {
     @apply grid gap-6;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
 }
 
-/* ========================================
-   ACCENT & SPECIAL BOXES
-   ======================================== */
-
-.accent-box {
-    background: var(--gradient-card-header);
-    border: 2px solid var(--color-primary);
-    padding: 2rem;
-    border-radius: var(--border-radius-card);
-    box-shadow: var(--shadow-card);
-}
-
-.hero-bg {
-    background: var(--gradient-hero);
-}
-
-.section-gradient {
-    background: var(--gradient-section);
-}
-
-/* ========================================
-   FORM INPUT COMPONENTS
-   ======================================== */
-
+/* ========================================================
+   FORM INPUTS
+   ======================================================== */
 .input {
-    background-color: var(--color-bg-input);
-    border: 1px solid var(--color-border-strong);
+    background: var(--color-surface);
+    border: 1px solid var(--color-hairline-strong);
     color: var(--color-text-body);
-    @apply px-4 py-3 rounded-lg transition-colors;
-    @apply focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent;
-
-    &::placeholder {
-        color: var(--color-text-placeholder);
-    }
+    padding: 0.75rem 0.9rem;
+    border-radius: var(--radius-input);
+    transition: border-color var(--dur-base) var(--ease-out),
+                box-shadow var(--dur-base) var(--ease-out);
+}
+.input::placeholder { color: var(--color-text-placeholder); }
+.input:focus {
+    outline: none;
+    border-color: var(--color-maroon-500);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-maroon-500) 15%, transparent);
 }
 
-/* ========================================
-   TAG COMPONENTS
-   ======================================== */
+.field-label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-ink);
+    margin-bottom: 0.375rem;
+}
 
+/* ========================================================
+   TAGS
+   ======================================================== */
 .tag {
-    background-color: var(--color-bg-card-hover);
-    color: var(--color-text-body);
-    @apply px-4 py-2 rounded-full;
+    display: inline-flex;
+    align-items: center;
+    background: var(--color-surface-sunken);
+    color: var(--color-body-text);
+    border: 1px solid var(--color-hairline);
+    padding: 0.4rem 0.9rem;
+    border-radius: var(--radius-pill);
+    font-size: 0.875rem;
 }
 
-/* ========================================
+/* ========================================================
    LOADING SKELETONS
-   ======================================== */
-
+   ======================================================== */
 .skeleton {
-    background: linear-gradient(
-        90deg,
-        #f0f0f0 25%,
-        #e0e0e0 50%,
-        #f0f0f0 75%
-    );
+    background: linear-gradient(90deg, #EFEAE2 25%, #E4DED4 50%, #EFEAE2 75%);
     background-size: 200% 100%;
     animation: loading 1.5s ease-in-out infinite;
-    border-radius: 4px;
+    border-radius: 6px;
 }
-
-.skeleton-text {
-    height: 1rem;
-    margin-bottom: 0.5rem;
-}
-
-.skeleton-title {
-    height: 1.5rem;
-    margin-bottom: 1rem;
-    width: 60%;
-}
-
-.skeleton-card {
-    height: 200px;
-    border-radius: 12px;
-}
-
-.skeleton-button {
-    height: 48px;
-    width: 120px;
-    border-radius: 8px;
-}
+.skeleton-text   { height: 1rem; margin-bottom: 0.5rem; }
+.skeleton-title  { height: 1.5rem; margin-bottom: 1rem; width: 60%; }
+.skeleton-card   { height: 200px; border-radius: var(--radius-card); }
+.skeleton-button { height: 44px; width: 120px; border-radius: var(--radius-btn); }
 
 @keyframes loading {
-    0% {
-        background-position: 200% 0;
-    }
-    100% {
-        background-position: -200% 0;
-    }
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
 }
 
-/* ========================================
-   MEMBER/AVATAR CARD UTILITIES
-   ======================================== */
-
-.member-card-wrapper {
-    @apply w-full max-w-xs mx-auto;
-    min-height: 200px;
+@media (prefers-reduced-motion: reduce) {
+    .skeleton { animation: none; }
+    .btn:hover, .card:hover, .stat-box:hover, .team-card:hover { transform: none; }
 }
 
-.member-grid {
-    @apply flex flex-wrap gap-6 justify-center items-start;
-}
-
-.member-grid-2 {
-    @apply flex flex-wrap gap-6 justify-center items-start;
-}
-
-.member-grid-2 > * {
-    @apply w-full sm:w-[calc(50%-0.75rem)] max-w-xs;
-}
-
-.member-grid-3 {
-    @apply flex flex-wrap gap-6 justify-center items-start;
-}
-
-.member-grid-3 > * {
-    @apply w-full sm:w-[calc(50%-0.75rem)] lg:w-[calc(33.333%-1rem)] max-w-xs;
-}
-
-.member-grid-4 {
-    @apply flex flex-wrap gap-6 justify-center items-start;
-}
-
-.member-grid-4 > * {
-    @apply w-full sm:w-[calc(50%-0.75rem)] lg:w-[calc(25%-1.125rem)] max-w-xs;
-}
+/* ========================================================
+   MEMBER / AVATAR GRIDS
+   ======================================================== */
+.member-card-wrapper { @apply w-full max-w-xs mx-auto; min-height: 200px; }
+.member-grid   { @apply flex flex-wrap gap-6 justify-center items-start; }
+.member-grid-2 { @apply flex flex-wrap gap-6 justify-center items-start; }
+.member-grid-2 > * { @apply w-full sm:w-[calc(50%-0.75rem)] max-w-xs; }
+.member-grid-3 { @apply flex flex-wrap gap-6 justify-center items-start; }
+.member-grid-3 > * { @apply w-full sm:w-[calc(50%-0.75rem)] lg:w-[calc(33.333%-1rem)] max-w-xs; }
+.member-grid-4 { @apply flex flex-wrap gap-6 justify-center items-start; }
+.member-grid-4 > * { @apply w-full sm:w-[calc(50%-0.75rem)] lg:w-[calc(25%-1.125rem)] max-w-xs; }

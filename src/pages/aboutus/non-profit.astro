@@ -3,10 +3,11 @@ export const prerender = false;
 
 import Layout from '../../layouts/Layout.astro';
 import Section from '../../components/Section.astro';
-import Card from '../../components/Card.astro';
 import MemberCard from '../../components/MemberCard.astro';
+import PageHeader from '../../components/PageHeader.astro';
 import NonProfitBadge from '../../components/NonProfitBadge.astro';
 import ZeffyDonation from '../../components/ZeffyDonation.astro';
+import Icon from '../../components/Icon.astro';
 import { SITE_CONFIG } from '../../config';
 
 const boardMembers = [
@@ -16,49 +17,35 @@ const boardMembers = [
 ];
 
 const programs = [
-    {
-        title: 'Competitive Cricket Teams',
-        content: 'Three competitive teams (Bengal Tigers, Bengal Bulls, Bengal Thunder Cats) competing in NCCA and BACA leagues since 2018, representing Northern California.',
-        icon: '🏏'
-    },
-    {
-        title: 'Youth Cricket Development',
-        content: 'Youth academy welcoming players ages 8-18, with free membership for students and youth. Focus on reaching underrepresented communities.',
-        icon: '🎓'
-    },
-    {
-        title: 'Player Pathway Program',
-        content: 'Supporting members\' participation in USA Masters League and USA Minor League, creating pathways for competitive cricket development.',
-        icon: '⭐'
-    },
-    {
-        title: 'Community Engagement',
-        content: 'Building a diverse cricket community with 160+ members from 8 counties across the Bay Area, fostering inclusivity and sportsmanship.',
-        icon: '🤝'
-    },
-    {
-        title: 'Inclusive Membership',
-        content: 'Free membership for youth (under 18) and full-time students, ensuring financial barriers don\'t prevent participation in cricket.',
-        icon: '🎟️'
-    },
-    {
-        title: 'Northern California Cricket Association',
-        content: 'Active participation in NCCA leagues (established 1892) with 2200+ members, 54+ clubs, promoting cricket across Northern California.',
-        icon: '🏟️'
-    }
+    { icon: 'trophy', title: 'Competitive Cricket Teams', content: 'Competitive teams competing in NCCA and BACA leagues since 2018, representing Northern California.' },
+    { icon: 'graduation-cap', title: 'Youth Cricket Development', content: 'Youth academy welcoming players ages 8-18, with free membership for students and youth. Focus on reaching underrepresented communities.' },
+    { icon: 'star', title: 'Player Pathway Program', content: "Supporting members' participation in USA Masters League and USA Minor League, creating pathways for competitive cricket development." },
+    { icon: 'users', title: 'Community Engagement', content: 'Building a diverse cricket community with 160+ members from 8 counties across the Bay Area, fostering inclusivity and sportsmanship.' },
+    { icon: 'ticket', title: 'Inclusive Membership', content: "Free membership for youth (under 18) and full-time students, ensuring financial barriers don't prevent participation in cricket." },
+    { icon: 'building', title: 'Northern California Cricket Association', content: 'Active participation in NCCA leagues (established 1892) with 2200+ members and 54+ clubs, promoting cricket across Northern California.' }
 ];
 
+const story = [
+    { k: 'Why', v: 'Bengals Inc. was established with a simple but powerful belief: sport is a universal language that builds community, character, and opportunity. Sports nurture physical health, mental resilience, discipline, teamwork, leadership, and respect.' },
+    { k: 'What', v: 'At its core, Bengals Inc. promotes cricket across the Bay Area as both a competitive and community sport. Cricket is the foundation, but our vision goes further — toward a multi-sport community club embracing running, volleyball, badminton, soccer, baseball, and more.' },
+    { k: 'How', v: 'We build organized teams and leagues, partner with schools and local districts, invest in youth development, and create safe, well-governed pathways for participation. GSCC is Step 1 in this journey.' }
+];
+
+const impactIcons: Record<string, string> = {
+    'Active Members': 'users',
+    'Youth & Students': 'graduation-cap',
+    'Counties Represented': 'map-pin',
+    'Years of Service': 'hourglass'
+};
+
 const pageTitle = 'Non-Profit Organization | Bengals Inc. - 501(c)(3)';
-const pageDescription = 'Golden State Cricket Club is a part of Bengals Inc. - a 501(c)(3) non-profit organization fostering community connection through cricket across Northern California\'s Bay Area.';
+const pageDescription = "Golden State Cricket Club is a part of Bengals Inc. - a 501(c)(3) non-profit organization fostering community connection through cricket across Northern California's Bay Area.";
 ---
 
 <Layout title={pageTitle}>
-    <!-- Page-specific meta tags -->
     <meta slot="head" name="description" content={pageDescription} />
     <meta slot="head" property="og:title" content={pageTitle} />
     <meta slot="head" property="og:description" content={pageDescription} />
-
-    <!-- Additional Schema.org Structured Data for Non-Profit Page -->
     <script type="application/ld+json" slot="head">
     {
       "@context": "https://schema.org",
@@ -69,159 +56,98 @@ const pageDescription = 'Golden State Cricket Club is a part of Bengals Inc. - a
       "taxID": "30-13XXXXX",
       "nonprofitStatus": "Nonprofit501c3",
       "foundingDate": "2018",
-      "mission": "To foster a vibrant, inclusive community through the power of sport. We are dedicated to nurturing talent, promoting physical wellness, and inspiring a lifelong passion for excellence, both on and off the field.",
-      "numberOfEmployees": {
-        "@type": "QuantitativeValue",
-        "value": "0",
-        "description": "All-volunteer organization"
-      },
-      "knowsAbout": ["Cricket", "Youth Development", "Community Building", "Sports Education"],
-      "member": {
-        "@type": "OrganizationRole",
-        "numberOfMembers": "160+"
-      }
+      "mission": "To foster a vibrant, inclusive community through the power of sport.",
+      "knowsAbout": ["Cricket", "Youth Development", "Community Building", "Sports Education"]
     }
     </script>
-    <h1 class="page-title heading-margin-sm">{SITE_CONFIG.nonProfit.name}</h1>
 
-    {/* Centered Badge */}
-    <div class="flex justify-center mb-4">
+    <PageHeader kicker="501(c)(3) non-profit" title={SITE_CONFIG.nonProfit.name} subtitle="Empowering community and excellence through sport." />
+
+    <div class="flex flex-wrap items-center gap-4 mb-10">
         <NonProfitBadge size="lg" showEIN={true} />
+        <a href="#donation-section" class="btn btn-lg"><Icon name="heart" size={18} /> Make a donation</a>
     </div>
 
-    {/* Centered Donation Button */}
-    <div class="flex justify-center mb-8">
-        <a href="#donation-section" class="btn btn-lg inline-flex items-center gap-2">
-            <span class="text-xl">💝</span>
-            Make a Donation
-        </a>
-    </div>
-
-    {/* Mission & Vision */}
-    <Section>
-        <div class="accent-box section-centered-wide">
-            <h2 class="section-heading">Our Mission</h2>
-            <h3 class="subsection-heading text-primary">"Empowering Community and Excellence Through Sport"</h3>
-            <p class="text-body-lg text-justified">
-                {SITE_CONFIG.nonProfit.mission}
-            </p>
+    <Section title="Our Mission" kicker="Purpose" align="left">
+        <div class="accent-box">
+            <h3 class="subsection-heading" style="color:var(--color-maroon-600);">"Empowering Community and Excellence Through Sport"</h3>
+            <p class="text-body-lg measure mb-0">{SITE_CONFIG.nonProfit.mission}</p>
         </div>
     </Section>
 
-    {/* Impact Stats */}
-    <Section title="Our Impact" variant="alternate">
-        <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <Section title="Our Impact" kicker="By the numbers" variant="alternate">
+        <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             {SITE_CONFIG.nonProfit.impactStats.map(stat => (
                 <div class="stat-box text-center">
-                    <div class="text-5xl mb-4">{stat.icon}</div>
-                    <div class="text-4xl font-bold text-primary mb-3">{stat.value}</div>
-                    <div class="text-base text-gray-700 font-semibold">{stat.label}</div>
+                    <span class="inline-flex items-center justify-center w-10 h-10 rounded-[10px] mb-3" style="background:var(--color-gold-100);color:var(--color-gold-600);">
+                        <Icon name={impactIcons[stat.label] ?? 'star'} size={20} />
+                    </span>
+                    <div class="text-4xl font-extrabold" style="color:var(--color-maroon-600);font-variant-numeric:tabular-nums;">{stat.value}</div>
+                    <div class="text-sm text-muted font-semibold mt-1">{stat.label}</div>
                 </div>
             ))}
         </div>
-        <p class="text-center text-gray-600 max-w-3xl mx-auto">
+        <p class="text-center text-muted measure mx-auto" style="margin-inline:auto;">
             Since our founding in {SITE_CONFIG.nonProfit.founded}, we've been dedicated to making cricket
             accessible and fostering a love for the sport across Northern California.
         </p>
     </Section>
 
-    {/* Our Story Section */}
-    <Section title="Our Story">
-        <div class="max-w-5xl mx-auto">
-            <div class="grid md:grid-cols-3 gap-8 mb-8">
-                <div class="bg-white rounded-xl p-6 border-2 border-gray-200 hover:border-primary transition-all">
-                    <h3 class="subsection-heading text-primary">Why</h3>
-                    <p class="text-body-base text-justified">
-                        Bengals Inc. was established as a non-profit organization with a simple but powerful belief:
-                        sport is a universal language that builds community, character, and opportunity. In a fast-paced,
-                        digitally driven world, sports provide balance—nurturing physical health, mental resilience,
-                        discipline, teamwork, leadership, and respect.
-                    </p>
+    <Section title="Our Story" kicker="Why we exist">
+        <div class="grid md:grid-cols-3 gap-6">
+            {story.map(s => (
+                <div class="card card-static">
+                    <h3 class="subsection-heading" style="color:var(--color-maroon-600);">{s.k}</h3>
+                    <p class="text-body-base mb-0">{s.v}</p>
                 </div>
-                <div class="bg-white rounded-xl p-6 border-2 border-gray-200 hover:border-primary transition-all">
-                    <h3 class="subsection-heading text-primary">What</h3>
-                    <p class="text-body-base text-justified">
-                        At its core, Bengals Inc. promotes cricket across the Bay Area as both a competitive and community sport.
-                        Cricket is the foundation, but our vision goes far beyond one game. We aspire to evolve into a
-                        multi-sport community club—embracing running, volleyball, badminton, soccer, baseball, and more.
-                    </p>
-                </div>
-                <div class="bg-white rounded-xl p-6 border-2 border-gray-200 hover:border-primary transition-all">
-                    <h3 class="subsection-heading text-primary">How</h3>
-                    <p class="text-body-base text-justified">
-                        Bengals Inc. achieves this by building organized teams and leagues, partnering with schools and local districts,
-                        investing in youth development, and creating safe, well-governed pathways for participation. Golden State Cricket
-                        Club (GSCC) is Step 1 in this journey—a move driven by the desire for a larger, more inclusive brand identity.
-                    </p>
-                </div>
-            </div>
+            ))}
         </div>
     </Section>
 
-    {/* Programs */}
-    <Section title="Our Programs" variant="alternate">
+    <Section title="Our Programs" kicker="What we do" variant="alternate">
         <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {programs.map(program => (
-                <div class="card-elevated">
-                    <div class="text-4xl mb-4">{program.icon}</div>
+                <div class="card card-static">
+                    <span class="inline-flex items-center justify-center w-10 h-10 rounded-[10px] mb-3" style="background:var(--color-maroon-100);color:var(--color-maroon-600);">
+                        <Icon name={program.icon} size={20} />
+                    </span>
                     <h3 class="subsection-heading">{program.title}</h3>
-                    <p class="text-body-base text-justified">{program.content}</p>
+                    <p class="text-body-base mb-0">{program.content}</p>
                 </div>
             ))}
         </div>
     </Section>
 
-    {/* Board Members */}
-    <Section title="Board of Directors">
+    <Section title="Board of Directors" kicker="Governance">
         <p class="section-centered text-body-lg mb-8">
-            Our foundation is governed by a dedicated board of directors committed to transparency,
-            accountability, and advancing our mission.
+            Our foundation is governed by a dedicated board committed to transparency, accountability, and advancing our mission.
         </p>
         <div class="member-grid mx-auto">
-            {boardMembers.map(member => (
-                <MemberCard name={member.name} role={member.role} />
-            ))}
+            {boardMembers.map(member => <MemberCard name={member.name} role={member.role} />)}
         </div>
     </Section>
 
-    {/* Donation Section */}
     <Section variant="alternate">
-        <div id="donation-section" class="max-w-5xl mx-auto scroll-mt-24">
+        <div id="donation-section" class="max-w-4xl mx-auto scroll-mt-24">
             <ZeffyDonation />
-
-            {/* Tax Information */}
-            <div class="mt-8 bg-blue-50 border-2 border-blue-200 rounded-xl p-6">
-                <h3 class="text-lg font-bold text-gray-900 mb-3 text-center">Tax Deduction Information</h3>
-                <p class="text-sm text-gray-700 text-center max-w-3xl mx-auto">
-                    <strong>{SITE_CONFIG.nonProfit.name}</strong> is a {SITE_CONFIG.nonProfit.status}.
-                    <br />
-                    <strong>EIN:</strong> {SITE_CONFIG.nonProfit.ein}
-                    <br /><br />
-                    Donations are tax-deductible to the extent allowed by law. No goods or services were
-                    provided in exchange for your donation. Please consult your tax advisor for specific
-                    deduction amounts. You will receive an email receipt for your records immediately after donating.
+            <div class="card card-static mt-8">
+                <h3 class="subsection-heading text-center">Tax deduction information</h3>
+                <p class="text-sm text-muted text-center measure mx-auto mb-0" style="margin-inline:auto;">
+                    <strong>{SITE_CONFIG.nonProfit.name}</strong> is a {SITE_CONFIG.nonProfit.status}. EIN: {SITE_CONFIG.nonProfit.ein}.
+                    Donations are tax-deductible to the extent allowed by law. No goods or services were provided in
+                    exchange for your donation. You'll receive an email receipt immediately after donating.
                 </p>
             </div>
         </div>
     </Section>
 
-    {/* Call to Action */}
-    <Section>
-        <div class="section-centered bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl p-8 border-2" style="border-color: #E5C878;">
-            <h2 class="section-heading">Other Ways to Help</h2>
-            <p class="text-body-lg mb-6">
-                Can't donate right now? There are other ways to support our mission!
-            </p>
-            <div class="grid sm:grid-cols-3 gap-4">
-                <a href="/members" class="btn btn-secondary">
-                    Volunteer
-                </a>
-                <a href="/contact" class="btn btn-secondary">
-                    Partner With Us
-                </a>
-                <a href="/gallery" class="btn btn-secondary">
-                    Share Our Story
-                </a>
+    <Section title="Other Ways to Help" kicker="Get involved">
+        <div class="accent-box text-center">
+            <p class="text-body-lg mb-6">Can't donate right now? There are other ways to support our mission.</p>
+            <div class="grid sm:grid-cols-3 gap-3">
+                <a href="/members" class="btn btn-secondary">Volunteer</a>
+                <a href="/contact" class="btn btn-secondary">Partner with us</a>
+                <a href="/gallery" class="btn btn-secondary">Share our story</a>
             </div>
         </div>
     </Section>
