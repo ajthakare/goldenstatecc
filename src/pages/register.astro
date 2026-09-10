@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import PageHeader from '../components/PageHeader.astro';
 import { validateAdminSession } from '../middleware/auth';
 
 export const prerender = false;
@@ -23,13 +24,9 @@ if (session) {
       <img src="/icons/icon-192.png" alt="GSCC" width="64" height="64" />
     </div>
 
+    <PageHeader align="center" rule={false} kicker="Members" title="Member Registration" subtitle="Join Golden State Cricket Club as a member. After registration, an admin will review your request." />
+
     <div class="card">
-      <h1 class="page-title text-center mb-6">Member Registration</h1>
-
-      <p class="text-muted mb-6 text-center">
-        Join Golden State Cricket Club as a member. After registration, an admin will review your request.
-      </p>
-
       <form id="register-form" name="registration" method="POST" data-netlify="true" netlify-honeypot="bot-field" class="space-y-4">
         <!-- Hidden fields for Netlify -->
         <input type="hidden" name="form-name" value="registration" />

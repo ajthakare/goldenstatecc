@@ -1,23 +1,25 @@
 ---
 /**
- * PageHeader — clean, modern page title block.
+ * PageHeader — the one page-title block for the whole site.
  * Kicker (tracked uppercase) + heavy title + gold rule + optional subtitle.
- * Replaces the old red→black gradient slab treatment.
+ *
+ * align="center" + rule={false} is the auth-screen presentation.
  */
 interface Props {
     title: string;
     kicker?: string;
     subtitle?: string;
     align?: 'left' | 'center';
+    rule?: boolean;
 }
 
-const { title, kicker, subtitle, align = 'left' } = Astro.props;
+const { title, kicker, subtitle, align = 'left', rule = true } = Astro.props;
 const centered = align === 'center';
 ---
 <header class:list={["page-head", { "page-head--center": centered }]}>
     {kicker && <span class="kicker">{kicker}</span>}
     <h1 class="page-head__title">{title}</h1>
-    <div class="rule-gold page-head__rule"></div>
+    {rule && <div class="rule-gold page-head__rule"></div>}
     {subtitle && <p class="page-head__subtitle">{subtitle}</p>}
 </header>
 
@@ -56,6 +58,11 @@ const centered = align === 'center';
     .page-head--center .page-head__subtitle {
         margin-left: auto;
         margin-right: auto;
+        max-width: 34rem;
+    }
+    /* When there's no rule, the subtitle sits closer to the title */
+    .page-head__title + .page-head__subtitle {
+        margin-top: 0.5rem;
     }
     @media (max-width: 640px) {
         .page-head { margin-bottom: 1.25rem; }

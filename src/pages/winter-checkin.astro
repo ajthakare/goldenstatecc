@@ -2,6 +2,7 @@
 export const prerender = false;
 
 import Layout from '../layouts/Layout.astro';
+import PageHeader from '../components/PageHeader.astro';
 import { SITE_CONFIG } from '../config';
 import { validateAdminSession, isMember } from '../middleware/auth';
 
@@ -120,15 +121,12 @@ const summerSlug = (team: string) => team.replace(/[^A-Za-z0-9]/g, '');
 <Layout title={`Winter Check-In (${wc.seasonLabel}) - Golden State Cricket Club`}>
   <div class="wc-page max-w-3xl mx-auto px-4 py-8 sm:py-12">
 
-    <header class="wc-head">
-      <p class="wc-eyebrow">Golden State Cricket Club</p>
-      <h1 class="page-title mb-3">Winter Season Check-In</h1>
-      <p class="text-intro mb-0">
-        We're planning teams for <strong>{wc.seasonLabel}</strong> and want to build them
-        around the players who want to be out there. Five minutes now saves a lot of
-        chasing later.
-      </p>
-    </header>
+    <PageHeader kicker="Golden State Cricket Club" title="Winter Season Check-In" />
+    <p class="text-intro measure mb-8">
+      We're planning teams for <strong>{wc.seasonLabel}</strong> and want to build them
+      around the players who want to be out there. Five minutes now saves a lot of
+      chasing later.
+    </p>
 
     <!-- Season facts -->
     <div class="wc-facts card">

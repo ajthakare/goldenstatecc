@@ -2,6 +2,7 @@
 export const prerender = false;
 
 import Layout from '../layouts/Layout.astro';
+import PageHeader from '../components/PageHeader.astro';
 
 // Optional post-login destination (?redirect=/some/path). Only same-origin
 // absolute paths are honored, to avoid open-redirect abuse.
@@ -40,11 +41,7 @@ if (cookieHeader) {
         <img src="/icons/icon-192.png" alt="GSCC" width="72" height="72" />
       </div>
 
-      <div class="text-center">
-        <span class="kicker">Members</span>
-        <h1 class="mt-1 mb-1" style="font-size:var(--text-h1);">Log in</h1>
-        <p class="text-muted">Golden State Cricket Club</p>
-      </div>
+      <PageHeader align="center" rule={false} kicker="Members" title="Log in" subtitle="Golden State Cricket Club" />
 
       <div class="card card-static p-8">
         <form id="login-form" class="space-y-5">

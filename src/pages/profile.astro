@@ -2,6 +2,7 @@
 export const prerender = false;
 
 import Layout from '../layouts/Layout.astro';
+import PageHeader from '../components/PageHeader.astro';
 import { validateAdminSession, isMember } from '../middleware/auth';
 
 // Check authentication
@@ -54,11 +55,8 @@ try {
 ---
 
 <Layout title="My Profile - Golden State Cricket Club">
-  <div class="max-w-4xl mx-auto px-4 py-8">
-    <div class="mb-8">
-      <h1 class="page-title">My Profile</h1>
-      <p class="text-body text-gray-600">Manage your account settings</p>
-    </div>
+  <PageHeader kicker="Your account" title="My Profile" subtitle="Manage your account settings" />
+  <div class="max-w-4xl mx-auto px-4 py-8 pt-0">
 
     {error && (
       <div class={isOldStyleAdmin ? "alert alert-warning mb-6" : "alert alert-error mb-6"}>

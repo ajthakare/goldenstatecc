@@ -2,6 +2,7 @@
 export const prerender = false;
 
 import Layout from '../layouts/Layout.astro';
+import PageHeader from '../components/PageHeader.astro';
 import { validateAdminSession, isMember } from '../middleware/auth';
 
 // Check authentication
@@ -15,8 +16,7 @@ if (!session || !isMember(session)) {
 ---
 
 <Layout title="My Fixtures - Golden State Cricket Club">
-  <h1 class="page-title heading-margin-sm">My Upcoming Fixtures</h1>
-  <p class="text-intro mb-8">Mark your availability for upcoming matches</p>
+  <PageHeader kicker="Your season" title="My Upcoming Fixtures" subtitle="Mark your availability for upcoming matches" />
 
   <div class="max-w-5xl mx-auto px-4 py-8">
 
