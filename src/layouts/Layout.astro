@@ -348,6 +348,21 @@ const vapidPublicKey = import.meta.env.PUBLIC_VAPID_PUBLIC_KEY || '';
       height: auto !important;
     }
 
+    /* Restore a consistent side gutter in the app.
+       The scroll container (.site-wrapper) must stay padding:0 for the
+       fixed-position scroll math, so the gutter lives on .site-main. */
+    .site-main {
+      padding-left: max(1.05rem, env(safe-area-inset-left)) !important;
+      padding-right: max(1.05rem, env(safe-area-inset-right)) !important;
+    }
+    /* Inner containers already carry their own horizontal padding in the
+       browser — collapse it here so it isn't doubled / misaligned. */
+    .site-main .section-inner,
+    .site-main > [class*="max-w-"] {
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+    }
+
     /* Remove top padding from first content element — no gap below top bar */
     .site-main > *:first-child,
     .site-main > section.section-spacing:first-child {
