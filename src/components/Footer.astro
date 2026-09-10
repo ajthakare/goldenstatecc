@@ -20,15 +20,15 @@ const support = [
 ];
 ---
 
-<footer class="site-footer mt-16 rounded-t-2xl px-6 sm:px-10 pt-12 pb-8">
+<footer class="site-footer mt-12 sm:mt-16 rounded-t-2xl px-6 sm:px-10 pt-8 pb-6 sm:pt-12 sm:pb-8">
     <div class="max-w-5xl mx-auto">
-        <div class="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
+        <div class="grid grid-cols-2 gap-x-6 gap-y-7 lg:grid-cols-4 lg:gap-10">
+            <div class="col-span-2 lg:col-span-1">
                 <div class="wm">{SITE_CONFIG.name}</div>
-                <p class="text-sm text-muted mt-2 max-w-xs">
+                <p class="text-sm text-muted mt-2 max-w-md">
                     Competitive cricket and community across the Bay Area since 2018.
                 </p>
-                <div class="flex gap-2 mt-4">
+                <div class="flex gap-2 mt-3">
                     <a href={SITE_CONFIG.social.instagram.url} target="_blank" rel="noopener noreferrer" class="foot-social" aria-label="Instagram">
                         <Icon name="instagram" size={18} />
                     </a>
@@ -41,26 +41,26 @@ const support = [
                 </div>
             </div>
 
-            <div>
+            <nav aria-label="Explore">
                 <div class="foot-h">Explore</div>
-                <ul class="space-y-2">
+                <ul>
                     {explore.map((l) => <li><a href={l.href} class="foot-link">{l.label}</a></li>)}
                 </ul>
-            </div>
+            </nav>
 
-            <div>
+            <nav aria-label="Club">
                 <div class="foot-h">Club</div>
-                <ul class="space-y-2">
+                <ul>
                     {support.map((l) => <li><a href={l.href} class="foot-link">{l.label}</a></li>)}
                 </ul>
-            </div>
+            </nav>
 
-            <div>
+            <div class="col-span-2 lg:col-span-1">
                 <div class="foot-h">Non-Profit</div>
                 <span class="badge badge-success">
                     <Icon name="check" size={14} /> {SITE_CONFIG.nonProfit.status}
                 </span>
-                <p class="text-xs text-subtle mt-3 leading-relaxed">
+                <p class="text-xs text-subtle mt-2.5 leading-relaxed">
                     {SITE_CONFIG.nonProfit.name} is a registered 501(c)(3) non-profit.
                     EIN: {SITE_CONFIG.nonProfit.ein}. Donations are tax-deductible to the
                     extent allowed by law.
@@ -68,7 +68,7 @@ const support = [
             </div>
         </div>
 
-        <div class="mt-10 pt-6 border-t border-[color:var(--color-hairline)] text-xs text-subtle flex flex-col sm:flex-row gap-1 sm:justify-between">
+        <div class="mt-8 pt-5 border-t border-[color:var(--color-hairline)] text-xs text-subtle flex flex-col sm:flex-row gap-1 sm:justify-between">
             <span>&copy; {year} {SITE_CONFIG.name} — {SITE_CONFIG.location}</span>
             <span>All rights reserved.</span>
         </div>
@@ -89,10 +89,13 @@ const support = [
         letter-spacing: 0.1em;
         text-transform: uppercase;
         color: var(--color-muted-text);
-        margin-bottom: 0.9rem;
+        margin-bottom: 0.6rem;
     }
     .foot-link {
+        display: block;
         font-size: 0.9375rem;
+        line-height: 1.35;
+        padding: 0.45rem 0;
         color: var(--color-body-text);
         transition: color var(--dur-base) var(--ease-out);
     }
