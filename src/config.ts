@@ -53,7 +53,7 @@ export const SITE_CONFIG = {
     // `acceptingResponses`→ whether the form accepts submissions at all.
     // Flip `isOpen` to true once the club decides to launch this to everyone.
     winterCheckIn: {
-        isOpen: false,
+        isOpen: true,
         acceptingResponses: true,
         seasonKey: 'winter-2026-2027',
         seasonLabel: 'Winter 2026–2027',
