@@ -60,6 +60,16 @@ if (!isAdminUser) return Astro.redirect('/');
       <a href="/.netlify/functions/winter-checkin-export" class="btn-secondary" id="wc-export">Export CSV</a>
     </div>
 
+    <div id="wc-bulk-actions" class="wc-bulk-actions" hidden>
+      <span id="wc-selected-count" class="wc-selected-count">0 selected</span>
+      <button id="wc-delete-selected" class="btn-danger-outline" type="button">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M2 4h12M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1m2 0v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4h10z"/>
+        </svg>
+        Delete Selected
+      </button>
+    </div>
+
     <div class="stats-grid" id="wc-stats" hidden></div>
 
     <div id="wc-loading" class="state-container">
@@ -115,6 +125,18 @@ if (!isAdminUser) return Astro.redirect('/');
     margin-bottom: 1.5rem;
   }
   .wc-toolbar-spacer { flex: 1; }
+
+  .wc-bulk-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: -0.75rem 0 1.5rem;
+  }
+  .wc-selected-count {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-text-muted, #64748b);
+  }
   .wc-select {
     padding: 0.6rem 0.75rem;
     border-radius: 8px;
@@ -138,6 +160,17 @@ if (!isAdminUser) return Astro.redirect('/');
   .wc-table td { white-space: nowrap; vertical-align: top; }
   .wc-table tbody tr { cursor: pointer; }
   .wc-table td.wc-wrap { white-space: normal; min-width: 180px; max-width: 260px; }
+  .wc-table th.wc-th-checkbox,
+  .wc-table td.td-checkbox {
+    width: 2.25rem;
+    cursor: default;
+  }
+  .wc-checkbox {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--color-primary, #8c1d18);
+  }
 
   .wc-pill {
     display: inline-block;
@@ -260,6 +293,9 @@ if (!isAdminUser) return Astro.redirect('/');
   const modalTitle = $('wc-modal-title');
   const modalBody = $('wc-modal-body');
   const modalDelete = $<HTMLButtonElement>('wc-modal-delete');
+  const bulkBar = $('wc-bulk-actions');
+  const bulkCount = $('wc-selected-count');
+  const bulkDeleteBtn = $<HTMLButtonElement>('wc-delete-selected');
 
   const PARTICIPATION_LABEL: Record<string, string> = {
     in: 'Playing', out: 'Not playing', transfer: 'Transfer', enquiring: 'Enquiry',
@@ -291,6 +327,7 @@ if (!isAdminUser) return Astro.redirect('/');
   let sortKey = 'updatedAt';
   let sortDir: 1 | -1 = -1;
   let activeId: string | null = null;
+  const selectedIds = new Set<string>();
 
   function show(el: HTMLElement, on: boolean) { el.hidden = !on; }
 
@@ -339,12 +376,18 @@ if (!isAdminUser) return Astro.redirect('/');
   }
 
   function renderTable() {
-    theadRow.innerHTML = TABLE_COLS.map((c) => {
-      const cls = c.sortKey === sortKey ? (sortDir === 1 ? 'sort-asc' : 'sort-desc') : '';
-      return `<th data-sort="${c.sortKey}" class="${cls}">${c.label}</th>`;
-    }).join('');
+    theadRow.innerHTML =
+      `<th class="wc-th-checkbox"><input type="checkbox" id="wc-select-all" class="wc-checkbox" aria-label="Select all" /></th>` +
+      TABLE_COLS.map((c) => {
+        const cls = c.sortKey === sortKey ? (sortDir === 1 ? 'sort-asc' : 'sort-desc') : '';
+        return `<th data-sort="${c.sortKey}" class="${cls}">${c.label}</th>`;
+      }).join('');
 
     const rows = currentRows();
+    // Drop selections for rows that no longer exist (e.g. after a delete).
+    const liveIds = new Set(all.map((r) => r.id));
+    Array.from(selectedIds).forEach((id) => { if (!liveIds.has(id)) selectedIds.delete(id); });
+
     tbody.innerHTML = rows
       .map((r) => {
         const cells = TABLE_COLS.map((c) => {
@@ -354,7 +397,9 @@ if (!isAdminUser) return Astro.redirect('/');
           else val = escapeHtml(val);
           return `<td class="${c.cls || ''}">${val}</td>`;
         }).join('');
-        return `<tr data-id="${r.id}">${cells}</tr>`;
+        const checked = selectedIds.has(r.id) ? 'checked' : '';
+        const cbCell = `<td class="td-checkbox"><input type="checkbox" class="row-checkbox wc-checkbox" data-id="${r.id}" ${checked} aria-label="Select response" /></td>`;
+        return `<tr data-id="${r.id}">${cbCell}${cells}</tr>`;
       })
       .join('');
 
@@ -362,6 +407,21 @@ if (!isAdminUser) return Astro.redirect('/');
     show(emptyBox, all.length === 0);
     countLine.hidden = all.length === 0;
     countLine.textContent = `Showing ${rows.length} of ${all.length} response${all.length === 1 ? '' : 's'}`;
+    updateBulkActions();
+  }
+
+  function updateBulkActions() {
+    const count = selectedIds.size;
+    show(bulkBar, count > 0);
+    bulkCount.textContent = `${count} selected`;
+
+    const selectAll = document.getElementById('wc-select-all') as HTMLInputElement | null;
+    if (selectAll) {
+      const rowBoxes = tbody.querySelectorAll('.row-checkbox');
+      const checkedCount = tbody.querySelectorAll('.row-checkbox:checked').length;
+      selectAll.checked = rowBoxes.length > 0 && checkedCount === rowBoxes.length;
+      selectAll.indeterminate = checkedCount > 0 && checkedCount < rowBoxes.length;
+    }
   }
 
   function escapeHtml(s: string) {
@@ -400,6 +460,7 @@ if (!isAdminUser) return Astro.redirect('/');
     show(errorBox, false);
     show(tableWrap, false);
     show(emptyBox, false);
+    selectedIds.clear();
     try {
       const res = await fetch('/.netlify/functions/winter-checkin-list', {
         headers: { Accept: 'application/json' },
@@ -428,8 +489,57 @@ if (!isAdminUser) return Astro.redirect('/');
   });
 
   tbody.addEventListener('click', (e) => {
-    const tr = (e.target as HTMLElement).closest('tr');
+    const target = e.target as HTMLElement;
+    if (target.closest('.td-checkbox')) return;
+    const tr = target.closest('tr');
     if (tr?.dataset.id) openModal(tr.dataset.id);
+  });
+
+  theadRow.addEventListener('change', (e) => {
+    const target = e.target as HTMLInputElement;
+    if (target.id !== 'wc-select-all') return;
+    const checked = target.checked;
+    tbody.querySelectorAll<HTMLInputElement>('.row-checkbox').forEach((cb) => {
+      cb.checked = checked;
+      const id = cb.dataset.id;
+      if (!id) return;
+      if (checked) selectedIds.add(id);
+      else selectedIds.delete(id);
+    });
+    updateBulkActions();
+  });
+
+  tbody.addEventListener('change', (e) => {
+    const target = e.target as HTMLInputElement;
+    if (!target.classList.contains('row-checkbox')) return;
+    const id = target.dataset.id;
+    if (!id) return;
+    if (target.checked) selectedIds.add(id);
+    else selectedIds.delete(id);
+    updateBulkActions();
+  });
+
+  bulkDeleteBtn.addEventListener('click', async () => {
+    const count = selectedIds.size;
+    if (count === 0) return;
+    if (!confirm(`Delete ${count} response${count > 1 ? 's' : ''}? This cannot be undone.`)) return;
+    bulkDeleteBtn.disabled = true;
+    try {
+      const res = await fetch('/.netlify/functions/winter-checkin-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(out.error || 'Delete failed');
+      all = all.filter((r) => !selectedIds.has(r.id));
+      selectedIds.clear();
+      renderTable();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      bulkDeleteBtn.disabled = false;
+    }
   });
 
   [searchInput, filterParticipation, filterVia].forEach((el) =>
@@ -453,6 +563,7 @@ if (!isAdminUser) return Astro.redirect('/');
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Delete failed');
       all = all.filter((r) => r.id !== activeId);
+      selectedIds.delete(activeId);
       closeModal();
       renderTable();
     } catch (err) {

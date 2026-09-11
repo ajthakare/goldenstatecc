@@ -9,8 +9,8 @@ const wc = SITE_CONFIG.winterCheckIn;
 const RESPONSES_KEY = `responses-${wc.seasonKey}`;
 
 /**
- * Delete a winter check-in response by id (spam / test cleanup).
- * POST /.netlify/functions/winter-checkin-delete  { id }
+ * Delete one or more winter check-in responses (spam / test cleanup).
+ * POST /.netlify/functions/winter-checkin-delete  { id } or { ids: string[] }
  * Requires: admin / super_admin session
  */
 export const handler: Handler = async (
@@ -26,14 +26,21 @@ export const handler: Handler = async (
     return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
   }
 
-  let id = '';
+  let ids: string[] = [];
   try {
-    id = String(JSON.parse(event.body || '{}').id || '');
+    const body = JSON.parse(event.body || '{}');
+    if (Array.isArray(body.ids)) {
+      ids = body.ids.map((x: unknown) => String(x)).filter(Boolean);
+    } else if (body.id) {
+      ids = [String(body.id)];
+    }
   } catch {
     return { statusCode: 400, body: JSON.stringify({ error: 'Invalid JSON body' }) };
   }
-  if (!id) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Missing id' }) };
+  // De-dupe and cap — this is an admin cleanup action, not a mass-delete tool.
+  ids = Array.from(new Set(ids)).slice(0, 200);
+  if (ids.length === 0) {
+    return { statusCode: 400, body: JSON.stringify({ error: 'Missing id(s)' }) };
   }
 
   try {
@@ -44,28 +51,36 @@ export const handler: Handler = async (
     });
     const all =
       ((await store.get(RESPONSES_KEY, { type: 'json' })) as WinterCheckInResponse[]) || [];
-    const target = all.find((r) => r.id === id);
-    if (!target) {
-      return { statusCode: 404, body: JSON.stringify({ error: 'Response not found' }) };
+
+    const idSet = new Set(ids);
+    const targets = all.filter((r) => idSet.has(r.id));
+    if (targets.length === 0) {
+      return { statusCode: 404, body: JSON.stringify({ error: 'No matching responses found' }) };
     }
 
     await store.setJSON(
       RESPONSES_KEY,
-      all.filter((r) => r.id !== id)
+      all.filter((r) => !idSet.has(r.id))
     );
 
-    await addAuditLog(
-      session.email || session.username || 'admin',
-      'WINTER_CHECKIN_DELETE',
-      `Deleted winter check-in response: ${target.firstName} ${target.lastName} (${target.email})`,
-      id,
-      { entityType: 'winter-checkin', seasonKey: wc.seasonKey }
-    );
+    const actor = session.email || session.username || 'admin';
+    for (const target of targets) {
+      await addAuditLog(
+        actor,
+        'WINTER_CHECKIN_DELETE',
+        `Deleted winter check-in response: ${target.firstName} ${target.lastName} (${target.email})`,
+        target.id,
+        { entityType: 'winter-checkin', seasonKey: wc.seasonKey }
+      );
+    }
+
+    const deletedIds = targets.map((t) => t.id);
+    const notFound = ids.filter((id) => !deletedIds.includes(id));
 
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ success: true }),
+      body: JSON.stringify({ success: true, deleted: deletedIds.length, notFound }),
     };
   } catch (error) {
     console.error('winter-checkin-delete error:', error);
