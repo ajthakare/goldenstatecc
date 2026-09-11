@@ -2,6 +2,7 @@
 export const prerender = false;
 
 import AdminLayout from '../../layouts/AdminLayout.astro';
+import { isWinterCheckInAdminRestricted } from '../../config';
 
 // Auth (same pattern as other admin pages)
 const cookieHeader = Astro.request.headers.get('cookie');
@@ -9,6 +10,7 @@ let authenticated = false;
 let username = '';
 let userRole = 'admin';
 let isAdminUser = false;
+let userEmail = '';
 
 if (cookieHeader) {
   try {
@@ -19,6 +21,7 @@ if (cookieHeader) {
     authenticated = data.authenticated;
     username = data.user?.firstName || data.user?.username || '';
     userRole = data.user?.role_auth || data.user?.role || 'admin';
+    userEmail = data.user?.email || '';
     isAdminUser = userRole === 'admin' || userRole === 'super_admin';
   } catch (error) {
     authenticated = false;
@@ -27,6 +30,7 @@ if (cookieHeader) {
 
 if (!authenticated) return Astro.redirect('/admin/login');
 if (!isAdminUser) return Astro.redirect('/');
+if (isWinterCheckInAdminRestricted(userEmail)) return Astro.redirect('/admin');
 ---
 
 <AdminLayout

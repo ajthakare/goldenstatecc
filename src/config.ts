@@ -68,6 +68,16 @@ export const SITE_CONFIG = {
         liabilityText:
             "I'm joining of my own free will and take part at my own risk. Golden State Cricket Club and Bengals Inc. aren't liable for any injury, illness, or loss arising from my participation.",
 
+        // Admins on this list can't see the Winter Check-In or Summer '26 Feedback
+        // admin pages or their data (nav links hidden, page/API access blocked).
+        // Everyone else with admin/super_admin still has normal access.
+        // Compared case-insensitively.
+        restrictedAdminEmails: [
+            'ratik.sachdeva@gmail.com',
+            'dhruv.wsu@gmail.com',
+            'santhanam.abhishek@gmail.com'
+        ],
+
         // Summer '26 season feedback — a member-only block on the same form,
         // reviewed on its own admin page (/admin/summer-feedback).
         summerFeedback: {
@@ -83,26 +93,19 @@ export const SITE_CONFIG = {
                     captain: 'Mazher Khan',
                     viceCaptain: 'Abhishek Santhanam, then Ratik Sachdeva (2nd half)'
                 }
-            } as Record<string, { captain: string; viceCaptain: string }>,
-            // Admins in this list can't see the Summer '26 Feedback admin page or its
-            // data (nav link hidden, page/API access blocked). Everyone else with
-            // admin/super_admin still has normal access. Lowercase, compared case-insensitively.
-            restrictedAdminEmails: [
-                'ratik.sachdeva@gmail.com',
-                'dhruv.wsu@gmail.com',
-                'santhanam.abhishek@gmail.com'
-            ]
+            } as Record<string, { captain: string; viceCaptain: string }>
         }
     }
 };
 
 /**
- * True if this admin email is on the Summer '26 Feedback restricted list —
- * used to hide the nav link and block the page/API for specific admins.
+ * True if this admin email is on the Winter Check-In / Summer '26 Feedback
+ * restricted list — used to hide the nav links and block the pages/APIs for
+ * specific admins.
  */
-export function isSummerFeedbackRestricted(email?: string | null): boolean {
+export function isWinterCheckInAdminRestricted(email?: string | null): boolean {
     if (!email) return false;
-    const restricted = SITE_CONFIG.winterCheckIn.summerFeedback?.restrictedAdminEmails ?? [];
+    const restricted = SITE_CONFIG.winterCheckIn.restrictedAdminEmails ?? [];
     const normalized = email.toLowerCase().trim();
     return restricted.some((e) => e.toLowerCase() === normalized);
 }
