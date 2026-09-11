@@ -6,16 +6,24 @@ import interWoff2 from '@fontsource-variable/inter/files/inter-latin-wght-normal
 import logo from '../assets/GSCC.svg';
 import AdminPWATopBar from '../components/AdminPWATopBar.astro';
 import AdminPWABottomNav from '../components/AdminPWABottomNav.astro';
+import { validateAdminSession } from '../middleware/auth';
+import { isSummerFeedbackRestricted } from '../config';
 
 interface Props {
   title: string;
   username: string;
   userRole?: 'super_admin' | 'admin';
-  activePage: 'inquiries' | 'users' | 'seasons' | 'fixtures' | 'players' | 'roster' | 'availability' | 'statistics' | 'logs' | 'practices' | 'notifications';
+  activePage: 'inquiries' | 'users' | 'seasons' | 'fixtures' | 'players' | 'roster' | 'availability' | 'statistics' | 'logs' | 'practices' | 'notifications' | 'winter-checkin' | 'summer-feedback';
 }
 
 const { title, username, userRole = 'admin', activePage } = Astro.props;
 const isSuperAdmin = userRole === 'super_admin';
+
+// A handful of admins are excluded from Summer '26 Feedback specifically —
+// hide the nav link for them (the page + its API also enforce this).
+const cookieHeader = Astro.request.headers.get('cookie') || '';
+const adminSession = validateAdminSession(cookieHeader);
+const hideSummerFeedbackNav = isSummerFeedbackRestricted(adminSession?.email);
 ---
 
 <!doctype html>
@@ -169,12 +177,14 @@ const isSuperAdmin = userRole === 'super_admin';
             <span>Winter Check-In</span>
           </a>
 
-          <a href="/admin/summer-feedback" class:list={['nav-item', { active: activePage === 'summer-feedback' }]}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-            </svg>
-            <span>Summer '26 Feedback</span>
-          </a>
+          {!hideSummerFeedbackNav && (
+            <a href="/admin/summer-feedback" class:list={['nav-item', { active: activePage === 'summer-feedback' }]}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+              <span>Summer '26 Feedback</span>
+            </a>
+          )}
 
           {isSuperAdmin && (
             <a href="/admin/users" class:list={['nav-item', { active: activePage === 'users' }]}>

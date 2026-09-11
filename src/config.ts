@@ -83,10 +83,29 @@ export const SITE_CONFIG = {
                     captain: 'Mazher Khan',
                     viceCaptain: 'Abhishek Santhanam, then Ratik Sachdeva (2nd half)'
                 }
-            } as Record<string, { captain: string; viceCaptain: string }>
+            } as Record<string, { captain: string; viceCaptain: string }>,
+            // Admins in this list can't see the Summer '26 Feedback admin page or its
+            // data (nav link hidden, page/API access blocked). Everyone else with
+            // admin/super_admin still has normal access. Lowercase, compared case-insensitively.
+            restrictedAdminEmails: [
+                'ratik.sachdeva@gmail.com',
+                'dhruv.wsu@gmail.com',
+                'santhanam.abhishek@gmail.com'
+            ]
         }
     }
 };
+
+/**
+ * True if this admin email is on the Summer '26 Feedback restricted list —
+ * used to hide the nav link and block the page/API for specific admins.
+ */
+export function isSummerFeedbackRestricted(email?: string | null): boolean {
+    if (!email) return false;
+    const restricted = SITE_CONFIG.winterCheckIn.summerFeedback?.restrictedAdminEmails ?? [];
+    const normalized = email.toLowerCase().trim();
+    return restricted.some((e) => e.toLowerCase() === normalized);
+}
 
 // Sponsorship Configuration
 export const SPONSORS = {
