@@ -1,7 +1,7 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
 import { validateAdminSession, isAdmin } from '../../src/middleware/auth';
-import { SITE_CONFIG } from '../../src/config';
+import { SITE_CONFIG, isWinterCheckInAdminRestricted } from '../../src/config';
 import {
   SUMMER_FEEDBACK_COLUMNS,
   type WinterCheckInResponse,
@@ -22,7 +22,7 @@ export const handler: Handler = async (
   _context: HandlerContext
 ) => {
   const session = validateAdminSession(event.headers.cookie);
-  if (!session || !isAdmin(session)) {
+  if (!session || !isAdmin(session) || isWinterCheckInAdminRestricted(session.email)) {
     return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
   }
 
