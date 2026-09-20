@@ -52,13 +52,14 @@ export const SITE_CONFIG = {
     //                              page still works by direct URL when this is false.
     // `acceptingResponses`       → master switch, blocks submissions for everyone
     //                              (guests + members) when false.
-    // `acceptingMemberResponses` → whether logged-in members can submit/update their
-    //                              winter check-in + Summer '26 feedback (submitted
-    //                              together). Guests ("I'd like to play" / "just
+    // `acceptingMemberResponses` → fallback default for whether logged-in members can
+    //                              submit/update their winter check-in + Summer '26
+    //                              feedback (submitted together), used only when the
+    //                              WINTER_CHECKIN_MEMBERS_OPEN env var isn't set — see
+    //                              isAcceptingMemberResponses() below for the live
+    //                              on/off switch. Guests ("I'd like to play" / "just
     //                              enquiring" — prospective new members) are NOT
-    //                              affected and stay open regardless. Flip this to
-    //                              false and merge/deploy when it's time to close
-    //                              the form to existing members — no date to set.
+    //                              affected either way and stay open regardless.
     winterCheckIn: {
         isOpen: true,
         acceptingResponses: true,
@@ -105,6 +106,22 @@ export const SITE_CONFIG = {
         }
     }
 };
+
+/**
+ * Whether logged-in members can submit/update their winter check-in + Summer '26
+ * feedback right now. Checks the WINTER_CHECKIN_MEMBERS_OPEN environment variable
+ * first — set it to "true" or "false" in Netlify's dashboard (Site configuration →
+ * Environment variables) to flip this instantly, no code change or deploy needed.
+ * Falls back to winterCheckIn.acceptingMemberResponses if the env var isn't set.
+ * Guests ("I'd like to play" / "just enquiring" — prospective new members) are
+ * never affected by this either way.
+ */
+export function isAcceptingMemberResponses(): boolean {
+    const envOverride = process.env.WINTER_CHECKIN_MEMBERS_OPEN;
+    if (envOverride === 'true') return true;
+    if (envOverride === 'false') return false;
+    return SITE_CONFIG.winterCheckIn.acceptingMemberResponses;
+}
 
 /**
  * True if this admin email is on the Winter Check-In / Summer '26 Feedback
