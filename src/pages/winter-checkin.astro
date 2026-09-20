@@ -3,7 +3,7 @@ export const prerender = false;
 
 import Layout from '../layouts/Layout.astro';
 import PageHeader from '../components/PageHeader.astro';
-import { SITE_CONFIG, isMemberWinterCheckInClosed } from '../config';
+import { SITE_CONFIG } from '../config';
 import { validateAdminSession, isMember } from '../middleware/auth';
 
 const wc = SITE_CONFIG.winterCheckIn;
@@ -66,9 +66,9 @@ const memberName = isLoggedIn
 const loginHref = '/login?redirect=/winter-checkin';
 const startEmployed = isLoggedIn && !!(member!.jobCompany || member!.jobTitle);
 
-// Members' window can close on its own schedule; guests (prospective new
-// members) are never affected — see SITE_CONFIG.winterCheckIn.memberResponsesCloseDate.
-const memberWindowClosed = isLoggedIn && isMemberWinterCheckInClosed();
+// Members can be closed out independently of guests (prospective new members),
+// who are never affected — see SITE_CONFIG.winterCheckIn.acceptingMemberResponses.
+const memberWindowClosed = isLoggedIn && !wc.acceptingMemberResponses;
 
 const PLAYER_ROLES = ['Batsman', 'Bowler', 'All-rounder', 'Wicket-keeper'];
 const EXPERIENCE_LEVELS = [

@@ -48,20 +48,21 @@ export const SITE_CONFIG = {
     },
 
     // Winter Season Check-In Form (/winter-checkin)
-    // `isOpen`                  → show the link in the site nav (public launch). The
-    //                             page still works by direct URL when this is false.
-    // `acceptingResponses`      → master switch, blocks submissions for everyone
-    //                             (guests + members) when false.
-    // `memberResponsesCloseDate`→ after this date (Pacific, end of day), logged-in
-    //                             members can no longer submit/update their winter
-    //                             check-in + Summer '26 feedback. Guests ("I'd like
-    //                             to play" / "just enquiring" — prospective new
-    //                             members) are NOT affected and stay open. Set to
-    //                             null to leave member submissions open indefinitely.
+    // `isOpen`                   → show the link in the site nav (public launch). The
+    //                              page still works by direct URL when this is false.
+    // `acceptingResponses`       → master switch, blocks submissions for everyone
+    //                              (guests + members) when false.
+    // `acceptingMemberResponses` → whether logged-in members can submit/update their
+    //                              winter check-in + Summer '26 feedback (submitted
+    //                              together). Guests ("I'd like to play" / "just
+    //                              enquiring" — prospective new members) are NOT
+    //                              affected and stay open regardless. Flip this to
+    //                              false and merge/deploy when it's time to close
+    //                              the form to existing members — no date to set.
     winterCheckIn: {
         isOpen: true,
         acceptingResponses: true,
-        memberResponsesCloseDate: '2026-09-22' as string | null,
+        acceptingMemberResponses: false,
         seasonKey: 'winter-2026-2027',
         seasonLabel: 'Winter 2026–2027',
         seasonWindow: 'October 2026 – March 2027',
@@ -104,20 +105,6 @@ export const SITE_CONFIG = {
         }
     }
 };
-
-/**
- * True once `winterCheckIn.memberResponsesCloseDate` has passed (Pacific time,
- * inclusive through end of that day). Only gates logged-in members — guests
- * (prospective new members) are never affected by this.
- */
-export function isMemberWinterCheckInClosed(): boolean {
-    const closeDate = SITE_CONFIG.winterCheckIn.memberResponsesCloseDate;
-    if (!closeDate) return false;
-    const todayPacific = new Date().toLocaleDateString('en-CA', {
-        timeZone: 'America/Los_Angeles'
-    });
-    return todayPacific > closeDate;
-}
 
 /**
  * True if this admin email is on the Winter Check-In / Summer '26 Feedback

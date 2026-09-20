@@ -2,7 +2,7 @@ import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
 import { validateAdminSession, isMember } from '../../src/middleware/auth';
 import { addAuditLog } from '../../src/utils/auditLog';
-import { SITE_CONFIG, isMemberWinterCheckInClosed } from '../../src/config';
+import { SITE_CONFIG } from '../../src/config';
 import type { Player } from '../../src/types/player';
 import type { WinterCheckInResponse } from '../../src/types/winter';
 
@@ -94,9 +94,9 @@ export const handler: Handler = async (
   const session = validateAdminSession(event.headers.cookie);
   const memberSession = session && isMember(session) ? session : null;
 
-  // Members' window (winter check-in + Summer '26 feedback) can close on its own
-  // schedule. Guests (prospective new members) are never affected.
-  if (memberSession && isMemberWinterCheckInClosed()) {
+  // Members' window (winter check-in + Summer '26 feedback) can be closed
+  // independently of guests (prospective new members), who are never affected.
+  if (memberSession && !wc.acceptingMemberResponses) {
     return {
       statusCode: 403,
       body: JSON.stringify({
