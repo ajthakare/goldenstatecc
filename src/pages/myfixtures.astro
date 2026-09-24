@@ -4,6 +4,7 @@ export const prerender = false;
 import Layout from '../layouts/Layout.astro';
 import PageHeader from '../components/PageHeader.astro';
 import { validateAdminSession, isMember } from '../middleware/auth';
+import logo from '../assets/GSCC.svg';
 
 // Check authentication
 const cookieHeader = Astro.request.headers.get('cookie');
@@ -40,6 +41,7 @@ if (!session || !isMember(session)) {
 
     <!-- Loading State -->
     <div id="loading" class="state-container">
+      <img src={logo.src} alt="GSCC" class="loading-logo" width="64" height="64" />
       <div class="spinner"></div>
       <p class="state-text">Loading fixtures...</p>
     </div>
@@ -523,6 +525,18 @@ if (!session || !isMember(session)) {
       justify-content: center;
       padding: 64px 24px;
       text-align: center;
+    }
+
+    .loading-logo {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 20px;
+      animation: pulse-logo 1.6s ease-in-out infinite;
+    }
+
+    @keyframes pulse-logo {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.94); }
     }
 
     .spinner {
