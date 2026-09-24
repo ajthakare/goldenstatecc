@@ -102,15 +102,17 @@ export const handler: Handler = async (
         };
       }
 
-      // Load all team stats for this season
+      // Load all team stats for this season in parallel
       const allPlayerStats: any[] = [];
 
-      for (const teamSummary of seasonStats.teamSummaries) {
-        const teamStats = (await store.get(
-          `team-stats-${teamSummary.teamName}-${seasonId}`,
-          { type: 'json' }
-        )) as TeamStatisticsSummary | null;
+      const teamStatsResults = await Promise.all(
+        seasonStats.teamSummaries.map(teamSummary =>
+          store.get(`team-stats-${teamSummary.teamName}-${seasonId}`, { type: 'json' }) as Promise<TeamStatisticsSummary | null>
+        )
+      );
 
+      seasonStats.teamSummaries.forEach((teamSummary, i) => {
+        const teamStats = teamStatsResults[i];
         if (teamStats) {
           teamStats.playerStats.forEach((player) => {
             allPlayerStats.push({
@@ -124,7 +126,7 @@ export const handler: Handler = async (
             });
           });
         }
-      }
+      });
 
       csvData = allPlayerStats;
       filename = `statistics-${season.name}-${new Date().toISOString().split('T')[0]}.csv`;

@@ -98,17 +98,19 @@ export const handler: Handler = async (
       };
     }
 
-    // Load all availability records for this season
+    // Load all availability records for this season, in parallel
     const availabilityIndex = (await availabilityStore.get(`availability-index-${seasonId}`, { type: 'json' })) as any[] | null;
     const availabilityRecords: FixtureAvailability[] = [];
 
     if (availabilityIndex) {
-      for (const indexEntry of availabilityIndex) {
-        const record = (await availabilityStore.get(`availability-${indexEntry.fixtureId}`, { type: 'json' })) as FixtureAvailability | null;
-        if (record) {
-          availabilityRecords.push(record);
-        }
-      }
+      const records = await Promise.all(
+        availabilityIndex.map(indexEntry =>
+          availabilityStore.get(`availability-${indexEntry.fixtureId}`, { type: 'json' }) as Promise<FixtureAvailability | null>
+        )
+      );
+      records.forEach(record => {
+        if (record) availabilityRecords.push(record);
+      });
     }
 
     // 1. Player of Match Leaderboard

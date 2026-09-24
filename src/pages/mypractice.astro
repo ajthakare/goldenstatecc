@@ -5,6 +5,7 @@ import Layout from '../layouts/Layout.astro';
 import PageHeader from '../components/PageHeader.astro';
 import { validateAdminSession, isMember } from '../middleware/auth';
 import { parseLocalDate, formatDateDisplay } from '../utils';
+import logo from '../assets/GSCC.svg';
 import '../styles/admin.css';
 
 // Check authentication
@@ -42,6 +43,7 @@ if (!session || !isMember(session)) {
 
     <!-- Loading State -->
     <div id="loading" class="state-container">
+      <img src={logo.src} alt="GSCC" class="loading-logo" width="64" height="64" />
       <div class="spinner"></div>
       <p class="state-text">Loading practices...</p>
     </div>
@@ -68,6 +70,18 @@ if (!session || !isMember(session)) {
 
   <!-- All practice styles are now in /src/styles/admin.css -->
   <style is:global>
+    .loading-logo {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 20px;
+      animation: pulse-logo 1.6s ease-in-out infinite;
+    }
+
+    @keyframes pulse-logo {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.94); }
+    }
+
     /* Fix oversized empty state icon */
     #no-practices .empty-icon {
       width: 64px;
