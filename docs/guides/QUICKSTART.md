@@ -33,10 +33,6 @@ cp .env.example .env
 Edit `.env` and fill in:
 
 ```env
-# Choose a username and strong password for first admin
-FIRST_ADMIN_USERNAME=admin
-FIRST_ADMIN_PASSWORD=ChooseAStrongPassword123!
-
 # Paste the token from Step 2
 NETLIFY_AUTH_TOKEN=paste_your_token_here
 
@@ -73,8 +69,6 @@ netlify deploy --prod
 3. Click **"Add a variable"** for each:
 
    ```
-   FIRST_ADMIN_USERNAME = admin
-   FIRST_ADMIN_PASSWORD = (same as .env)
    NETLIFY_AUTH_TOKEN = (same as .env)
    SESSION_SECRET = (same as .env)
    NODE_ENV = production
@@ -82,36 +76,15 @@ netlify deploy --prod
 
 4. Click **"Save"**
 
-## Step 6: Create First Admin (30 seconds)
+## Step 6: Create First Admin
 
-After deployment completes:
-
-```bash
-# Replace with your actual site URL
-curl -X POST https://your-site.netlify.app/.netlify/functions/setup-first-admin
-```
-
-You should see:
-```json
-{
-  "message": "First admin user created successfully",
-  "username": "admin"
-}
-```
+There's no public setup endpoint for this anymore (the old one had no auth check). See "Create First Admin User" in `docs/admin/ADMIN_SETUP.md` for how to bootstrap an admin locally.
 
 ## Step 7: Login! (30 seconds)
 
 1. Visit: `https://your-site.netlify.app/admin`
 2. Login with credentials from Step 3
 3. You're in! 🎉
-
-## Optional: Remove Temporary Variables
-
-After first admin is created, you can remove these from Netlify for security:
-- `FIRST_ADMIN_USERNAME`
-- `FIRST_ADMIN_PASSWORD`
-
-(Keep them in local `.env` for development)
 
 ## Next Steps
 
