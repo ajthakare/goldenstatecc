@@ -56,14 +56,14 @@ export const handler: Handler = async (
       practiceIds = activeIndex || [];
     }
 
-    // Fetch all practices
-    const practices: PracticeSession[] = [];
-    for (const id of practiceIds) {
-      const practice = await practicesStore.get(`practice-${id}`, { type: 'json' }) as PracticeSession | null;
-      if (practice) {
-        practices.push(practice);
-      }
-    }
+    // Fetch all practices in parallel (sequential awaits here previously
+    // added seconds of latency as the season's practice index grew)
+    const fetchedPractices = await Promise.all(
+      practiceIds.map(id =>
+        practicesStore.get(`practice-${id}`, { type: 'json' }) as Promise<PracticeSession | null>
+      )
+    );
+    const practices: PracticeSession[] = fetchedPractices.filter((p): p is PracticeSession => p !== null);
 
     // Filter by team if provided
     let filteredPractices = practices;

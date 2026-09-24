@@ -50,14 +50,23 @@ export const handler: Handler = async (
 
     const seasonId = activeSeason.id;
 
-    // Get player's core roster assignments for this season
+    // Get player's core roster assignments and all fixtures for the season
+    // in parallel — neither depends on the other, only on seasonId.
     const coreRosterStore = getStore({
       name: 'core-roster',
       siteID: process.env.SITE_ID || '',
       token: process.env.NETLIFY_AUTH_TOKEN || '',
     });
+    const fixturesStore = getStore({
+      name: 'fixtures',
+      siteID: process.env.SITE_ID || '',
+      token: process.env.NETLIFY_AUTH_TOKEN || '',
+    });
     const coreRosterKey = `core-roster-${seasonId}`;
-    const coreRoster = (await coreRosterStore.get(coreRosterKey, { type: 'json' })) as CoreRosterAssignment[] | null;
+    const [coreRoster, allFixtures] = await Promise.all([
+      coreRosterStore.get(coreRosterKey, { type: 'json' }) as Promise<CoreRosterAssignment[] | null>,
+      fixturesStore.get(`fixtures-${seasonId}`, { type: 'json' }) as Promise<Fixture[] | null>,
+    ]);
 
     // Find player's team assignments (any roster member - core or reserve)
     const playerTeams = coreRoster
@@ -72,14 +81,6 @@ export const handler: Handler = async (
         body: JSON.stringify([]),
       };
     }
-
-    // Get all fixtures for the season
-    const fixturesStore = getStore({
-      name: 'fixtures',
-      siteID: process.env.SITE_ID || '',
-      token: process.env.NETLIFY_AUTH_TOKEN || '',
-    });
-    const allFixtures = (await fixturesStore.get(`fixtures-${seasonId}`, { type: 'json' })) as Fixture[] | null;
 
     if (!allFixtures || allFixtures.length === 0) {
       return {
