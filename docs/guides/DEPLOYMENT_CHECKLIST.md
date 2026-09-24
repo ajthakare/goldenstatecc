@@ -10,8 +10,6 @@ Use this checklist to ensure everything is set up correctly before and after dep
 - [ ] Session secret generated (`node scripts/generate-session-secret.cjs`)
 - [ ] Netlify Personal Access Token obtained
 - [ ] All environment variables set in `.env`:
-  - [ ] `FIRST_ADMIN_USERNAME`
-  - [ ] `FIRST_ADMIN_PASSWORD`
   - [ ] `NETLIFY_AUTH_TOKEN`
   - [ ] `SESSION_SECRET`
   - [ ] `NODE_ENV=development`
@@ -47,8 +45,6 @@ Use this checklist to ensure everything is set up correctly before and after dep
 ### Environment Variables (Netlify Dashboard)
 Navigate to: **Site settings** → **Environment variables**
 
-- [ ] `FIRST_ADMIN_USERNAME` set (same as local)
-- [ ] `FIRST_ADMIN_PASSWORD` set (same as local)
 - [ ] `NETLIFY_AUTH_TOKEN` set (same as local)
 - [ ] `SESSION_SECRET` set (same as local)
 - [ ] `NODE_ENV` set to `production` (not development!)

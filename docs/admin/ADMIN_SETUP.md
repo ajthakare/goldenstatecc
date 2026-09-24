@@ -80,8 +80,6 @@ Dependencies are already installed if you ran `npm install`. The admin system us
 1. Go to your Netlify site dashboard
 2. Navigate to **Site settings** → **Environment variables**
 3. Add the following variables:
-   - `FIRST_ADMIN_USERNAME` (temporary, can remove after setup)
-   - `FIRST_ADMIN_PASSWORD` (temporary, can remove after setup)
    - `NETLIFY_AUTH_TOKEN` (your Personal Access Token)
    - `SESSION_SECRET` (same random secret as local)
    - `NODE_ENV` = `production`
@@ -90,34 +88,14 @@ Dependencies are already installed if you ran `npm install`. The admin system us
 
 ### 3. Create First Admin User
 
-After setting environment variables, you need to create the first admin user:
+There used to be a `setup-first-admin` Netlify Function for this, but it had no authentication check — anyone who found the URL could call it, so it's been removed.
 
-#### Option A: Via Netlify Function (Recommended)
+If admins already exist on your site, use the in-app flow instead:
 
-1. Deploy your site to Netlify (or test locally with `netlify dev`)
+1. Log in as an existing `super_admin`.
+2. Go to `/admin/users` and create the new admin from there.
 
-2. Call the setup function:
-   ```bash
-   # Local development
-   curl -X POST http://localhost:8888/.netlify/functions/setup-first-admin
-
-   # Production
-   curl -X POST https://your-site.netlify.app/.netlify/functions/setup-first-admin
-   ```
-
-3. You should see a success message:
-   ```json
-   {
-     "message": "First admin user created successfully",
-     "username": "admin"
-   }
-   ```
-
-4. **Important**: After the first admin is created, you can remove `FIRST_ADMIN_USERNAME` and `FIRST_ADMIN_PASSWORD` from environment variables for security.
-
-#### Option B: Via Netlify Functions Log Trigger
-
-The setup function can also be called automatically on first deployment by adding it to your build process, but manual invocation is safer.
+If you're bootstrapping a brand-new site with zero admins, write a small one-off script under `/local-debug/scripts/` that calls `hashPassword()` from `src/middleware/auth.ts` and writes directly to the `admin-users` Blobs store, run it locally, then delete it. Never add a network-reachable endpoint for this — see the "Debug Scripts" section in `CLAUDE.md`.
 
 ### 4. Access the Admin Interface
 
@@ -220,9 +198,8 @@ Click "Logout" in the header to end your session.
 
 ### Cannot log in with first admin credentials
 
-- Verify the first admin was created successfully
-- Re-run the setup function: `/.netlify/functions/setup-first-admin`
-- Check that `FIRST_ADMIN_USERNAME` and `FIRST_ADMIN_PASSWORD` match what you're entering
+- Verify the first admin was created successfully in the `admin-users` Blobs store
+- Check that the username/password match what you're entering
 
 ### "SESSION_SECRET environment variable is not set" error
 
@@ -254,7 +231,6 @@ src/
 
 netlify/
 └── functions/
-    ├── setup-first-admin.ts     # One-time setup
     ├── auth-login.ts            # Login endpoint
     ├── auth-check.ts            # Session validation
     ├── get-submissions.ts       # Fetch submissions
@@ -280,9 +256,6 @@ All endpoints are serverless functions deployed to `/.netlify/functions/`:
 - `GET /admin-users-list` - List all admin users
 - `POST /admin-users-create` - Create new admin user
 - `POST /admin-users-delete` - Delete admin user
-
-### Setup
-- `POST /setup-first-admin` - Create first admin (one-time)
 
 ## Future Enhancements
 
