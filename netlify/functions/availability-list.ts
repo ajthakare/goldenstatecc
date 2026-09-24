@@ -88,12 +88,16 @@ export const handler: Handler = async (
         };
       }
 
-      // Check which fixtures have availability records
+      // Check which fixtures have availability records (fetched in parallel —
+      // this only runs on a cache miss, but a season's worth of fixtures
+      // fetched one at a time still stalls whoever triggers the rebuild)
+      const availRecords = await Promise.all(
+        fixtures.map(fixture => availabilityStore.get(`availability-${fixture.id}`, { type: 'json' }))
+      );
       index = [];
-      for (const fixture of fixtures) {
-        const availRecord = await availabilityStore.get(`availability-${fixture.id}`, { type: 'json' });
-        if (availRecord) {
-          index.push({
+      fixtures.forEach((fixture, i) => {
+        if (availRecords[i]) {
+          index!.push({
             fixtureId: fixture.id,
             gameNumber: fixture.gameNumber,
             date: fixture.date,
@@ -102,7 +106,7 @@ export const handler: Handler = async (
             venue: fixture.venue,
           });
         }
-      }
+      });
 
       // Save the rebuilt index
       if (index.length > 0) {
