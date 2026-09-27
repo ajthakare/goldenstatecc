@@ -746,8 +746,8 @@ if (!isAdminUser) {
   statusFilter.addEventListener('change', loadPlayers); // Reload from backend when status changes
   roleFilter.addEventListener('change', loadPlayers); // Reload from backend when role changes
 
-  // Select all checkbox
-  selectAllCheckbox.addEventListener('change', (e) => {
+  // Select all checkbox (super_admin only — element doesn't exist for other roles)
+  selectAllCheckbox?.addEventListener('change', (e) => {
     if (e.target.checked) {
       filteredPlayers.forEach((p) => selectedPlayerIds.add(p.id));
     } else {
@@ -757,8 +757,8 @@ if (!isAdminUser) {
     updateBulkActions();
   });
 
-  // Change status
-  document.getElementById('change-status-btn').addEventListener('click', async () => {
+  // Change status (super_admin only — element doesn't exist for other roles)
+  document.getElementById('change-status-btn')?.addEventListener('click', async () => {
     if (selectedPlayerIds.size === 0) return;
 
     const selectedPlayers = players.filter((p) => selectedPlayerIds.has(p.id));
@@ -802,8 +802,8 @@ if (!isAdminUser) {
     }
   });
 
-  // Bulk delete
-  document.getElementById('delete-selected-btn').addEventListener('click', async () => {
+  // Bulk delete (super_admin only — element doesn't exist for other roles)
+  document.getElementById('delete-selected-btn')?.addEventListener('click', async () => {
     if (selectedPlayerIds.size === 0) return;
 
     if (!confirm(`Delete ${selectedPlayerIds.size} player(s)? They will be marked as inactive.`)) {
@@ -830,8 +830,8 @@ if (!isAdminUser) {
     }
   });
 
-  // Export selected or all
-  document.getElementById('export-selected-btn').addEventListener('click', async () => {
+  // Export selected or all (super_admin only — element doesn't exist for other roles)
+  document.getElementById('export-selected-btn')?.addEventListener('click', async () => {
     try {
       const status = statusFilter.value;
       const role = roleFilter.value;
@@ -1055,6 +1055,9 @@ if (!isAdminUser) {
   }
 
   function updateBulkActions() {
+    // Bulk actions UI only exists for super_admin — elements are null for other roles
+    if (!bulkActions) return;
+
     if (selectedPlayerIds.size > 0) {
       bulkActions.style.display = 'flex';
       selectedCount.textContent = `${selectedPlayerIds.size} selected`;
@@ -1063,11 +1066,13 @@ if (!isAdminUser) {
     }
 
     // Update select-all checkbox state
-    selectAllCheckbox.checked = selectedPlayerIds.size === filteredPlayers.length && filteredPlayers.length > 0;
+    if (selectAllCheckbox) {
+      selectAllCheckbox.checked = selectedPlayerIds.size === filteredPlayers.length && filteredPlayers.length > 0;
+    }
   }
 
-  // Open add player modal
-  document.getElementById('add-player-btn').addEventListener('click', () => {
+  // Open add player modal (super_admin only — element doesn't exist for other roles)
+  document.getElementById('add-player-btn')?.addEventListener('click', () => {
     editingPlayerId = null;
     document.getElementById('modal-title').textContent = 'Add New Player';
     document.getElementById('submit-btn').textContent = 'Add Player';
