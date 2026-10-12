@@ -5,9 +5,18 @@ import Layout from '../layouts/Layout.astro';
 import Section from '../components/Section.astro';
 import PageHeader from '../components/PageHeader.astro';
 import Icon from '../components/Icon.astro';
+import SocialFeedViewer from '../components/SocialFeedViewer.astro';
 import { SITE_CONFIG } from '../config';
+import { getSocialFeedItems } from '../utils/socialFeed';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+
+// Latest Instagram posts (and YouTube videos once configured), synced every 6 hours by
+// netlify/functions/sync-social-feed.ts. The viewer rotates through the newest
+// VIEWER_COUNT posts, with a thumbnail strip to jump around. If the feed is
+// unavailable, the page falls back to the static photos in public/media.
+const VIEWER_COUNT = 30;
+const socialItems = await getSocialFeedItems(Astro.url.origin);
 
 // Read images from public/media folder
 let galleryImages: { src: string; alt: string }[] = [];
@@ -27,36 +36,47 @@ try {
 <Layout title="Gallery - Golden State Cricket Club">
     <PageHeader kicker="Gallery" title="From the ground" subtitle="Match days, milestones and moments from across the season." />
 
-    <div class="gallery-grid">
-        {galleryImages.map((image, index) => (
-            <button
-                type="button"
-                class="gallery-tile"
-                data-image-index={index}
-                onclick={`openLightbox(${index})`}
-                aria-label={`Open image ${index + 1}`}
-            >
-                <img src={image.src} alt={image.alt} loading="lazy" />
-            </button>
-        ))}
-    </div>
+    {socialItems.length > 0 ? (
+        <>
+            <Section kicker="Fresh off the feed" title="Latest from our socials">
+                <SocialFeedViewer items={socialItems.slice(0, VIEWER_COUNT)} seconds={5} />
+            </Section>
+        </>
+    ) : (
+        <>
+            {/* Fallback: static photos, used only when the social feed isn't available */}
+            <div class="gallery-grid">
+                {galleryImages.map((image, index) => (
+                    <button
+                        type="button"
+                        class="gallery-tile"
+                        data-image-index={index}
+                        onclick={`openLightbox(${index})`}
+                        aria-label={`Open image ${index + 1}`}
+                    >
+                        <img src={image.src} alt={image.alt} loading="lazy" />
+                    </button>
+                ))}
+            </div>
 
-    {galleryImages.length === 0 && (
-        <div class="text-center py-12">
-            <p class="text-muted text-lg">No images available yet.</p>
-        </div>
+            {galleryImages.length === 0 && (
+                <div class="text-center py-12">
+                    <p class="text-muted text-lg">No images available yet.</p>
+                </div>
+            )}
+
+            {/* Lightbox Modal */}
+            <div id="lightbox" class="lightbox">
+                <button class="lightbox-btn lightbox-close" onclick="closeLightbox()" aria-label="Close"><Icon name="x" size={22} /></button>
+                <button class="lightbox-btn lightbox-prev" onclick="navigateLightbox(-1)" aria-label="Previous"><Icon name="chevron-left" size={24} /></button>
+                <button class="lightbox-btn lightbox-next" onclick="navigateLightbox(1)" aria-label="Next"><Icon name="chevron-right" size={24} /></button>
+                <div class="lightbox-content">
+                    <img id="lightbox-image" src="" alt="" />
+                </div>
+                <div class="lightbox-counter" id="lightbox-counter"></div>
+            </div>
+        </>
     )}
-
-    {/* Lightbox Modal */}
-    <div id="lightbox" class="lightbox">
-        <button class="lightbox-btn lightbox-close" onclick="closeLightbox()" aria-label="Close"><Icon name="x" size={22} /></button>
-        <button class="lightbox-btn lightbox-prev" onclick="navigateLightbox(-1)" aria-label="Previous"><Icon name="chevron-left" size={24} /></button>
-        <button class="lightbox-btn lightbox-next" onclick="navigateLightbox(1)" aria-label="Next"><Icon name="chevron-right" size={24} /></button>
-        <div class="lightbox-content">
-            <img id="lightbox-image" src="" alt="" />
-        </div>
-        <div class="lightbox-counter" id="lightbox-counter"></div>
-    </div>
 
     <Section variant="alternate" kicker="Follow along" title="More on social media">
         <p class="text-body-lg text-center mx-auto measure mb-6" style="margin-inline:auto;">
@@ -74,6 +94,11 @@ try {
 </Layout>
 
 <style>
+    /* The theme only drops the first section's top padding when it directly follows the page
+       header (.page-head + .section-spacing). Astro can inject the viewer's <script> in between,
+       which breaks that adjacency, so use the general-sibling form here. */
+    :global(.page-head ~ .section-spacing:first-of-type) { padding-top: 0; }
+
     .gallery-grid {
         display: grid;
         grid-template-columns: repeat(2, 1fr);

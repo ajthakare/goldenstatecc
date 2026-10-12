@@ -66,3 +66,6 @@
 # - CLOUDINARY_CLOUD_NAME (If using Cloudinary)
 # - CLOUDINARY_API_KEY (If using Cloudinary)
 # - CLOUDINARY_API_SECRET (If using Cloudinary)
+# - YOUTUBE_API_KEY (YouTube Data API v3 key - for sync-social-feed; no OAuth needed)
+# - YOUTUBE_CHANNEL_HANDLE (Optional - defaults to the @handle in SITE_CONFIG.social.youtube.url)
+# - INSTAGRAM_APP_SECRET (Only for docs/scripts/bootstrap-instagram-token.cjs --short-lived; the *Instagram* app secret)

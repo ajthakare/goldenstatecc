@@ -5,8 +5,7 @@ import Layout from '../layouts/Layout.astro';
 import Section from '../components/Section.astro';
 import StatsGrid from '../components/StatsGrid.astro';
 import Icon from '../components/Icon.astro';
-import { readdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { getSocialFeedItems } from '../utils/socialFeed';
 import { SPONSORS } from '../config';
 
 const HERO_IMAGE = '/images/hero-home.jpg';
@@ -29,20 +28,12 @@ const achievements = [
 
 const venues = ['San Jose', 'Sunnyvale', 'Fremont', 'Milpitas', 'Livermore', 'Morgan Hill', 'Tracy', 'Davis'];
 
-// Read images from public/media folder for carousel
-let carouselImages: { src: string; alt: string }[] = [];
-try {
-    const mediaDir = join(process.cwd(), 'public', 'media');
-    const files = await readdir(mediaDir);
-    carouselImages = files
-        .filter(file => /\.(jpg|jpeg|png|JPG|JPEG|PNG)$/i.test(file))
-        .filter(file => file !== '.DS_Store')
-        .sort()
-        .slice(0, 8)
-        .map(file => ({ src: `/media/${file}`, alt: file.replace(/\.(jpg|jpeg|png|JPG|JPEG|PNG)$/i, '') }));
-} catch (error) {
-    console.error('Error loading carousel images:', error);
-}
+// "From the ground" strip: the newest Instagram posts (synced by
+// netlify/functions/sync-social-feed.ts), each tile leading to /gallery. If the feed isn't
+// available the whole section is hidden rather than showing a broken strip.
+const STRIP_COUNT = 8;
+const stripItems = (await getSocialFeedItems(Astro.url.origin)).slice(0, STRIP_COUNT);
+const altFor = (caption: string) => caption.replace(/\s+/g, ' ').trim().slice(0, 100) || 'Instagram post';
 ---
 
 <Layout title="Golden State Cricket Club - Bay Area, California">
@@ -121,20 +112,30 @@ try {
     </Section>
 
     <!-- Media -->
-    <Section kicker="Gallery" title="From the ground">
-        <div class="media-strip">
-            {carouselImages.map((image) => (
-                <a href="/gallery" class="media-tile">
-                    <img src={image.src} alt={image.alt} loading="lazy" />
+    {stripItems.length > 0 && (
+        <Section kicker="Gallery" title="From the ground">
+            <div class="media-strip">
+                {stripItems.map((item) => (
+                    <a href="/gallery" class="media-tile">
+                        <img
+                            src={item.thumbnailUrl}
+                            alt={altFor(item.caption)}
+                            width="220"
+                            height="220"
+                            loading="lazy"
+                            referrerpolicy="no-referrer"
+                        />
+                        {item.mediaType === 'video' && <span class="media-tile__play" aria-hidden="true">▶</span>}
+                    </a>
+                ))}
+            </div>
+            <div class="text-center mt-8">
+                <a href="/gallery" class="btn btn-secondary btn-lg">
+                    View full gallery <Icon name="arrow-right" size={15} />
                 </a>
-            ))}
-        </div>
-        <div class="text-center mt-8">
-            <a href="/gallery" class="btn btn-secondary btn-lg">
-                View full gallery <Icon name="arrow-right" size={15} />
-            </a>
-        </div>
-    </Section>
+            </div>
+        </Section>
+    )}
 
     <!-- Sponsors -->
     <Section variant="alternate" kicker="Partners" title="Our sponsors">
@@ -280,6 +281,7 @@ try {
     }
     .media-strip::-webkit-scrollbar { display: none; }
     .media-tile {
+        position: relative;
         display: block;
         aspect-ratio: 1 / 1;
         border-radius: var(--radius-card);
@@ -293,6 +295,23 @@ try {
         transition: transform var(--dur-slow) var(--ease-out);
     }
     .media-tile:hover img { transform: scale(1.04); }
+    /* Small play badge on video posts (reels) so they read as videos, not stills */
+    .media-tile__play {
+        position: absolute;
+        right: 8px;
+        bottom: 8px;
+        width: 28px;
+        height: 28px;
+        border-radius: 999px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding-left: 2px;
+        font-size: 0.8rem;
+        color: #fff;
+        background: rgba(0, 0, 0, 0.65);
+        pointer-events: none;
+    }
 
     /* ---- Sponsor logos ---- */
     .sponsor-logo img {
