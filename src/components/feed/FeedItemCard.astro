@@ -108,6 +108,14 @@ const dateLabel = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
     .feed-item--result .feed-title { font-weight: 700; }
     .feed-player { font-weight: 700; color: #8C1D18; }
     .feed-player:hover { text-decoration: underline; }
+    /* In the installed app, names are plain text, not links to profiles */
+    @media (display-mode: standalone) {
+        .feed-player {
+            pointer-events: none;
+            cursor: default;
+            color: #111827;
+        }
+    }
     .feed-detail { font-size: 13px; color: #4b5563; margin: 3px 0 0; overflow-wrap: anywhere; }
     .feed-potm {
         display: flex;
