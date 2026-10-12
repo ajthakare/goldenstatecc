@@ -8,8 +8,9 @@ import { validateAdminSession, isMember } from '../middleware/auth';
 const cookieHeader = Astro.request.headers.get('cookie');
 const session = cookieHeader ? validateAdminSession(cookieHeader) : null;
 
+// The Club Feed is the app's home screen
 if (session && isMember(session)) {
-  return Astro.redirect('/fixtures');
+  return Astro.redirect('/feed');
 } else {
   return Astro.redirect('/login');
 }

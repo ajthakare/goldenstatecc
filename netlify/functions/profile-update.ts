@@ -3,11 +3,15 @@ import { getStore } from '@netlify/blobs';
 import { validateAdminSession, isMember, verifyPassword, hashPassword } from '../../src/middleware/auth';
 import { addAuditLog } from '../../src/utils/auditLog';
 import type { Player } from '../../src/types/player';
+import { BATTING_STYLES, BOWLING_STYLES } from '../../src/types/player';
 
 /**
- * Update member profile (phone, password, usacId, playerRole, emergency contact, and/or job info)
+ * Update member profile (phone, password, usacId, playerRole, cricket style, CricClubs link,
+ * emergency contact, job info and/or privacy)
  * POST /.netlify/functions/profile-update
- * Body: { phone?, currentPassword?, newPassword?, usacId?, playerRole?, emergencyContactName?, emergencyContactNumber?, jobCompany?, jobTitle? }
+ * Body: { phone?, currentPassword?, newPassword?, usacId?, playerRole?, battingStyle?, bowlingStyle?,
+ *         cricclubsUrl?, emergencyContactName?, emergencyContactNumber?, jobCompany?, jobTitle?,
+ *         privacy?: { showPhone?, showCompany? } }
  */
 export const handler: Handler = async (
   event: HandlerEvent,
@@ -40,12 +44,17 @@ export const handler: Handler = async (
       emergencyContactName,
       emergencyContactNumber,
       jobCompany,
-      jobTitle
+      jobTitle,
+      battingStyle,
+      bowlingStyle,
+      cricclubsUrl,
+      privacy
     } = JSON.parse(event.body || '{}');
 
     // Must provide at least one field to update
     if (!phone && !currentPassword && !newPassword && usacId === undefined && !playerRole &&
-        !emergencyContactName && !emergencyContactNumber && jobCompany === undefined && jobTitle === undefined) {
+        !emergencyContactName && !emergencyContactNumber && jobCompany === undefined && jobTitle === undefined &&
+        battingStyle === undefined && bowlingStyle === undefined && cricclubsUrl === undefined && privacy === undefined) {
       return {
         statusCode: 400,
         body: JSON.stringify({ error: 'No fields to update' }),
@@ -218,6 +227,66 @@ export const handler: Handler = async (
       }
     }
 
+    // Update batting / bowling style if provided (empty string clears)
+    if (battingStyle !== undefined) {
+      if (battingStyle && !BATTING_STYLES.includes(battingStyle)) {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({ error: 'Invalid batting style' }),
+        };
+      }
+      player.battingStyle = battingStyle || undefined;
+    }
+
+    if (bowlingStyle !== undefined) {
+      if (bowlingStyle && !BOWLING_STYLES.includes(bowlingStyle)) {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({ error: 'Invalid bowling style' }),
+        };
+      }
+      player.bowlingStyle = bowlingStyle || undefined;
+    }
+
+    // Update CricClubs profile link if provided (empty string clears)
+    if (cricclubsUrl !== undefined) {
+      const url = String(cricclubsUrl).trim();
+      if (url) {
+        let parsed: URL;
+        try {
+          parsed = new URL(url);
+        } catch {
+          return {
+            statusCode: 400,
+            body: JSON.stringify({ error: 'CricClubs link must be a full URL (https://cricclubs.com/...)' }),
+          };
+        }
+        const host = parsed.hostname.toLowerCase();
+        if (parsed.protocol !== 'https:' || !(host === 'cricclubs.com' || host.endsWith('.cricclubs.com')) || url.length > 500) {
+          return {
+            statusCode: 400,
+            body: JSON.stringify({ error: 'Please enter a link to your profile on cricclubs.com' }),
+          };
+        }
+        player.cricclubsUrl = parsed.toString();
+      } else {
+        player.cricclubsUrl = undefined;
+      }
+    }
+
+    // Update privacy settings if provided
+    if (privacy !== undefined) {
+      if (typeof privacy !== 'object' || privacy === null) {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({ error: 'Invalid privacy settings' }),
+        };
+      }
+      player.privacy = { ...(player.privacy || {}) };
+      if (privacy.showPhone !== undefined) player.privacy.showPhone = !!privacy.showPhone;
+      if (privacy.showCompany !== undefined) player.privacy.showCompany = !!privacy.showCompany;
+    }
+
     const now = new Date().toISOString();
     player.updatedAt = now;
     player.updatedBy = session.email;
@@ -234,6 +303,10 @@ export const handler: Handler = async (
     if (emergencyContactNumber !== undefined) updates.push('emergency contact number');
     if (jobCompany !== undefined) updates.push('job company');
     if (jobTitle !== undefined) updates.push('job title');
+    if (battingStyle !== undefined) updates.push('batting style');
+    if (bowlingStyle !== undefined) updates.push('bowling style');
+    if (cricclubsUrl !== undefined) updates.push('CricClubs link');
+    if (privacy !== undefined) updates.push('privacy');
 
     await addAuditLog(
       session.email!,

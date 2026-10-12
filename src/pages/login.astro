@@ -183,7 +183,7 @@ if (cookieHeader) {
         const isStandalone = window.matchMedia('(display-mode: standalone)').matches
           || (navigator as any).standalone === true;
         window.location.href =
-          safeRedirect || (isStandalone ? '/fixtures' : (data.redirectTo || '/'));
+          safeRedirect || (isStandalone ? '/feed' : (data.redirectTo || '/'));
       } else {
         // Handle specific error messages
         let errorMsg = data.error || 'Login failed. Please try again.';

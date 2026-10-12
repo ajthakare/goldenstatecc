@@ -440,6 +440,12 @@ if (!session || !isMember(session)) {
     // Track which fixtures have loaded players
     const loadedPlayers = new Set<string>();
 
+    // Player names link to their profile; names are user-entered, so escape them
+    const escapeHtml = (s: string) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[c]);
+    const playerBadge = (p: { id?: string; name: string }, cls: string, suffix = '') => p.id
+      ? `<a href="/players/${encodeURIComponent(p.id)}" class="player-name-badge ${cls}">${escapeHtml(p.name)}${suffix}</a>`
+      : `<span class="player-name-badge ${cls}">${escapeHtml(p.name)}${suffix}</span>`;
+
     async function toggleAvailablePlayers(fixtureId: string) {
       const toggleBtn = document.getElementById(`toggle-${fixtureId}`);
       const playersList = document.getElementById(`players-${fixtureId}`);
@@ -495,7 +501,7 @@ if (!session || !isMember(session)) {
               <div class="players-section-title available">✓ Available Players (${data.totalAvailable})</div>
               <div class="player-names-list">
                 ${data.availablePlayers.map(p => `
-                  <span class="player-name-badge available">${p.name}</span>
+                  ${playerBadge(p, 'available')}
                 `).join('')}
               </div>
             </div>
@@ -879,6 +885,15 @@ if (!session || !isMember(session)) {
       display: flex;
       flex-wrap: wrap;
       gap: 0.5rem;
+    }
+
+    a.player-name-badge {
+      text-decoration: none;
+      transition: box-shadow 0.15s;
+    }
+
+    a.player-name-badge:hover {
+      box-shadow: 0 0 0 2px currentColor;
     }
 
     .player-name-badge {

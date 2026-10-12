@@ -1314,6 +1314,19 @@ if (!isAdminUser) {
       await loadStatistics();
     } catch (error) {
       toast.error('Error: ' + error.message);
+    }
+
+    // Refresh player profile badges too, even if the stats step failed — they're
+    // independent. Separate call so each function gets its own timeout budget;
+    // profile stats always cover every season.
+    try {
+      recalculateBtn.textContent = 'Updating badges...';
+      const profileResponse = await fetch('/.netlify/functions/profile-stats-calculate', { method: 'POST' });
+      if (!profileResponse.ok) throw new Error(`HTTP ${profileResponse.status}`);
+      const profileResult = await profileResponse.json();
+      toast.success(`Player profile badges updated for ${profileResult.playersUpdated} players`);
+    } catch (error) {
+      toast.error('Player profile badges could not be refreshed: ' + error.message);
     } finally {
       recalculateBtn.disabled = false;
       recalculateBtn.innerHTML = `
