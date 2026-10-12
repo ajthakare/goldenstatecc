@@ -1,0 +1,440 @@
+---
+import Icon from './Icon.astro';
+import type { SocialFeedItem } from '../types/social';
+
+interface Props {
+    items: SocialFeedItem[];
+    /** How long each post stays on screen, in seconds. */
+    seconds?: number;
+}
+
+const { items, seconds = 10 } = Astro.props;
+
+const SOURCE_LABEL = { instagram: 'Instagram', youtube: 'YouTube' } as const;
+
+function truncate(text: string, max: number): string {
+    const clean = text.replace(/\s+/g, ' ').trim();
+    return clean.length > max ? clean.slice(0, max).trimEnd() + '…' : clean;
+}
+
+function formatDate(iso: string): string {
+    const d = new Date(iso);
+    return isNaN(d.getTime())
+        ? ''
+        : d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/Los_Angeles' });
+}
+---
+
+{items.length > 0 && (
+    <div
+        class="sfv"
+        style={`--sfv-seconds: ${seconds}s;`}
+        role="region"
+        aria-roledescription="carousel"
+        aria-label="Latest posts from our Instagram and YouTube"
+    >
+        <div class="sfv__stage">
+            {items.map((item, i) => (
+                <article
+                    class:list={['sfv__slide', { 'is-active': i === 0 }]}
+                    aria-hidden={i === 0 ? 'false' : 'true'}
+                >
+                    <a
+                        class="sfv__media"
+                        href={item.permalink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        tabindex={i === 0 ? 0 : -1}
+                        aria-label={`Open this ${SOURCE_LABEL[item.source]} post in a new tab`}
+                    >
+                        <img
+                            src={item.thumbnailUrl}
+                            alt={truncate(item.caption, 100) || `${SOURCE_LABEL[item.source]} post`}
+                            width="480"
+                            height="480"
+                            loading={i < 2 ? 'eager' : 'lazy'}
+                            referrerpolicy="no-referrer"
+                            style="width: 100%; height: 100%; object-fit: cover; display: block;"
+                        />
+                        {item.mediaType === 'video' && <span class="sfv__play" aria-hidden="true">▶</span>}
+                    </a>
+
+                    <div class="sfv__body">
+                        <div class="sfv__tags">
+                            {item.mediaType === 'video' && <span class="sfv__tag">Video</span>}
+                            <time class="sfv__date" datetime={item.timestamp}>{formatDate(item.timestamp)}</time>
+                        </div>
+                        <p class="sfv__caption">{item.caption || 'See this post on ' + SOURCE_LABEL[item.source] + '.'}</p>
+                        <a
+                            class="btn sfv__cta"
+                            href={item.permalink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            tabindex={i === 0 ? 0 : -1}
+                        >
+                            View on {SOURCE_LABEL[item.source]} <Icon name="external-link" size={16} />
+                        </a>
+                    </div>
+                </article>
+            ))}
+        </div>
+
+        <div class="sfv__progress" aria-hidden="true"><div class="sfv__bar"></div></div>
+
+        <div class="sfv__nav">
+            <button type="button" class="sfv__btn" data-dir="-1" aria-label="Previous post">&#10094;</button>
+            <div class="sfv__strip">
+                {items.map((item, i) => (
+                    <button
+                        type="button"
+                        class="sfv__thumb"
+                        data-index={i}
+                        aria-current={i === 0 ? 'true' : undefined}
+                        aria-label={`Show post ${i + 1} of ${items.length}: ${truncate(item.caption, 60) || SOURCE_LABEL[item.source] + ' post'}`}
+                    >
+                        <img
+                            src={item.thumbnailUrl}
+                            alt=""
+                            width="124"
+                            height="124"
+                            loading="lazy"
+                            referrerpolicy="no-referrer"
+                            style="width: 100%; height: 100%; object-fit: cover; display: block;"
+                        />
+                        {item.mediaType === 'video' && <span class="sfv__thumbplay" aria-hidden="true">▶</span>}
+                    </button>
+                ))}
+            </div>
+            <button type="button" class="sfv__btn" data-dir="1" aria-label="Next post">&#10095;</button>
+        </div>
+    </div>
+)}
+
+<style>
+    .sfv {
+        max-width: 960px;
+        margin: 0 auto;
+    }
+
+    .sfv__stage {
+        position: relative;
+        /* Mobile: photo on top (280px) + caption panel below (320px). */
+        height: 600px;
+        border-radius: var(--radius-card, 12px);
+        overflow: hidden;
+        background: var(--color-surface, #fff);
+        border: 1px solid var(--color-border, #e5e0d8);
+        box-shadow: var(--shadow-card, 0 2px 8px rgba(26, 22, 20, 0.06));
+    }
+
+    .sfv__slide {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: 280px minmax(0, 1fr);
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity var(--dur-slow, 380ms) var(--ease-out, ease-out), visibility 0s linear var(--dur-slow, 380ms);
+    }
+
+    .sfv__slide.is-active {
+        opacity: 1;
+        visibility: visible;
+        transition: opacity var(--dur-slow, 380ms) var(--ease-out, ease-out);
+    }
+
+    /* Desktop: photo left, caption right. */
+    @media (min-width: 768px) {
+        .sfv__stage { height: 480px; }
+        .sfv__slide {
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            grid-template-rows: minmax(0, 1fr);
+        }
+    }
+
+    .sfv__media {
+        position: relative;
+        display: block;
+        overflow: hidden;
+        background: var(--color-surface-sunken, #faf7f2);
+    }
+
+    .sfv__media:focus-visible {
+        outline: 3px solid var(--color-accent, #e5c878);
+        outline-offset: -3px;
+    }
+
+    .sfv__play {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 64px;
+        height: 64px;
+        border-radius: 999px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding-left: 4px;
+        font-size: 1.5rem;
+        color: #fff;
+        background: rgba(0, 0, 0, 0.55);
+        pointer-events: none;
+    }
+
+    .sfv__body {
+        display: flex;
+        flex-direction: column;
+        gap: 0.85rem;
+        min-height: 0;
+        padding: 1.25rem 1.5rem 1.5rem;
+        text-align: left;
+    }
+
+    .sfv__tags {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .sfv__tag {
+        font-size: 0.72rem;
+        font-weight: 600;
+        padding: 3px 10px;
+        border-radius: 999px;
+        background: var(--color-surface-sunken, #faf7f2);
+        border: 1px solid var(--color-border, #e5e0d8);
+        color: var(--color-text-muted, #6b6359);
+    }
+
+    .sfv__date {
+        font-size: 0.82rem;
+        color: var(--color-text-muted, #6b6359);
+    }
+
+    /* Explicit color + scroll: long captions scroll inside the panel instead of resizing the card. */
+    .sfv__caption {
+        flex: 1;
+        min-height: 0;
+        margin: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        white-space: pre-line;
+        overflow-wrap: anywhere;
+        font-size: 1rem;
+        line-height: 1.65;
+        color: var(--color-text-body, #3b3530);
+        /* Soft fade at the bottom edge hints that a long caption keeps going. */
+        -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent);
+        mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent);
+        padding-bottom: 20px;
+    }
+
+    .sfv__cta {
+        align-self: flex-start;
+        flex-shrink: 0;
+    }
+
+    .sfv__progress {
+        height: 3px;
+        margin-top: 12px;
+        border-radius: 2px;
+        background: var(--color-border, #e5e0d8);
+        overflow: hidden;
+    }
+
+    .sfv__bar {
+        height: 100%;
+        width: 100%;
+        background: var(--color-accent, #e5c878);
+        transform-origin: left;
+        transform: scaleX(0);
+        animation: sfv-fill var(--sfv-seconds, 10s) linear forwards;
+    }
+
+    .sfv.is-paused .sfv__bar { animation-play-state: paused; }
+
+    @keyframes sfv-fill {
+        from { transform: scaleX(0); }
+        to { transform: scaleX(1); }
+    }
+
+    .sfv__nav {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 12px;
+    }
+
+    .sfv__strip {
+        position: relative; /* thumbs' offsetLeft is measured from here when centering the active one */
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        gap: 8px;
+        padding: 4px 2px;
+        overflow-x: auto;
+        scrollbar-width: none;
+        scroll-snap-type: x proximity;
+    }
+
+    .sfv__strip::-webkit-scrollbar { display: none; }
+
+    .sfv__thumb {
+        position: relative;
+        flex: 0 0 auto;
+        width: 124px;
+        height: 124px;
+        padding: 0;
+        border: 3px solid transparent;
+        border-radius: 10px;
+        overflow: hidden;
+        cursor: pointer;
+        background: var(--color-surface-sunken, #faf7f2);
+        opacity: 0.6;
+        scroll-snap-align: center;
+        transition: opacity var(--dur-base, 220ms) var(--ease-out, ease-out), border-color var(--dur-base, 220ms) var(--ease-out, ease-out);
+    }
+
+    .sfv__thumb:hover { opacity: 0.9; }
+
+    .sfv__thumb[aria-current="true"] {
+        opacity: 1;
+        border-color: var(--color-primary, #7a1f2b);
+    }
+
+    /* Same ring as the site-wide :focus-visible, but keeping this element's own corner radius. */
+    .sfv__thumb:focus-visible {
+        outline: 2px solid var(--color-maroon-500, #a82a22);
+        outline-offset: 2px;
+        border-radius: 10px;
+    }
+
+    .sfv__btn:focus-visible {
+        outline: 2px solid var(--color-maroon-500, #a82a22);
+        outline-offset: 2px;
+        border-radius: 999px;
+    }
+
+    .sfv__thumbplay {
+        position: absolute;
+        right: 6px;
+        bottom: 6px;
+        width: 28px;
+        height: 28px;
+        border-radius: 999px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding-left: 2px;
+        font-size: 0.8rem;
+        color: #fff;
+        background: rgba(0, 0, 0, 0.65);
+        pointer-events: none;
+    }
+
+    @media (max-width: 767px) {
+        .sfv__thumb { width: 104px; height: 104px; }
+    }
+
+    .sfv__btn {
+        flex-shrink: 0;
+        width: 38px;
+        height: 38px;
+        border-radius: 999px;
+        border: 1px solid var(--color-border, #e5e0d8);
+        background: var(--color-surface, #fff);
+        color: var(--color-text-heading, #222);
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: background var(--dur-base, 220ms) var(--ease-out, ease-out), color var(--dur-base, 220ms) var(--ease-out, ease-out), border-color var(--dur-base, 220ms) var(--ease-out, ease-out);
+    }
+
+    .sfv__btn:hover {
+        background: var(--color-primary, #7a1f2b);
+        border-color: var(--color-primary, #7a1f2b);
+        color: var(--color-primary-content, #fff);
+    }
+
+    /* No autoplay for people who ask for less motion: they page through manually. */
+    @media (prefers-reduced-motion: reduce) {
+        .sfv__slide, .sfv__slide.is-active { transition: none; }
+        .sfv__progress { display: none; }
+    }
+</style>
+
+<script>
+    // Each post stays up for `--sfv-seconds`; the progress bar's CSS animation is the
+    // timer (animationend advances), so hover/focus just pauses the animation.
+    document.querySelectorAll<HTMLElement>('.sfv').forEach((root) => {
+        const slides = Array.from(root.querySelectorAll<HTMLElement>('.sfv__slide'));
+        const bar = root.querySelector<HTMLElement>('.sfv__bar');
+        const strip = root.querySelector<HTMLElement>('.sfv__strip');
+        const thumbs = Array.from(root.querySelectorAll<HTMLButtonElement>('.sfv__thumb'));
+        if (slides.length === 0 || !bar) return;
+
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        let index = 0;
+
+        function restartBar() {
+            if (!bar) return;
+            bar.style.animation = 'none';
+            void bar.offsetWidth; // reflow so the animation restarts
+            bar.style.animation = '';
+        }
+
+        // Keep the active thumbnail centred in the strip (scrolls the strip only, never the page).
+        function centerActiveThumb() {
+            const thumb = thumbs[index];
+            if (!strip || !thumb) return;
+            const left = thumb.offsetLeft - (strip.clientWidth - thumb.offsetWidth) / 2;
+            strip.scrollTo({ left, behavior: reduceMotion ? 'auto' : 'smooth' });
+        }
+
+        function show(next: number) {
+            index = (next + slides.length) % slides.length;
+            slides.forEach((slide, i) => {
+                const active = i === index;
+                slide.classList.toggle('is-active', active);
+                slide.setAttribute('aria-hidden', active ? 'false' : 'true');
+                // Only the visible slide's links should be reachable by keyboard.
+                slide.querySelectorAll<HTMLAnchorElement>('a').forEach((a) => {
+                    a.tabIndex = active ? 0 : -1;
+                });
+            });
+            thumbs.forEach((thumb, i) => {
+                if (i === index) thumb.setAttribute('aria-current', 'true');
+                else thumb.removeAttribute('aria-current');
+            });
+            centerActiveThumb();
+            restartBar();
+        }
+
+        root.querySelectorAll<HTMLButtonElement>('.sfv__btn').forEach((btn) => {
+            btn.addEventListener('click', () => show(index + Number(btn.dataset.dir)));
+        });
+        thumbs.forEach((thumb) => {
+            thumb.addEventListener('click', () => show(Number(thumb.dataset.index)));
+        });
+
+        if (slides.length === 1 || reduceMotion) {
+            bar.style.animation = 'none';
+            return;
+        }
+
+        bar.addEventListener('animationend', () => show(index + 1));
+
+        const pause = () => root.classList.add('is-paused');
+        const resume = () => root.classList.remove('is-paused');
+        root.addEventListener('mouseenter', pause);
+        root.addEventListener('mouseleave', resume);
+        root.addEventListener('focusin', pause);
+        root.addEventListener('focusout', resume);
+        // Don't burn through posts while the tab is in the background.
+        document.addEventListener('visibilitychange', () => {
+            document.hidden ? pause() : resume();
+        });
+    });
+</script>
