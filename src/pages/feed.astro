@@ -1,0 +1,142 @@
+---
+export const prerender = false;
+
+import Layout from '../layouts/Layout.astro';
+import PageHeader from '../components/PageHeader.astro';
+import FeedItemCard from '../components/feed/FeedItemCard.astro';
+import type { FeedItem } from '../types/profile';
+
+// Public page. The endpoint applies each member's public-visibility settings,
+// so signed-in members and visitors can see different names/photos.
+const cookieHeader = Astro.request.headers.get('cookie') || '';
+
+let upcoming: FeedItem[] = [];
+let items: FeedItem[] = [];
+let error: string | null = null;
+try {
+    const res = await fetch(`${Astro.url.origin}/.netlify/functions/club-feed-get`, { headers: { cookie: cookieHeader } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    ({ upcoming, items } = await res.json());
+} catch (err) {
+    console.error('Club feed error:', err);
+    error = 'Could not load the club feed. Please try again.';
+}
+
+// Group by week (weeks start Monday), newest first
+function weekStart(date: string): string {
+    const [y, m, d] = date.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() - ((dt.getUTCDay() + 6) % 7));
+    return dt.toISOString().slice(0, 10);
+}
+const fmt = (date: string, opts: Intl.DateTimeFormatOptions) => {
+    const [y, m, d] = date.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', { ...opts, timeZone: 'UTC' });
+};
+const todayWeek = weekStart(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }));
+const weeks: Array<{ key: string; label: string; items: FeedItem[] }> = [];
+for (const item of items) {
+    const key = weekStart(item.date);
+    let week = weeks.find((w) => w.key === key);
+    if (!week) {
+        const diff = Math.round((Date.parse(todayWeek) - Date.parse(key)) / (7 * 86400000));
+        const label = diff === 0 ? 'This week' : diff === 1 ? 'Last week' : `Week of ${fmt(key, { month: 'short', day: 'numeric' })}`;
+        week = { key, label, items: [] };
+        weeks.push(week);
+    }
+    week.items.push(item);
+}
+---
+
+<Layout title="Club Feed - Golden State Cricket Club">
+    <PageHeader kicker="This week at GSCC" title="Club Feed" subtitle="Results, standout performances and milestones from around the club" />
+
+    <div class="max-w-3xl mx-auto px-4 pb-12">
+        {error && <div class="alert alert-error">{error}</div>}
+
+        {upcoming.length > 0 && (
+            <section class="feed-upcoming">
+                <h2 class="feed-week">Coming up</h2>
+                <ul class="up-list">
+                    {upcoming.map((u) => (
+                        <li class="up-item">
+                            <span class="up-date">
+                                <span class="up-dow">{fmt(u.date, { weekday: 'short' })}</span>
+                                <span class="up-day">{fmt(u.date, { day: 'numeric' })}</span>
+                                <span class="up-mon">{fmt(u.date, { month: 'short' })}</span>
+                            </span>
+                            <span class="up-body">
+                                <span class="up-title">{u.title}</span>
+                                {u.detail && <span class="up-detail">{u.detail}</span>}
+                            </span>
+                            {u.link && <a href={u.link.href} target="_blank" rel="noopener noreferrer" class="up-link">{u.link.label}</a>}
+                        </li>
+                    ))}
+                </ul>
+            </section>
+        )}
+
+        {!error && weeks.length === 0 && (
+            <p class="feed-empty">Nothing in the last few weeks yet. Results, Player of the Match awards and milestones will show up here.</p>
+        )}
+
+        {weeks.map((week) => (
+            <section>
+                <h2 class="feed-week">{week.label}</h2>
+                <ol class="feed-list">
+                    {week.items.map((item) => <FeedItemCard item={item} />)}
+                </ol>
+            </section>
+        ))}
+    </div>
+
+    <style>
+        /* Feed */
+        .feed-week {
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #8a6a15;
+            margin: 28px 0 12px;
+        }
+        .feed-list, .up-list { list-style: none; margin: 0; padding: 0; }
+        .feed-upcoming {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+            padding: 4px 16px 8px;
+            margin-top: 24px;
+        }
+        .feed-upcoming .feed-week { margin-top: 14px; }
+        .up-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 10px 0;
+            border-top: 1px solid #f0f0f0;
+        }
+        .up-item:first-child { border-top: 0; }
+        .up-date {
+            width: 48px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            line-height: 1.1;
+            padding: 6px 0;
+            border-radius: 8px;
+            background: #fdf0ef;
+            color: #8C1D18;
+        }
+        .up-dow, .up-mon { font-size: 10px; font-weight: 700; text-transform: uppercase; }
+        .up-day { font-size: 18px; font-weight: 800; }
+        .up-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+        .up-title { font-weight: 600; color: #111827; font-size: 14px; }
+        .up-detail { font-size: 12px; color: #6b7280; }
+        .up-link { font-size: 12px; font-weight: 600; color: #8C1D18; }
+        .feed-empty { color: #6b7280; font-size: 14px; margin-top: 24px; }
+        .alert { padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-top: 24px; }
+        .alert-error { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
+    </style>
+</Layout>

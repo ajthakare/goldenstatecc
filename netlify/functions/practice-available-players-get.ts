@@ -80,6 +80,7 @@ export const handler: Handler = async (
     const yesPlayers = practice.playerAvailability
       .filter(p => p.response === 'yes')
       .map(p => ({
+        id: p.playerId,
         name: playerNameMap.get(p.playerId) || p.playerName, // Use current name or fallback to cached
         extraPlayers: p.extraPlayers || 0,
       }))
@@ -88,6 +89,7 @@ export const handler: Handler = async (
     const bowlingOnlyPlayers = practice.playerAvailability
       .filter(p => p.response === 'bowling-only')
       .map(p => ({
+        id: p.playerId,
         name: playerNameMap.get(p.playerId) || p.playerName, // Use current name or fallback to cached
         extraPlayers: p.extraPlayers || 0,
       }))

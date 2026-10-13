@@ -87,6 +87,7 @@ export const handler: Handler = async (
     const availablePlayers = availabilityData.playerAvailability
       .filter(p => p.wasAvailable === true)
       .map(p => ({
+        id: p.playerId,
         name: playerNameMap.get(p.playerId) || p.playerName, // Use current name or fallback to cached
         status: 'available' as const,
       }))

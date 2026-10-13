@@ -88,7 +88,52 @@ export interface Player {
   // Job Information (optional)
   jobCompany?: string;            // Company name
   jobTitle?: string;              // Job title
+
+  // Public profile (shown to other members on /players)
+  battingStyle?: BattingStyle;
+  bowlingStyle?: BowlingStyle;
+  cricclubsUrl?: string;          // Link to the player's CricClubs profile
+  photoUpdatedAt?: string;        // Set when a profile photo exists (ISO date); also the avatar cache-buster
+  umpireStatus?: UmpireStatus;    // Admin-set only
+  privacy?: ProfilePrivacy;
 }
+
+export const BATTING_STYLES = ['Right-hand bat', 'Left-hand bat'] as const;
+export type BattingStyle = typeof BATTING_STYLES[number];
+
+export const BOWLING_STYLES = [
+  'Right-arm fast',
+  'Right-arm medium',
+  'Right-arm off spin',
+  'Right-arm leg spin',
+  'Left-arm fast',
+  'Left-arm medium',
+  'Left-arm orthodox spin',
+  'Left-arm wrist spin',
+  'Does not bowl',
+] as const;
+export type BowlingStyle = typeof BOWLING_STYLES[number];
+
+// Lowest to highest. "Not certified" is stored as no value.
+export const UMPIRE_STATUSES = ['certified', 'pre-panel', 'panel'] as const;
+export type UmpireStatus = typeof UMPIRE_STATUSES[number];
+
+export const UMPIRE_STATUS_LABELS: Record<UmpireStatus, string> = {
+  certified: 'Certified Umpire',
+  'pre-panel': 'Pre-Panel Umpire',
+  panel: 'Panel Umpire',
+};
+
+// What other members can see (profiles are members-only). Missing values fall back to PRIVACY_DEFAULTS.
+export interface ProfilePrivacy {
+  showPhone?: boolean;
+  showCompany?: boolean;          // Company + job title
+}
+
+export const PRIVACY_DEFAULTS: Required<ProfilePrivacy> = {
+  showPhone: false,
+  showCompany: true,
+};
 
 // Valid role values
 export const PLAYER_ROLES = [

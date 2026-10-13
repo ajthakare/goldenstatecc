@@ -17,6 +17,7 @@ const navItems = [
     },
     { linkText: 'Teams', href: '/teams' },
     { linkText: 'Fixtures', href: '/fixtures' },
+    { linkText: 'Club Feed', href: '/feed' },
     { linkText: 'Members', href: '/members' },
     // /winter-checkin is hidden from nav until the club launches it publicly
     // (SITE_CONFIG.winterCheckIn.isOpen). The page still works by direct URL.
@@ -162,6 +163,9 @@ const currentPath = Astro.url.pathname;
                     {isMember && (
                         <li><a href="/mypractice" class={`nav-link nav-link--sm ${currentPath === '/mypractice' ? 'nav-active' : ''}`}>Practice Sessions</a></li>
                     )}
+                    {isMember && (
+                        <li><a href="/players" class={`nav-link nav-link--sm ${currentPath.startsWith('/players') ? 'nav-active' : ''}`}>Players</a></li>
+                    )}
                     {isAdmin && (
                         <li><a href="/admin" target="_blank" rel="noopener noreferrer" class="nav-link nav-link--sm inline-flex items-center gap-1">Admin Portal <Icon name="external-link" size={12} /></a></li>
                     )}
@@ -226,6 +230,7 @@ const currentPath = Astro.url.pathname;
                     <div class="flex flex-col gap-1">
                         {isMember && <a href="/myfixtures" class="mobile-nav-link">My Fixtures</a>}
                         {isMember && <a href="/mypractice" class="mobile-nav-link">Practice Sessions</a>}
+                        {isMember && <a href="/players" class="mobile-nav-link">Players</a>}
                         {isAdmin && <a href="/admin" target="_blank" rel="noopener noreferrer" class="mobile-nav-link">Admin Portal ↗</a>}
                         {isMember && <a href="/profile" class="mobile-nav-link">My Profile</a>}
                         <a href="/logout" class="mobile-nav-link flex items-center gap-2">

@@ -1,0 +1,100 @@
+---
+export const prerender = false;
+
+import Layout from '../../layouts/Layout.astro';
+import ProfileSummary from '../../components/profile/ProfileSummary.astro';
+import FeedItemCard from '../../components/feed/FeedItemCard.astro';
+import Icon from '../../components/Icon.astro';
+import { validateAdminSession, isMember } from '../../middleware/auth';
+import type { FeedItem, PublicPlayerProfile } from '../../types/profile';
+
+// Members only: only club members can see other club members' profiles.
+const { id } = Astro.params;
+const cookieHeader = Astro.request.headers.get('cookie') || '';
+const session = validateAdminSession(cookieHeader);
+if (!session || !isMember(session)) {
+    return Astro.redirect(`/login?redirect=${encodeURIComponent(`/players/${id}`)}`);
+}
+
+let profile: PublicPlayerProfile | null = null;
+let activity: FeedItem[] = [];
+let error: string | null = null;
+try {
+    const fn = (name: string) =>
+        fetch(`${Astro.url.origin}/.netlify/functions/${name}`, { headers: { cookie: cookieHeader } });
+    const [res, activityRes] = await Promise.all([
+        fn(`player-profile-get?id=${encodeURIComponent(id || '')}`),
+        fn(`club-feed-get?playerId=${encodeURIComponent(id || '')}`),
+    ]);
+    if (activityRes.ok) activity = (await activityRes.json()).items || [];
+    if (res.status === 404) {
+        Astro.response.status = 404;
+        error = 'This player could not be found.';
+    } else if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+    } else {
+        profile = await res.json();
+    }
+} catch (err) {
+    console.error('Player profile error:', err);
+    error = 'Could not load this profile. Please try again.';
+}
+
+const isOwn = profile?.id === session.userId;
+const title = profile ? `${profile.firstName} ${profile.lastName}` : 'Player';
+---
+
+<Layout title={`${title} - Golden State Cricket Club`}>
+    <div class="max-w-4xl mx-auto px-4 pt-6 pb-12">
+        <a href="/players" class="back-link"><Icon name="chevron-left" size={16} /> All players</a>
+
+        {error && <div class="alert alert-error">{error}</div>}
+
+        {profile && (
+            <ProfileSummary profile={profile} isOwn={isOwn}>
+                {isOwn && (
+                    <a href="/profile" class="own-link">This is you · Edit profile</a>
+                )}
+            </ProfileSummary>
+        )}
+
+        {profile && activity.length > 0 && (
+            <section class="activity">
+                <h3 class="activity-title">Recent activity</h3>
+                <ol class="activity-list">
+                    {activity.map((item) => <FeedItemCard item={item} />)}
+                </ol>
+            </section>
+        )}
+    </div>
+
+    <style>
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #8C1D18;
+            margin-bottom: 16px;
+        }
+        .back-link:hover { text-decoration: underline; }
+        .activity-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #111827;
+            margin: 8px 0 14px;
+        }
+        .activity-list { list-style: none; margin: 0; padding: 0; }
+        .own-link {
+            display: inline-block;
+            margin-top: 14px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #8C1D18;
+        }
+        .own-link:hover { text-decoration: underline; }
+        .alert { padding: 12px 16px; border-radius: 8px; font-size: 14px; }
+        .alert-error { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
+    </style>
+</Layout>

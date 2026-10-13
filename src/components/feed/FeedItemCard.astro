@@ -1,0 +1,154 @@
+---
+/**
+ * FeedItemCard — one post in the Club Feed (/feed) or a player's
+ * "Recent activity" (/players/[id]).
+ */
+import PlayerAvatar from '../profile/PlayerAvatar.astro';
+import Icon from '../Icon.astro';
+import type { FeedItem } from '../../types/profile';
+
+interface Props {
+    item: FeedItem;
+}
+
+const { item } = Astro.props;
+
+const kindIcon: Record<string, string> = {
+    result: 'trophy', milestone: 'cricket-bat', debut: 'sparkles',
+    badge: 'star', upcoming: 'calendar', social: 'instagram',
+};
+const kindLabel: Record<string, string> = {
+    result: 'Result', milestone: 'Milestone', debut: 'Debut',
+    badge: 'New badge', upcoming: 'Fixture', social: 'Social',
+};
+const splitName = (name: string) => ({ firstName: name.split(' ')[0], lastName: name.split(' ').slice(1).join(' ') });
+const [y, m, d] = item.date.split('-').map(Number);
+const dateLabel = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC',
+});
+---
+<li class={`feed-item feed-item--${item.kind} feed-tone--${item.tone}`}>
+    <div class="feed-media">
+        {item.thumbnailUrl ? (
+            <img src={item.thumbnailUrl} alt="" width="56" height="56" loading="lazy"
+                style="width: 56px; height: 56px; object-fit: cover; border-radius: 10px; display: block;" />
+        ) : item.playerName ? (
+            <PlayerAvatar {...splitName(item.playerName)} photoUrl={item.photoUrl} size={48} />
+        ) : (
+            <span class="feed-icon"><Icon name={kindIcon[item.kind] || 'star'} size={22} /></span>
+        )}
+    </div>
+    <div class="feed-body">
+        <p class="feed-title">
+            {item.playerName && (
+                item.playerId
+                    ? <a href={`/players/${item.playerId}`} class="feed-player">{item.playerName}</a>
+                    : <strong>{item.playerName}</strong>
+            )}
+            {item.playerName ? ` ${item.title}` : item.title}
+        </p>
+        {item.detail && <p class="feed-detail">{item.detail}</p>}
+        {item.potm && (
+            <div class="feed-potm">
+                <PlayerAvatar {...splitName(item.potm.playerName)} photoUrl={item.potm.photoUrl} size={36} />
+                <span class="feed-potm__text">
+                    <span class="feed-potm__label"><Icon name="medal" size={12} /> Player of the Match</span>
+                    <span>
+                        {item.potm.playerId
+                            ? <a href={`/players/${item.potm.playerId}`} class="feed-player">{item.potm.playerName}</a>
+                            : <strong>{item.potm.playerName}</strong>}
+                        {item.potm.note && <span class="feed-potm__note"> · {item.potm.note}</span>}
+                    </span>
+                </span>
+            </div>
+        )}
+        <p class="feed-meta">
+            <span class="feed-kind"><Icon name={kindIcon[item.kind] || 'star'} size={12} /> {kindLabel[item.kind]}</span>
+            <span>{dateLabel}</span>
+            {item.link && (
+                <a href={item.link.href} target="_blank" rel="noopener noreferrer" class="feed-link">
+                    {item.link.label} <Icon name="external-link" size={11} />
+                </a>
+            )}
+        </p>
+    </div>
+</li>
+
+<style>
+    .feed-item {
+        display: flex;
+        gap: 14px;
+        padding: 16px;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        margin-bottom: 10px;
+        border-left: 4px solid transparent;
+    }
+    .feed-tone--win { border-left-color: #1d6b3a; }
+    .feed-tone--loss { border-left-color: #c2410c; }
+    .feed-tone--gold { border-left-color: #E5C878; }
+    .feed-tone--blue { border-left-color: #1e4f86; }
+    .feed-tone--green { border-left-color: #5b3a99; }
+    .feed-media { flex-shrink: 0; }
+    .feed-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 9999px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f4f4f5;
+        color: #3f3f46;
+    }
+    .feed-tone--win .feed-icon { background: #eef8f1; color: #1d6b3a; }
+    .feed-tone--loss .feed-icon { background: #fff4ed; color: #c2410c; }
+    .feed-body { min-width: 0; flex: 1; }
+    .feed-title { font-size: 15px; color: #111827; margin: 0; line-height: 1.4; }
+    .feed-item--result .feed-title { font-weight: 700; }
+    .feed-player { font-weight: 700; color: #8C1D18; }
+    .feed-player:hover { text-decoration: underline; }
+    .feed-detail { font-size: 13px; color: #4b5563; margin: 3px 0 0; overflow-wrap: anywhere; }
+    .feed-potm {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 10px;
+        padding: 8px 12px;
+        border-radius: 10px;
+        background: #fdf8e8;
+        border: 1px solid #f1e2ae;
+    }
+    .feed-potm :global(.player-avatar) { box-shadow: none; }
+    .feed-potm__text { display: flex; flex-direction: column; font-size: 14px; color: #111827; min-width: 0; }
+    .feed-potm__label {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #7a5b0c;
+    }
+    .feed-potm__note { font-size: 12px; color: #6b7280; }
+    .feed-meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 4px 12px;
+        font-size: 12px;
+        color: #9ca3af;
+        margin: 8px 0 0;
+    }
+    .feed-kind { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; color: #6b7280; }
+    .feed-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #8C1D18;
+    }
+    .feed-link:hover { text-decoration: underline; }
+</style>
