@@ -25,6 +25,7 @@ export interface SeasonProfileStats {
   practicesCommitted: number;    // ...of which the player answered yes / bowling-only
   practiceByType?: Record<PracticeType, PracticeCount>; // Same, split by net / field practice
   duties: number;                // Match duties done this season
+  dutiesByType?: Record<string, number>; // Same, per duty (e.g. "Scoring": 3)
   potm: number;                  // Player of the Match awards this season
 }
 
@@ -40,6 +41,7 @@ export interface PlayerProfileStats {
   matchesPlayed: number;
   potm: number;
   duties: number;
+  dutiesByType?: Record<string, number>; // Career count per duty
   seasons: SeasonProfileStats[]; // Newest first
 }
 
@@ -55,7 +57,7 @@ export type BadgeId =
   | 'potm'
   | 'matches'
   | 'ever-present'
-  | 'club-helper'
+  | 'duty'
   | 'practice-regular';
 
 export interface Badge {
@@ -63,6 +65,7 @@ export interface Badge {
   label: string;                 // "Player of the Match ×3"
   detail: string;                // Tooltip / sub-line: how it was earned
   icon: string;                  // Name from src/components/Icon.astro, or an emoji
+  key?: string;                  // Stable identity for "newly earned" detection, when label/detail aren't
   tone: 'gold' | 'red' | 'blue' | 'green' | 'purple' | 'gray';
 }
 

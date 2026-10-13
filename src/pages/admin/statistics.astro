@@ -2264,40 +2264,43 @@ if (!isAdminUser) {
       chartInstances.duty.destroy();
     }
 
+    // One stacked segment per duty type, so e.g. 2× water and 3× ground set-up
+    // read as two separate counts rather than one total of 5
+    const dutyColors = ['#8C1D18', '#E5C878', '#1e4f86', '#1d6b3a', '#5b3a99', '#c2410c', '#0f766e', '#6b7280'];
+    const dutyTypes = [...new Set(topDutyPlayers.flatMap(p => Object.keys(p.duties)))].sort();
+
     const ctx = document.getElementById('duty-chart');
     chartInstances.duty = new Chart(ctx, {
       type: 'bar',
       data: {
         labels: topDutyPlayers.map(p => p.name),
-        datasets: [{
-          label: 'Total Duties',
-          data: topDutyPlayers.map(p => p.totalDuties),
-          backgroundColor: 'rgba(99, 102, 241, 0.8)',
-          borderColor: 'rgba(99, 102, 241, 1)',
-          borderWidth: 1
-        }]
+        datasets: dutyTypes.map((duty, i) => ({
+          label: duty,
+          data: topDutyPlayers.map(p => p.duties[duty] || 0),
+          backgroundColor: dutyColors[i % dutyColors.length],
+          borderWidth: 0
+        }))
       },
       options: {
         responsive: true,
         maintainAspectRatio: true,
         plugins: {
           legend: {
-            display: false
+            display: true,
+            position: 'bottom'
           },
           tooltip: {
+            filter: (item) => item.raw > 0,
             callbacks: {
-              afterLabel: function(context) {
-                const player = topDutyPlayers[context.dataIndex];
-                const duties = Object.entries(player.duties)
-                  .map(([duty, count]) => `${duty}: ${count}`)
-                  .join(', ');
-                return duties;
-              }
+              footer: (items) => `Total: ${topDutyPlayers[items[0].dataIndex].totalDuties}`
             }
           }
         },
+        interaction: { mode: 'index', intersect: false },
         scales: {
+          x: { stacked: true },
           y: {
+            stacked: true,
             beginAtZero: true,
             ticks: {
               stepSize: 1

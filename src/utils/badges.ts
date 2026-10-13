@@ -34,13 +34,29 @@ export const BADGE_RULES = {
   // Judged separately for net and field practice (a quiet field-practice season
   // shouldn't stop regular net-goers earning it); either one qualifies
   practiceRegular: { minRate: 60, minPractices: 4 },
-  // [threshold, label] — highest tier reached wins
-  clubHelperTiers: [
-    [30, 'Club Pillar'],
-    [15, 'Club Helper'],
-    [5, 'Helping Hand'],
-  ] as Array<[number, string]>,
+  // One badge per match-day duty. Tiers: 3, 5, then every 5 (10, 15, 20, 25…)
+  dutyTiers: { first: 3, second: 5, step: 5 },
 };
+
+/** Badge name for each match duty (keys match MATCH_DUTIES in admin/availability). */
+export const DUTY_BADGES: Record<string, string> = {
+  'Scoring': 'Scorer',
+  'Video Broadcast': 'Broadcaster',
+  'Water Assignment': 'Water Carrier',
+  'Ice': 'Ice Runner',
+  'Team Kit': 'Kit Keeper',
+  'Ground Set-up': 'Ground Crew',
+  'Ground Cleaning': 'Clean-up Crew',
+  'Warm Up': 'Warm-up Lead',
+};
+
+/** Highest duty tier reached for a count (0 = not earned yet). */
+export function dutyTier(count: number): number {
+  const { first, second, step } = BADGE_RULES.dutyTiers;
+  if (count < first) return 0;
+  if (count < second) return first;
+  return Math.floor(count / step) * step;
+}
 
 // ============================================================================
 // Stats computation
@@ -103,6 +119,7 @@ export function computeProfileStats(
       lastPlayed?: string;
       availableFixtureIds: Set<string>;
       duties: number;
+      dutiesByType: Record<string, number>;
       potm: number;
       practice: Record<PracticeType, PracticeCount>;
     };
@@ -118,6 +135,7 @@ export function computeProfileStats(
           matchesPlayed: 0,
           availableFixtureIds: new Set(),
           duties: 0,
+          dutiesByType: {},
           potm: 0,
           practice: { net: { held: 0, committed: 0 }, field: { held: 0, committed: 0 } },
         };
@@ -149,7 +167,10 @@ export function computeProfileStats(
       for (const pa of record.playerAvailability || []) {
         if (!playerIds.has(pa.playerId)) continue;
         const a = acc(pa.playerId);
-        if (pa.duties?.length) a.duties += pa.duties.length;
+        for (const duty of pa.duties || []) {
+          a.duties++;
+          a.dutiesByType[duty] = (a.dutiesByType[duty] || 0) + 1;
+        }
         if (!isPast(fixture.date)) continue;
         if (pa.wasSelected) {
           a.matchesPlayed++;
@@ -226,6 +247,7 @@ export function computeProfileStats(
         practicesCommitted: practiceTotal(a, 'committed'),
         practiceByType: a.practice,
         duties: a.duties,
+        dutiesByType: a.dutiesByType,
         potm: a.potm,
       };
 
@@ -235,6 +257,10 @@ export function computeProfileStats(
       if (a.lastPlayed && (!p.lastPlayed || a.lastPlayed > p.lastPlayed)) p.lastPlayed = a.lastPlayed;
       p.potm += a.potm;
       p.duties += a.duties;
+      p.dutiesByType = p.dutiesByType || {};
+      for (const [duty, n] of Object.entries(a.dutiesByType)) {
+        p.dutiesByType[duty] = (p.dutiesByType[duty] || 0) + n;
+      }
     }
   }
 
@@ -337,14 +363,20 @@ export function deriveBadges(
     });
   }
 
-  const tier = BADGE_RULES.clubHelperTiers.find(([min]) => stats.duties >= min);
-  if (tier) {
+  // One badge per duty type, most-done first
+  const duties = Object.entries(stats.dutiesByType || {})
+    .map(([duty, count]) => ({ duty, count, tier: dutyTier(count) }))
+    .filter((d) => d.tier > 0)
+    .sort((a, b) => b.count - a.count || a.duty.localeCompare(b.duty));
+  for (const { duty, count, tier } of duties) {
+    const name = DUTY_BADGES[duty] || duty;
     badges.push({
-      id: 'club-helper',
-      label: tier[1],
-      detail: `${stats.duties} match-day duties (scoring, kit, ground set-up, video…)`,
+      id: 'duty',
+      label: `${name} ${tier}+`,
+      detail: `${duty} on ${count} match days`,
       icon: 'handshake',
       tone: 'green',
+      key: `duty|${duty}|${tier}`,
     });
   }
 

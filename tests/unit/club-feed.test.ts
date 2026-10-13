@@ -84,8 +84,8 @@ describe('computeMilestoneEvents', () => {
 });
 
 describe('badge diffing', () => {
-  const stats = (duties: number): Record<string, PlayerProfileStats> => ({
-    a: { playerId: 'a', matchesPlayed: 0, potm: 0, duties, seasons: [] },
+  const stats = (scoring: number): Record<string, PlayerProfileStats> => ({
+    a: { playerId: 'a', matchesPlayed: 0, potm: 0, duties: scoring, dutiesByType: { Scoring: scoring }, seasons: [] },
   });
 
   it('records a baseline on the first run without announcing anything', () => {
@@ -93,11 +93,11 @@ describe('badge diffing', () => {
   });
 
   it('announces newly earned badges and tier upgrades only', () => {
-    const before = badgeSnapshot([player('a')], stats(6));                // Helping Hand
-    expect(diffBadgeEvents(before, [player('a')], stats(6), TODAY)).toEqual([]);
-    const events = diffBadgeEvents(before, [player('a')], stats(16), TODAY); // -> Club Helper
+    const before = badgeSnapshot([player('a')], stats(6));                // Scorer 5+
+    expect(diffBadgeEvents(before, [player('a')], stats(9), TODAY)).toEqual([]); // still 5+
+    const events = diffBadgeEvents(before, [player('a')], stats(11), TODAY);    // -> Scorer 10+
     expect(events).toHaveLength(1);
-    expect(events[0].title).toBe('earned the Club Helper badge');
+    expect(events[0].title).toBe('earned the Scorer 10+ badge');
     expect(events[0].date).toBe(TODAY);
   });
 

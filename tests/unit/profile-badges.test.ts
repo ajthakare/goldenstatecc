@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { computeProfileStats, deriveBadges, currentSeason, bestPracticeRate, BADGE_RULES } from '../../src/utils/badges';
+import { computeProfileStats, deriveBadges, currentSeason, bestPracticeRate, dutyTier, BADGE_RULES } from '../../src/utils/badges';
 import type { SeasonInput } from '../../src/utils/badges';
 import type { Player, Fixture, FixtureAvailability, PracticeSession } from '../../src/types/player';
 import type { PlayerProfileStats } from '../../src/types/profile';
@@ -92,9 +92,10 @@ describe('computeProfileStats', () => {
     expect(stats.b.potm).toBe(0);
   });
 
-  it('counts duties, including on fixtures of any team', () => {
+  it('counts duties per type, including on fixtures of any team', () => {
     expect(stats.a.duties).toBe(2);
-    expect(stats.b.duties).toBe(1);
+    expect(stats.a.dutiesByType).toEqual({ Scoring: 1, Ice: 1 });
+    expect(stats.b.dutiesByType).toEqual({ 'Team Kit': 1 });
   });
 
   it('uses core-roster teams, falling back to teams played for', () => {
@@ -206,12 +207,17 @@ describe('deriveBadges', () => {
     expect(deriveBadges({}, emptyStats({ matchesPlayed: 27 })).find((b) => b.id === 'matches')?.label).toBe('25+ Matches');
   });
 
-  it('picks the highest club helper tier', () => {
-    const label = (duties: number) => deriveBadges({}, emptyStats({ duties })).find((b) => b.id === 'club-helper')?.label;
-    expect(label(4)).toBeUndefined();
-    expect(label(5)).toBe('Helping Hand');
-    expect(label(15)).toBe('Club Helper');
-    expect(label(40)).toBe('Club Pillar');
+  it('gives each duty its own badge, tiered 3, 5, then every 5', () => {
+    const badgeFor = (dutiesByType: Record<string, number>) =>
+      deriveBadges({}, emptyStats({ dutiesByType })).filter((b) => b.id === 'duty').map((b) => b.label);
+    expect(badgeFor({ 'Water Assignment': 2 })).toEqual([]);
+    expect(badgeFor({ 'Water Assignment': 3 })).toEqual(['Water Carrier 3+']);
+    expect(badgeFor({ 'Water Assignment': 4, 'Ground Set-up': 7 })).toEqual(['Ground Crew 5+', 'Water Carrier 3+']);
+    expect(badgeFor({ 'Scoring': 12 })).toEqual(['Scorer 10+']);
+    expect(badgeFor({ 'Scoring': 23 })).toEqual(['Scorer 20+']);
+    expect(dutyTier(31)).toBe(30);
+    const water = deriveBadges({}, emptyStats({ dutiesByType: { 'Water Assignment': 4 } })).find((b) => b.id === 'duty');
+    expect(water?.detail).toBe('Water Assignment on 4 match days');
   });
 
   it('awards Ever-Present only with enough fixtures at a high enough rate', () => {

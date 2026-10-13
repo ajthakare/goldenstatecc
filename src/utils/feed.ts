@@ -11,7 +11,7 @@
 import { BADGE_RULES, deriveBadges } from './badges';
 import type { SeasonInput } from './badges';
 import type { Fixture, Player } from '../types/player';
-import type { FeedItem, PlayerProfileStats, StoredFeedEvent } from '../types/profile';
+import type { Badge, FeedItem, PlayerProfileStats, StoredFeedEvent } from '../types/profile';
 import type { SocialFeedItem } from '../types/social';
 
 export const FEED_WEEKS = 8;             // How far back the feed goes
@@ -111,6 +111,10 @@ const DIFF_EXCLUDED = new Set(['matches', 'potm', 'umpire']);
 // Badges whose detail names the season(s), so earning it again in a new season counts
 const KEY_BY_DETAIL = new Set(['captain', 'vice-captain', 'ever-present', 'practice-regular']);
 
+function badgeKey(b: Badge): string {
+  return b.key || `${b.id}|${KEY_BY_DETAIL.has(b.id) ? b.detail : b.label}`;
+}
+
 export function badgeSnapshot(
   players: Player[],
   stats: Record<string, PlayerProfileStats>
@@ -119,7 +123,7 @@ export function badgeSnapshot(
   for (const p of players) {
     snapshot[p.id] = deriveBadges(p, stats[p.id])
       .filter((b) => !DIFF_EXCLUDED.has(b.id))
-      .map((b) => `${b.id}|${KEY_BY_DETAIL.has(b.id) ? b.detail : b.label}`);
+      .map(badgeKey);
   }
   return snapshot;
 }
@@ -136,7 +140,7 @@ export function diffBadgeEvents(
     const before = new Set(previous[p.id] || []);
     for (const b of deriveBadges(p, stats[p.id])) {
       if (DIFF_EXCLUDED.has(b.id)) continue;
-      const key = `${b.id}|${KEY_BY_DETAIL.has(b.id) ? b.detail : b.label}`;
+      const key = badgeKey(b);
       if (before.has(key)) continue;
       events.push({
         id: `badge-${p.id}-${key}`,
