@@ -1,12 +1,12 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import { validateAdminSession } from '../../src/middleware/auth';
+import { validateAdminSession, isAdmin, withoutPasswordHash } from '../../src/middleware/auth';
 import type { Player } from '../../src/types/player';
 
 /**
  * Get single player by ID
  * GET /api/players-get?id=player-123
- * Requires: Valid admin session
+ * Requires: admin session, or a member fetching their own record
  * Returns: Player object
  */
 export const handler: Handler = async (
@@ -32,6 +32,14 @@ export const handler: Handler = async (
       return {
         statusCode: 400,
         body: JSON.stringify({ error: 'Player ID is required' }),
+      };
+    }
+
+    // Members may only read their own record (used by /profile)
+    if (!isAdmin(session) && session.userId !== playerId) {
+      return {
+        statusCode: 403,
+        body: JSON.stringify({ error: 'Admin access required' }),
       };
     }
 
@@ -67,7 +75,7 @@ export const handler: Handler = async (
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(player),
+      body: JSON.stringify(withoutPasswordHash(player)),
     };
   } catch (error) {
     console.error('Error getting player:', error);

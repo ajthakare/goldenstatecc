@@ -1,6 +1,6 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import { validateAdminSession } from '../../src/middleware/auth';
+import { validateAdminSession, isAdmin } from '../../src/middleware/auth';
 import type { Fixture, Season } from '../../src/types/player';
 import { randomUUID } from 'crypto';
 import { addAuditLog } from '../../src/utils/auditLog';
@@ -25,6 +25,14 @@ export const handler: Handler = async (
       return {
         statusCode: 401,
         body: JSON.stringify({ error: 'Unauthorized' }),
+      };
+    }
+
+    // Admin endpoint: a valid member session isn't enough
+    if (!isAdmin(session)) {
+      return {
+        statusCode: 403,
+        body: JSON.stringify({ error: 'Admin access required' }),
       };
     }
 
