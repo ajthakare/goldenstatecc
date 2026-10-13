@@ -37,7 +37,6 @@ export interface PracticeCount {
 
 export interface PlayerProfileStats {
   playerId: string;
-  lastPlayed?: string;           // YYYY-MM-DD of their most recent match (orders /players)
   matchesPlayed: number;
   potm: number;
   duties: number;
@@ -99,7 +98,6 @@ export interface DirectoryCard {
   role?: string;
   photoUrl?: string;
   umpireStatus?: UmpireStatus;
-  lastPlayed?: string;
   seasonMatches: number;         // This season
   seasonPotm: number;            // This season
   badges: Badge[];               // Sorted by importance

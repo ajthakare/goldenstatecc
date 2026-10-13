@@ -116,7 +116,6 @@ export function computeProfileStats(
       captainOf: Set<string>;
       viceCaptainOf: Set<string>;
       matchesPlayed: number;
-      lastPlayed?: string;
       availableFixtureIds: Set<string>;
       duties: number;
       dutiesByType: Record<string, number>;
@@ -175,8 +174,6 @@ export function computeProfileStats(
         if (pa.wasSelected) {
           a.matchesPlayed++;
           a.playedTeams.add(fixture.team);
-          const d = dateOnly(fixture.date);
-          if (!a.lastPlayed || d > a.lastPlayed) a.lastPlayed = d;
         }
         if (pa.wasAvailable) a.availableFixtureIds.add(fixture.id);
       }
@@ -254,7 +251,6 @@ export function computeProfileStats(
       const p = ensure(id);
       p.seasons.push(seasonStats);
       p.matchesPlayed += a.matchesPlayed;
-      if (a.lastPlayed && (!p.lastPlayed || a.lastPlayed > p.lastPlayed)) p.lastPlayed = a.lastPlayed;
       p.potm += a.potm;
       p.duties += a.duties;
       p.dutiesByType = p.dutiesByType || {};

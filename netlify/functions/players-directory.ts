@@ -6,7 +6,7 @@ import { isListedMember, loadPlayers, loadProfileStats, toDirectoryCard } from '
  * Player cards for /players
  * GET /.netlify/functions/players-directory
  * Requires: any signed-in member (only club members can browse club members)
- * Returns: { players: DirectoryCard[] } — most recently played first, then A–Z
+ * Returns: { players: DirectoryCard[] } — sorted A–Z by name
  */
 export const handler: Handler = async (event: HandlerEvent) => {
   try {
@@ -21,9 +21,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
     const cards = players
       .filter(isListedMember)
       .map((p) => toDirectoryCard(p, statsData?.players[p.id]))
-      .sort((a, b) =>
-        (b.lastPlayed || '').localeCompare(a.lastPlayed || '') || name(a).localeCompare(name(b))
-      );
+      .sort((a, b) => name(a).localeCompare(name(b)));
 
     return {
       statusCode: 200,

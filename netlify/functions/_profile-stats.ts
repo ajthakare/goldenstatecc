@@ -220,7 +220,6 @@ export function toDirectoryCard(p: Player, stats: PlayerProfileStats | null | un
     role: p.role,
     photoUrl: avatarUrl(p),
     umpireStatus: p.umpireStatus,
-    lastPlayed: stats?.lastPlayed,
     seasonMatches: season?.matchesPlayed || 0,
     seasonPotm: season?.potm || 0,
     badges: deriveBadges(p, stats),
