@@ -85,6 +85,22 @@ export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) =>
   return out;
 }
 
+/**
+ * Read a JSON blob, retrying failures (rate limits and 5xx are usually brief).
+ * Throws if every attempt fails: callers stop rather than calculate from
+ * partial data and overwrite good stats.
+ */
+export async function getJSONWithRetry<T>(store: ReturnType<typeof blobStore>, key: string, attempts = 3): Promise<T | null> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return (await store.get(key, { type: 'json' })) as T | null;
+    } catch (error) {
+      if (attempt >= attempts) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** (attempt - 1)));
+    }
+  }
+}
+
 export function todayString(): string {
   const d = getPacificToday();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -97,21 +113,17 @@ async function loadSeasonInput(season: Season, opts: { practices: boolean }): Pr
   const practicesStore = blobStore('practice-sessions');
 
   const [fixtures, coreRoster, availabilityIndex, practiceIndex] = await Promise.all([
-    fixturesStore.get(`fixtures-${season.id}`, { type: 'json' }) as Promise<Fixture[] | null>,
-    coreRosterStore.get(`core-roster-${season.id}`, { type: 'json' }) as Promise<CoreRosterAssignment[] | null>,
-    availabilityStore.get(`availability-index-${season.id}`, { type: 'json' }) as Promise<Array<{ fixtureId: string }> | null>,
-    opts.practices
-      ? practicesStore.get(`practice-index-${season.id}`, { type: 'json' }) as Promise<string[] | null>
-      : null,
+    getJSONWithRetry<Fixture[]>(fixturesStore, `fixtures-${season.id}`),
+    getJSONWithRetry<CoreRosterAssignment[]>(coreRosterStore, `core-roster-${season.id}`),
+    getJSONWithRetry<Array<{ fixtureId: string }>>(availabilityStore, `availability-index-${season.id}`),
+    opts.practices ? getJSONWithRetry<string[]>(practicesStore, `practice-index-${season.id}`) : null,
   ]);
 
   const availability = await mapLimit(availabilityIndex || [], 8, (item) =>
-    (availabilityStore.get(`availability-${item.fixtureId}`, { type: 'json' }) as Promise<FixtureAvailability | null>)
-      .catch(() => null)
+    getJSONWithRetry<FixtureAvailability>(availabilityStore, `availability-${item.fixtureId}`).catch(() => null)
   );
   const practices = await mapLimit(practiceIndex || [], 8, (id) =>
-    (practicesStore.get(`practice-${id}`, { type: 'json' }) as Promise<PracticeSession | null>)
-      .catch(() => null)
+    getJSONWithRetry<PracticeSession>(practicesStore, `practice-${id}`).catch(() => null)
   );
 
   return {
@@ -147,8 +159,8 @@ export async function recalculateProfileStats(
   if (preloaded) {
     ({ players, inputs } = preloaded);
   } else {
-    players = ((await blobStore('players').get('players-all', { type: 'json' })) as Player[] | null) || [];
-    const seasons = ((await blobStore('seasons').get('seasons-list', { type: 'json' })) as Season[] | null) || [];
+    players = (await getJSONWithRetry<Player[]>(blobStore('players'), 'players-all')) || [];
+    const seasons = (await getJSONWithRetry<Season[]>(blobStore('seasons'), 'seasons-list')) || [];
     inputs = await loadSeasonInputs(seasons);
   }
 

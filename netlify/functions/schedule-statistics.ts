@@ -10,15 +10,15 @@
  * never reach stats, badges or the Club Feed early.
  */
 import { schedule } from '@netlify/functions';
-import { blobStore, loadSeasonInputs, recalculateProfileStats } from './_profile-stats';
+import { blobStore, getJSONWithRetry, loadSeasonInputs, recalculateProfileStats } from './_profile-stats';
 import { recalculateStatistics } from './_statistics';
 import type { Player, Season } from '../../src/types/player';
 
 export const handler = schedule('0 10 * * 1', async () => {
   const started = Date.now();
   try {
-    const players = ((await blobStore('players').get('players-all', { type: 'json' })) as Player[] | null) || [];
-    const seasons = ((await blobStore('seasons').get('seasons-list', { type: 'json' })) as Season[] | null) || [];
+    const players = (await getJSONWithRetry<Player[]>(blobStore('players'), 'players-all')) || [];
+    const seasons = (await getJSONWithRetry<Season[]>(blobStore('seasons'), 'seasons-list')) || [];
     const inputs = await loadSeasonInputs(seasons);
     console.log(`[schedule-statistics] Loaded ${seasons.length} seasons in ${Date.now() - started}ms`);
 
@@ -36,6 +36,7 @@ export const handler = schedule('0 10 * * 1', async () => {
       console.error('[schedule-statistics] Profile stats failed:', error);
     }
   } catch (error) {
+    // Nothing is saved, so last week's stats stay in place until the next run
     console.error('[schedule-statistics] Failed to load data:', error);
   }
   console.log(`[schedule-statistics] Done in ${Date.now() - started}ms`);

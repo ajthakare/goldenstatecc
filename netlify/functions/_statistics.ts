@@ -9,7 +9,7 @@
  *    scheduled job can share one load with profile stats), computes, and saves.
  */
 import { parseLocalDate } from './_utils';
-import { blobStore, loadSeasonInputs, mapLimit, todayString } from './_profile-stats';
+import { blobStore, getJSONWithRetry, loadSeasonInputs, mapLimit, todayString } from './_profile-stats';
 import type { SeasonInput } from '../../src/utils/badges';
 import type {
   Player,
@@ -62,9 +62,9 @@ interface SeasonData {
 
 /** Load what recalculateStatistics() needs. Practices aren't used by these stats. */
 export async function loadStatisticsData(opts: { seasonId?: string } = {}): Promise<StatisticsData> {
-  const players = (await blobStore('players').get('players-all', { type: 'json' })) as Player[] | null;
+  const players = await getJSONWithRetry<Player[]>(blobStore('players'), 'players-all');
   if (!players) throw new StatisticsError('Failed to load players', 500);
-  const allSeasons = (await blobStore('seasons').get('seasons-list', { type: 'json' })) as Season[] | null;
+  const allSeasons = await getJSONWithRetry<Season[]>(blobStore('seasons'), 'seasons-list');
   if (!allSeasons) throw new StatisticsError('Failed to load seasons', 500);
 
   const seasons = opts.seasonId ? allSeasons.filter((s) => s.id === opts.seasonId) : allSeasons;
