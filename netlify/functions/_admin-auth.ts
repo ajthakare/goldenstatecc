@@ -5,7 +5,8 @@
  * own they'd let a demoted, suspended or deleted admin keep admin access until
  * the token expires. These helpers use the token only to rule people OUT (a
  * member token is rejected without any lookup), then confirm the CURRENT role
- * and account status in `players-all`. A token can lose privileges this way,
+ * and account status (deleted, or registrationStatus suspended/rejected/pending)
+ * in `players-all`. A token can lose privileges this way,
  * never gain them: someone newly promoted gets admin access at their next login.
  */
 import { getStore } from '@netlify/blobs';
@@ -35,8 +36,10 @@ export async function currentRole(session: SessionPayload | null): Promise<AuthR
   // Never look up members: the token can only narrow access, not widen it
   if (session.role !== 'admin' && session.role !== 'super_admin') return session.role ?? null;
 
+  // Account status only: `isActive` is the club roster flag (playing this
+  // season), not an account switch, so an admin who isn't playing keeps access
   const player = (await loadPlayers()).find((p) => p.id === session.userId);
-  if (!player || !player.isActive) return null;
+  if (!player) return null;
   if (player.registrationStatus && player.registrationStatus !== 'approved') return null;
 
   const role = (player.role_auth || 'member') as AuthRole;

@@ -62,14 +62,19 @@ describe('current admin role', () => {
     expect(await currentRole(session('admin'))).toBe('admin');
   });
 
-  it('rejects suspended, deactivated and deleted accounts', async () => {
+  it('rejects suspended and deleted accounts', async () => {
     players = [player({ registrationStatus: 'suspended' })];
-    expect(await isCurrentAdmin(session('admin'))).toBe(false);
-    _resetAdminAuthCache();
-    players = [player({ isActive: false })];
     expect(await isCurrentAdmin(session('admin'))).toBe(false);
     _resetAdminAuthCache();
     players = [];
     expect(await isCurrentAdmin(session('admin'))).toBe(false);
+  });
+
+  it('keeps admin access for an admin marked inactive on the roster (not playing)', async () => {
+    players = [player({ isActive: false })];
+    expect(await isCurrentAdmin(session('admin'))).toBe(true);
+    _resetAdminAuthCache();
+    players = [player({ isActive: false, role_auth: 'super_admin' })];
+    expect(await isCurrentSuperAdmin(session('super_admin'))).toBe(true);
   });
 });

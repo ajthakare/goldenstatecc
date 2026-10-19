@@ -11,10 +11,11 @@
  *   await writePlayers(players);
  *
  * writePlayers() saves only if nobody else saved since the read (Blobs
- * `onlyIfMatch` on the etag). If someone did, it re-reads the latest list,
- * re-applies just the players THIS request added, changed or removed, and
- * tries again. Different players edited at once: both changes kept. The same
- * player edited at once: the later save wins for that player.
+ * `onlyIfMatch` on the etag). If someone did, it re-reads the latest list and
+ * re-applies only what THIS request did: players it added or removed, and for
+ * players it edited, just the fields it changed. So a login (lastLogin) racing
+ * a demotion (role_auth) keeps both; only the same field edited at the same
+ * moment is "last save wins".
  *
  * Functions handle one request at a time per instance, so the read is tracked
  * per invocation in module state between the two calls.
@@ -66,13 +67,36 @@ export async function writePlayers(players: Player[]): Promise<void> {
     return;
   }
 
-  // What this request did, relative to what it read
-  const changed = new Map<string, Player>();
+  // What this request did, relative to what it read: added players, removed
+  // players, and per edited player the fields it set or removed
+  const added = new Map<string, Player>();
+  const fieldChanges = new Map<string, { set: Record<string, unknown>; unset: string[] }>();
   for (const p of players) {
-    if (base.byId.get(p.id) !== JSON.stringify(p)) changed.set(p.id, p);
+    const before = base.byId.get(p.id);
+    if (before === undefined) {
+      added.set(p.id, p);
+      continue;
+    }
+    if (before === JSON.stringify(p)) continue;
+    const old = JSON.parse(before) as Record<string, unknown>;
+    const now = p as unknown as Record<string, unknown>;
+    const set: Record<string, unknown> = {};
+    for (const key of Object.keys(now)) {
+      if (JSON.stringify(now[key]) !== JSON.stringify(old[key])) set[key] = now[key];
+    }
+    const unset = Object.keys(old).filter((key) => !(key in now) || now[key] === undefined);
+    fieldChanges.set(p.id, { set, unset });
   }
   const keptIds = new Set(players.map((p) => p.id));
   const removed = new Set([...base.byId.keys()].filter((id) => !keptIds.has(id)));
+
+  const applyFields = (p: Player): Player => {
+    const change = fieldChanges.get(p.id);
+    if (!change) return p;
+    const merged = { ...p, ...change.set } as Record<string, unknown>;
+    for (const key of change.unset) delete merged[key];
+    return merged as unknown as Player;
+  };
 
   let toWrite = players;
   let etag = base.etag;
@@ -82,16 +106,14 @@ export async function writePlayers(players: Player[]): Promise<void> {
       : await s.setJSON(KEY, toWrite, { onlyIfNew: true });
     if (result?.modified !== false) return;
 
-    // Someone else saved in between: re-apply our changes on top of theirs
+    // Someone else saved in between: re-apply only our changes on top of theirs.
+    // A player deleted meanwhile stays deleted (edits to it are dropped).
     const latest = await readLatest();
     etag = latest.etag;
     const latestIds = new Set(latest.players.map((p) => p.id));
-    toWrite = latest.players
-      .filter((p) => !removed.has(p.id))
-      .map((p) => changed.get(p.id) ?? p);
-    for (const [id, p] of changed) {
-      // Re-add only players this request created; one deleted meanwhile stays deleted
-      if (!latestIds.has(id) && !base.byId.has(id)) toWrite.push(p);
+    toWrite = latest.players.filter((p) => !removed.has(p.id)).map(applyFields);
+    for (const [id, p] of added) {
+      if (!latestIds.has(id)) toWrite.push(p);
     }
   }
   throw new Error('Could not save player changes: too many simultaneous updates. Please try again.');

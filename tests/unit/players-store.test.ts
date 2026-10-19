@@ -80,6 +80,34 @@ describe('players-all writes', () => {
     expect(data!.find((x) => x.id === 'a').role).toBe('Bowler');
   });
 
+  it('keeps a demotion that lands while the same player is logging in', async () => {
+    data = [p('x', { role_auth: 'admin', lastLogin: 'old' })];
+    const players = await readPlayersForUpdate();       // login reads X
+    players[0].lastLogin = 'now';                        // ...and records lastLogin
+    interleave = otherRequest((list) => list.map((x) => ({ ...x, role_auth: 'member' }))); // demotion
+    await writePlayers(players);
+    expect(data![0]).toMatchObject({ role_auth: 'member', lastLogin: 'now' });
+  });
+
+  it('keeps a suspension that lands during the same player\'s profile edit', async () => {
+    data = [p('x', { registrationStatus: 'approved', phone: 'old' })];
+    const players = await readPlayersForUpdate();
+    players[0].phone = 'new';
+    interleave = otherRequest((list) => list.map((x) => ({ ...x, registrationStatus: 'suspended' })));
+    await writePlayers(players);
+    expect(data![0]).toMatchObject({ registrationStatus: 'suspended', phone: 'new' });
+  });
+
+  it('re-applies fields this request removed', async () => {
+    data = [p('x', { photoUpdatedAt: '2026-01-01', phone: '1' })];
+    const players = await readPlayersForUpdate();
+    delete (players[0] as any).photoUpdatedAt;           // photo removed
+    interleave = otherRequest((list) => list.map((x) => ({ ...x, phone: '2' })));
+    await writePlayers(players);
+    expect(data![0].photoUpdatedAt).toBeUndefined();
+    expect(data![0].phone).toBe('2');
+  });
+
   it('does not bring back a player deleted meanwhile that we only edited', async () => {
     const players = await readPlayersForUpdate();
     players.find((x) => x.id === 'b')!.phone = 'mine';
