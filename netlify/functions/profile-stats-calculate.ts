@@ -7,7 +7,7 @@ import { recalculateProfileStats } from './_profile-stats';
  * Recalculate player profile stats/badges on demand
  * POST /.netlify/functions/profile-stats-calculate
  * Requires: admin or super_admin
- * Also runs weekly via schedule-profile-stats.ts. The admin Statistics page calls
+ * Also runs weekly via schedule-statistics.ts. The admin Statistics page calls
  * this right after statistics-calculate when "Recalculate" is clicked.
  */
 export const handler: Handler = async (event: HandlerEvent) => {

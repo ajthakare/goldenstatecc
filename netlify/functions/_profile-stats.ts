@@ -4,7 +4,7 @@
  *  - recalculateProfileStats(): loads every season's fixtures, availability,
  *    core roster and practices, runs computeProfileStats() and saves the
  *    result to `player-profiles/profile-stats`. Called weekly by
- *    schedule-profile-stats.ts and whenever an admin recalculates statistics.
+ *    schedule-statistics.ts and whenever an admin recalculates statistics.
  *  - toPublicProfile() / toDirectoryCard(): the ONLY way player data should
  *    leave the server for other members (profiles and /players are members-only).
  *    They whitelist fields and apply the member's privacy settings.
@@ -72,7 +72,7 @@ export async function readJSON<T>(storeName: string, key: string, opts: { strong
 }
 
 /** Run async work over items, at most `limit` at a time. */
-async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const out: R[] = new Array(items.length);
   let next = 0;
   const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
@@ -85,31 +85,45 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promis
   return out;
 }
 
+/**
+ * Read a JSON blob, retrying failures (rate limits and 5xx are usually brief).
+ * Throws if every attempt fails: callers stop rather than calculate from
+ * partial data and overwrite good stats.
+ */
+export async function getJSONWithRetry<T>(store: ReturnType<typeof blobStore>, key: string, attempts = 3): Promise<T | null> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return (await store.get(key, { type: 'json' })) as T | null;
+    } catch (error) {
+      if (attempt >= attempts) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** (attempt - 1)));
+    }
+  }
+}
+
 export function todayString(): string {
   const d = getPacificToday();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-async function loadSeasonInput(season: Season): Promise<SeasonInput> {
+async function loadSeasonInput(season: Season, opts: { practices: boolean }): Promise<SeasonInput> {
   const fixturesStore = blobStore('fixtures');
   const availabilityStore = blobStore('fixture-availability');
   const coreRosterStore = blobStore('core-roster');
   const practicesStore = blobStore('practice-sessions');
 
   const [fixtures, coreRoster, availabilityIndex, practiceIndex] = await Promise.all([
-    fixturesStore.get(`fixtures-${season.id}`, { type: 'json' }) as Promise<Fixture[] | null>,
-    coreRosterStore.get(`core-roster-${season.id}`, { type: 'json' }) as Promise<CoreRosterAssignment[] | null>,
-    availabilityStore.get(`availability-index-${season.id}`, { type: 'json' }) as Promise<Array<{ fixtureId: string }> | null>,
-    practicesStore.get(`practice-index-${season.id}`, { type: 'json' }) as Promise<string[] | null>,
+    getJSONWithRetry<Fixture[]>(fixturesStore, `fixtures-${season.id}`),
+    getJSONWithRetry<CoreRosterAssignment[]>(coreRosterStore, `core-roster-${season.id}`),
+    getJSONWithRetry<Array<{ fixtureId: string }>>(availabilityStore, `availability-index-${season.id}`),
+    opts.practices ? getJSONWithRetry<string[]>(practicesStore, `practice-index-${season.id}`) : null,
   ]);
 
   const availability = await mapLimit(availabilityIndex || [], 8, (item) =>
-    (availabilityStore.get(`availability-${item.fixtureId}`, { type: 'json' }) as Promise<FixtureAvailability | null>)
-      .catch(() => null)
+    getJSONWithRetry<FixtureAvailability>(availabilityStore, `availability-${item.fixtureId}`).catch(() => null)
   );
   const practices = await mapLimit(practiceIndex || [], 8, (id) =>
-    (practicesStore.get(`practice-${id}`, { type: 'json' }) as Promise<PracticeSession | null>)
-      .catch(() => null)
+    getJSONWithRetry<PracticeSession>(practicesStore, `practice-${id}`).catch(() => null)
   );
 
   return {
@@ -121,14 +135,33 @@ async function loadSeasonInput(season: Season): Promise<SeasonInput> {
   };
 }
 
-export async function recalculateProfileStats(): Promise<ProfileStatsData> {
-  const players = ((await blobStore('players').get('players-all', { type: 'json' })) as Player[] | null) || [];
-  const seasons = ((await blobStore('seasons').get('seasons-list', { type: 'json' })) as Season[] | null) || [];
-
-  // Seasons one after another keeps us well under Blobs rate limits
+/**
+ * Load each season's fixtures, availability, core roster and (optionally)
+ * practices. Seasons one after another keeps us well under Blobs rate limits.
+ */
+export async function loadSeasonInputs(
+  seasons: Season[],
+  opts: { practices?: boolean } = {}
+): Promise<SeasonInput[]> {
   const inputs: SeasonInput[] = [];
   for (const season of seasons) {
-    inputs.push(await loadSeasonInput(season));
+    inputs.push(await loadSeasonInput(season, { practices: opts.practices ?? true }));
+  }
+  return inputs;
+}
+
+/** Pass `preloaded` (all players, every season with practices) to skip loading. */
+export async function recalculateProfileStats(
+  preloaded?: { players: Player[]; inputs: SeasonInput[] }
+): Promise<ProfileStatsData> {
+  let players: Player[];
+  let inputs: SeasonInput[];
+  if (preloaded) {
+    ({ players, inputs } = preloaded);
+  } else {
+    players = (await getJSONWithRetry<Player[]>(blobStore('players'), 'players-all')) || [];
+    const seasons = (await getJSONWithRetry<Season[]>(blobStore('seasons'), 'seasons-list')) || [];
+    inputs = await loadSeasonInputs(seasons);
   }
 
   const today = todayString();
