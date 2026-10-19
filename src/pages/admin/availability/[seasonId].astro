@@ -53,6 +53,7 @@ const fixtureId = Astro.url.searchParams.get('fid') || '';
         <div id="editor-game-number" class="editor-game-number">Loading…</div>
         <div id="editor-subtitle" class="editor-subtitle"></div>
       </div>
+      <button id="suggest-duties-btn" class="suggest-duties-btn" style="display: none;" disabled title="Select 11 players first">Suggest Duties</button>
     </div>
 
     <!-- Loading State -->
@@ -93,6 +94,15 @@ const fixtureId = Astro.url.searchParams.get('fid') || '';
       <!-- Lock Message -->
       <div id="past-fixture-lock-message" style="display: none; background: #fef3c7; border: 1px solid #fbbf24; color: #78350f; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 14px;">
         🔒 <strong>Past fixture is locked.</strong> Only Mr. President can edit past fixtures.
+      </div>
+
+      <!-- Suggested duties (3 lines; opened from the header button) -->
+      <div id="duty-suggestions" class="duty-suggestions" style="display: none;">
+        <div class="duty-suggestions-head">
+          <span>Suggest Duties <span id="duty-suggestions-basis" class="duty-suggestions-basis"></span></span>
+          <button id="duty-suggestions-close" class="duty-suggestions-close" aria-label="Close suggestions">&times;</button>
+        </div>
+        <div id="duty-suggestions-body"></div>
       </div>
 
       <!-- Players Table -->
@@ -244,6 +254,35 @@ const fixtureId = Astro.url.searchParams.get('fid') || '';
   .editor-fixture-info {
     min-width: 0;
   }
+
+  .suggest-duties-btn {
+    margin-left: auto;
+    flex-shrink: 0;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    background: white;
+    border: 1px solid var(--color-primary);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .suggest-duties-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .duty-suggestions {
+    margin-bottom: 1rem;
+    padding: 0.5rem 0.75rem;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: #374151;
+  }
+  .duty-suggestions-head { display: flex; justify-content: space-between; align-items: center; font-weight: 600; color: #111827; }
+  .duty-suggestions-basis { font-weight: 400; color: #6b7280; }
+  .duty-suggestions-close { background: none; border: none; font-size: 1.25rem; line-height: 1; cursor: pointer; color: #6b7280; padding: 0 0.25rem; }
+  .duty-suggestions-line strong { font-weight: 600; color: #111827; }
 
   .editor-game-number {
     font-size: 0.875rem;
@@ -426,9 +465,24 @@ const fixtureId = Astro.url.searchParams.get('fid') || '';
     .duty-option input[type="checkbox"] { width: 24px !important; height: 24px !important; }
 
     .editor-footer { flex-direction: column-reverse; }
+    .suggest-duties-btn { padding: 0.375rem 0.5rem; font-size: 0.75rem; }
     .editor-footer .btn-secondary, .editor-footer .btn-primary { width: 100%; text-align: center; justify-content: center; }
   }
 </style>
+
+<script>
+  import { createDutySuggester } from '../../../utils/duty-suggestions-panel';
+  const w = window as any;
+  w.dutySuggester = createDutySuggester({
+    button: document.getElementById('suggest-duties-btn') as HTMLButtonElement,
+    panel: document.getElementById('duty-suggestions')!,
+    basis: document.getElementById('duty-suggestions-basis')!,
+    body: document.getElementById('duty-suggestions-body')!,
+    close: document.getElementById('duty-suggestions-close')!,
+    getContext: () => w.getDutyContext?.() ?? null,
+  });
+  w.dutySuggester.refresh();
+</script>
 
 <script define:vars={{ fixtureId, seasonId, userRole }}>
   function escapeHtml(text) {
@@ -529,6 +583,7 @@ const fixtureId = Astro.url.searchParams.get('fid') || '';
       today.setHours(0, 0, 0, 0);
       const fixtureDate = new Date(currentFixture.date.split('T')[0]);
       isPastFixture = fixtureDate < today;
+      updateDutySuggestions();
 
       // Lock state
       const saveBtn = document.getElementById('save-availability-btn');
@@ -644,6 +699,21 @@ const fixtureId = Astro.url.searchParams.get('fid') || '';
           </td>
         </tr>`;
     }).join('');
+
+    updateDutySuggestions();
+  }
+
+  // ---- Suggest Duties (button + panel wired by src/utils/duty-suggestions-panel.ts) ----
+  window.getDutyContext = () => currentAvailability && currentFixture ? {
+    seasonId: currentFixture.seasonId || seasonId,
+    fixtureId,
+    players: currentAvailability.playerAvailability,
+    captainIds: [...coreRosterMap].filter(([, r]) => r.isCaptain).map(([id]) => id),
+    locked: isPastFixture && !isSuperAdmin,
+  } : null;
+
+  function updateDutySuggestions() {
+    window.dutySuggester?.refresh();
   }
 
   window.handleCheckboxChange = (event) => {
