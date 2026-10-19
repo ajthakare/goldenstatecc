@@ -5,7 +5,6 @@ import Layout from '../../layouts/Layout.astro';
 import PageHeader from '../../components/PageHeader.astro';
 import Icon from '../../components/Icon.astro';
 import { validateAdminSession, isMember } from '../../middleware/auth';
-import { UMPIRE_STATUS_LABELS } from '../../types/player';
 import type { DirectoryCard } from '../../types/profile';
 
 // Members only: club members can browse each other; the public can't list members.
@@ -37,9 +36,10 @@ function roleGroup(role?: string): string {
     if (r.startsWith('bat')) return 'batter';
     return '';
 }
-// Card badges: short labels so two fit per row. Umpire has its own tag on the photo.
-const MAX_BADGES = 3;
-const cardBadges = (p: DirectoryCard) => p.badges.filter((b) => b.id !== 'umpire');
+// Card badges: short labels; umpire status comes first. All are rendered and the
+// script below shows as many as fit the card (plus "+N"), so narrow phone cards
+// never cut a badge in half.
+const cardBadges = (p: DirectoryCard) => p.badges;
 const shortLabel = (label: string) => label.replace('Player of the Match', 'POTM');
 
 const chips = [
@@ -86,7 +86,9 @@ const chips = [
                                 <div class="pcard-photo">
                                     {p.photoUrl ? (
                                         <img
-                                            src={p.photoUrl}
+                                            src={p.photoSmallUrl || p.photoUrl}
+                                            srcset={p.photoSmallUrl ? `${p.photoSmallUrl} 240w, ${p.photoUrl} 400w` : undefined}
+                                            sizes="(max-width: 480px) 46vw, 240px"
                                             alt={`${p.firstName} ${p.lastName}`}
                                             width="240"
                                             height="160"
@@ -98,24 +100,17 @@ const chips = [
                                             {`${p.firstName[0] || ''}${p.lastName[0] || ''}`.toUpperCase()}
                                         </span>
                                     )}
-                                    {p.umpireStatus && (
-                                        <span class="pcard-umpire" title={UMPIRE_STATUS_LABELS[p.umpireStatus]}>
-                                            <Icon name="shield" size={12} /> {UMPIRE_STATUS_LABELS[p.umpireStatus].replace(' Umpire', '')}
-                                        </span>
-                                    )}
                                 </div>
                                 <div class="pcard-body">
                                     <span class="pcard-name">{`${p.firstName} ${p.lastName}`}</span>
                                     <span class="pcard-role">{p.role || 'Player'}</span>
                                     <span class="pcard-badges" aria-label={`${cardBadges(p).length} badges`}>
-                                        {cardBadges(p).slice(0, MAX_BADGES).map((b) => (
+                                        {cardBadges(p).map((b) => (
                                             <span class={`ib ib--${b.tone}`} title={`${b.label} — ${b.detail}`}>
                                                 <Icon name={b.icon} size={11} />{shortLabel(b.label)}
                                             </span>
                                         ))}
-                                        {cardBadges(p).length > MAX_BADGES && (
-                                            <span class="ib ib--gray">+{cardBadges(p).length - MAX_BADGES}</span>
-                                        )}
+                                        <span class="ib ib--gray ib-more" hidden></span>
                                     </span>
                                     <span class="pcard-stats">
                                         <span><strong>{p.seasonMatches}</strong> matches</span>
@@ -153,7 +148,35 @@ const chips = [
             }
             if (count) count.textContent = `${visible} player${visible === 1 ? '' : 's'}`;
             if (empty) empty.style.display = visible === 0 ? '' : 'none';
+            fitBadges();
         }
+
+        // Show as many badges as fit in each card's badge area; the rest become "+N"
+        function fitBadges() {
+            for (const box of document.querySelectorAll<HTMLElement>('.pcard-badges')) {
+                if (!box.offsetParent) continue; // filtered out: fit when shown
+                const pills = Array.from(box.querySelectorAll<HTMLElement>('.ib:not(.ib-more)'));
+                const more = box.querySelector<HTMLElement>('.ib-more')!;
+                pills.forEach((p) => (p.hidden = false));
+                more.hidden = true;
+                const fits = () => box.scrollHeight <= box.clientHeight + 1;
+                if (fits()) continue;
+                more.hidden = false;
+                let shown = pills.length;
+                while (shown > 0) {
+                    more.textContent = `+${pills.length - shown}`;
+                    if (fits()) break;
+                    pills[--shown].hidden = true;
+                }
+                more.textContent = `+${pills.length - shown}`;
+            }
+        }
+        let fitTimer: number | undefined;
+        window.addEventListener('resize', () => {
+            clearTimeout(fitTimer);
+            fitTimer = window.setTimeout(fitBadges, 100);
+        });
+        fitBadges();
 
         chips.forEach((chip) => chip.addEventListener('click', () => {
             chips.forEach((c) => c.setAttribute('aria-pressed', c === chip ? 'true' : 'false'));
@@ -236,20 +259,6 @@ const chips = [
             border-bottom: 3px solid #E5C878;
         }
         .pcard-initials { font-size: 44px; font-weight: 800; color: rgba(255, 255, 255, 0.9); letter-spacing: 0.03em; }
-        .pcard-umpire {
-            position: absolute;
-            top: 8px;
-            left: 8px;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 2px 8px;
-            border-radius: 9999px;
-            background: rgba(255, 255, 255, 0.92);
-            color: #1e4f86;
-            font-size: 11px;
-            font-weight: 700;
-        }
         .pcard-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 2px; }
         .pcard-name {
             font-size: 15px;
@@ -259,13 +268,19 @@ const chips = [
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        .pcard-role { font-size: 12px; color: #6b7280; }
+        .pcard-role {
+            font-size: 12px;
+            color: #6b7280;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
         .pcard-badges {
             display: flex;
             flex-wrap: wrap;
             align-content: flex-start;
             gap: 4px;
-            height: 46px;
+            height: 71px; /* three rows of pills, same on every card */
             overflow: hidden;
             margin-top: 10px;
         }
@@ -288,6 +303,7 @@ const chips = [
         .ib--green  { --ib-bg: #eef8f1; --ib-fg: #1d6b3a; }
         .ib--purple { --ib-bg: #f4f0fb; --ib-fg: #5b3a99; }
         .ib--gray   { --ib-bg: #f4f4f5; --ib-fg: #3f3f46; }
+        .ib[hidden] { display: none; }
         .pcard-stats {
             display: flex;
             justify-content: space-between;
@@ -303,6 +319,10 @@ const chips = [
         .alert-error { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
 
         @media (max-width: 480px) {
+            .pcard-body { padding: 10px 10px 12px; }
+            .ib { padding: 0 6px; font-size: 10px; gap: 2px; }
+            .pcard-stats { gap: 6px; font-size: 11px; white-space: nowrap; }
+            .pcard-stats strong { font-size: 13px; }
             .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
             .pcard-photo { height: 130px; }
             .search-wrap { max-width: none; }

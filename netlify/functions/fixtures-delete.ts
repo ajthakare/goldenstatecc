@@ -3,6 +3,7 @@ import { getStore } from '@netlify/blobs';
 import { validateAdminSession, isAdmin } from '../../src/middleware/auth';
 import { addAuditLog } from '../../src/utils/auditLog';
 import type { Fixture } from '../../src/types/player';
+import { purgeClubFeed } from './_profile-stats';
 
 /**
  * Delete fixture(s)
@@ -103,6 +104,7 @@ export const handler: Handler = async (
 
     // Save to Blobs
     await fixturesStore.setJSON(`fixtures-${seasonId}`, remainingFixtures);
+    await purgeClubFeed(); // Club Feed shows results, POTM, upcoming fixtures and social posts
 
     const gameNumbers = deletedFixtures.map(f => f.gameNumber).join(', ');
     await addAuditLog(

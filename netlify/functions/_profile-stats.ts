@@ -10,10 +10,11 @@
  *    They whitelist fields and apply the member's privacy settings.
  */
 import { getStore } from '@netlify/blobs';
+import { purgeCache } from '@netlify/functions';
 import { getPacificToday } from './_utils';
 import { computeProfileStats, currentSeason, deriveBadges } from '../../src/utils/badges';
 import type { SeasonInput } from '../../src/utils/badges';
-import { badgeSnapshot, computeMilestoneEvents, diffBadgeEvents, mergeEvents } from '../../src/utils/feed';
+import { badgeSnapshot, computeMilestoneEvents, diffBadgeEvents, mergeEvents, CLUB_FEED_CACHE_TAG } from '../../src/utils/feed';
 import type { BadgeSnapshot } from '../../src/utils/feed';
 import { PRIVACY_DEFAULTS } from '../../src/types/player';
 import type {
@@ -30,6 +31,7 @@ import type {
   ProfileStatsData,
   PublicPlayerProfile,
   StoredFeedEvent,
+  HiddenFeedPost,
 } from '../../src/types/profile';
 
 // Keys in the `player-profiles` store
@@ -37,6 +39,8 @@ export const PROFILE_STATS_KEY = 'profile-stats';
 export const FEED_MILESTONES_KEY = 'feed-milestones';  // Rebuilt every recalculation
 export const FEED_EVENTS_KEY = 'feed-events';          // Append-only: new badges, umpire certifications
 export const BADGE_SNAPSHOT_KEY = 'badge-snapshot';    // Last recalculation's badges, for diffing
+export const FEED_HIDDEN_KEY = 'feed-hidden';          // Posts admins hid from the Club Feed
+
 
 export function blobStore(name: string) {
   return getStore({
@@ -44,6 +48,27 @@ export function blobStore(name: string) {
     siteID: process.env.SITE_ID || '',
     token: process.env.NETLIFY_AUTH_TOKEN || '',
   });
+}
+
+/**
+ * Read a JSON blob, optionally with strong consistency.
+ *
+ * On Netlify, Blobs reads are served from the edge and can lag a write by up to
+ * about a minute. The Club Feed is purged from the CDN right after a write, so
+ * it must rebuild from the latest data, not a stale edge copy, or the stale copy
+ * gets cached again. `strong` reads go to the uncached origin; if this
+ * environment can't do that (no uncached edge URL), fall back to a normal read.
+ */
+export async function readJSON<T>(storeName: string, key: string, opts: { strong?: boolean } = {}): Promise<T | null> {
+  const store = blobStore(storeName);
+  if (opts.strong) {
+    try {
+      return (await store.get(key, { type: 'json', consistency: 'strong' })) as T | null;
+    } catch (error) {
+      if (!(error instanceof Error && error.name === 'BlobsConsistencyError')) throw error;
+    }
+  }
+  return (await store.get(key, { type: 'json' })) as T | null;
 }
 
 /** Run async work over items, at most `limit` at a time. */
@@ -128,6 +153,7 @@ export async function recalculateProfileStats(): Promise<ProfileStatsData> {
     console.error('Failed to update club feed events:', error);
   }
 
+  await purgeClubFeed();
   return data;
 }
 
@@ -135,13 +161,40 @@ export async function appendFeedEvents(events: StoredFeedEvent[]): Promise<void>
   const store = blobStore('player-profiles');
   const existing = ((await store.get(FEED_EVENTS_KEY, { type: 'json' })) as StoredFeedEvent[] | null) || [];
   await store.setJSON(FEED_EVENTS_KEY, mergeEvents(existing, events));
+  await purgeClubFeed();
 }
 
-export async function loadFeedEvents(): Promise<StoredFeedEvent[]> {
-  const store = blobStore('player-profiles');
+export async function loadHiddenPosts(opts: { strong?: boolean } = {}): Promise<HiddenFeedPost[]> {
+  try {
+    return (await readJSON<HiddenFeedPost[]>('player-profiles', FEED_HIDDEN_KEY, opts)) || [];
+  } catch (error) {
+    console.error('Failed to load hidden feed posts:', error);
+    return [];
+  }
+}
+
+export async function saveHiddenPosts(posts: HiddenFeedPost[]): Promise<void> {
+  await blobStore('player-profiles').setJSON(FEED_HIDDEN_KEY, posts);
+}
+
+/**
+ * Clear the CDN copy of the public Club Feed so signed-out visitors see a change
+ * straight away. Call after anything that changes what the feed shows. Never
+ * throws: a failed purge only means up to 10 minutes of staleness (and it's a
+ * no-op in local dev, where there's no CDN).
+ */
+export async function purgeClubFeed(): Promise<void> {
+  try {
+    await purgeCache({ tags: [CLUB_FEED_CACHE_TAG] });
+  } catch (error) {
+    console.warn('Club Feed cache purge skipped:', error instanceof Error ? error.message : error);
+  }
+}
+
+export async function loadFeedEvents(opts: { strong?: boolean } = {}): Promise<StoredFeedEvent[]> {
   const [milestones, events] = await Promise.all([
-    store.get(FEED_MILESTONES_KEY, { type: 'json' }) as Promise<StoredFeedEvent[] | null>,
-    store.get(FEED_EVENTS_KEY, { type: 'json' }) as Promise<StoredFeedEvent[] | null>,
+    readJSON<StoredFeedEvent[]>('player-profiles', FEED_MILESTONES_KEY, opts),
+    readJSON<StoredFeedEvent[]>('player-profiles', FEED_EVENTS_KEY, opts),
   ]);
   return [...(milestones || []), ...(events || [])];
 }
@@ -155,8 +208,8 @@ export async function loadProfileStats(): Promise<ProfileStatsData | null> {
   }
 }
 
-export async function loadPlayers(): Promise<Player[]> {
-  return ((await blobStore('players').get('players-all', { type: 'json' })) as Player[] | null) || [];
+export async function loadPlayers(opts: { strong?: boolean } = {}): Promise<Player[]> {
+  return (await readJSON<Player[]>('players', 'players-all', opts)) || [];
 }
 
 /**
@@ -169,9 +222,10 @@ export function isListedMember(p: Player): boolean {
   return !p.registrationStatus || p.registrationStatus === 'approved';
 }
 
-export function avatarUrl(p: Player): string | undefined {
+export function avatarUrl(p: Player, size: 'full' | 'small' = 'full'): string | undefined {
   if (!p.photoUpdatedAt) return undefined;
-  return `/.netlify/functions/player-avatar?id=${encodeURIComponent(p.id)}&v=${encodeURIComponent(p.photoUpdatedAt)}`;
+  return `/.netlify/functions/player-avatar?id=${encodeURIComponent(p.id)}&v=${encodeURIComponent(p.photoUpdatedAt)}` +
+    (size === 'small' ? '&size=small' : '');
 }
 
 function memberSince(p: Player): string | undefined {
@@ -219,6 +273,7 @@ export function toDirectoryCard(p: Player, stats: PlayerProfileStats | null | un
     lastName: p.lastName,
     role: p.role,
     photoUrl: avatarUrl(p),
+    photoSmallUrl: avatarUrl(p, 'small'),
     umpireStatus: p.umpireStatus,
     seasonMatches: season?.matchesPlayed || 0,
     seasonPotm: season?.potm || 0,

@@ -1,0 +1,254 @@
+---
+export const prerender = false;
+
+import AdminLayout from '../../layouts/AdminLayout.astro';
+
+const cookieHeader = Astro.request.headers.get('cookie');
+let authenticated = false;
+let username = '';
+let userRole = 'admin';
+let isAdminUser = false;
+
+if (cookieHeader) {
+  try {
+    const response = await fetch(
+      `${Astro.url.origin}/.netlify/functions/auth-check`,
+      { headers: { cookie: cookieHeader } }
+    );
+    const data = await response.json();
+    authenticated = data.authenticated;
+    username = data.user?.firstName || data.user?.username || '';
+    userRole = data.user?.role_auth || data.user?.role || 'admin';
+    isAdminUser = userRole === 'admin' || userRole === 'super_admin';
+  } catch {
+    authenticated = false;
+  }
+}
+
+if (!authenticated) return Astro.redirect('/admin/login');
+if (!isAdminUser) return Astro.redirect('/');
+---
+
+<AdminLayout title="Club Feed - GSCC Admin" username={username} userRole={userRole} activePage="feed">
+  <div class="feed-admin">
+    <div class="page-header">
+      <h1 class="page-title">Club Feed</h1>
+      <p class="page-description">Hide posts you don't want on the Club Feed, including "Coming up" fixtures. Hidden posts disappear for everyone straight away; unhide to bring them back.</p>
+    </div>
+
+    <div class="toolbar">
+      <div class="chips" role="group" aria-label="Filter posts">
+        <button type="button" class="chip" data-filter="all" aria-pressed="true">All posts</button>
+        <button type="button" class="chip" data-filter="hidden" aria-pressed="false">Hidden</button>
+      </div>
+      <a href="/feed" target="_blank" rel="noopener noreferrer" class="view-link">View Club Feed ↗</a>
+    </div>
+
+    <p id="status" class="status">Loading posts…</p>
+    <ul id="posts" class="posts"></ul>
+
+    <section id="older" class="older" hidden>
+      <h2 class="older-title">Hidden posts older than the feed window</h2>
+      <p class="older-desc">The feed only shows the last 8 weeks. These stay hidden from players' Recent activity on their profile pages.</p>
+      <ul id="older-posts" class="posts"></ul>
+    </section>
+  </div>
+
+  <script>
+    type Post = { id: string; kind: string; date: string; title: string; detail?: string; playerName?: string; hidden?: boolean };
+    type Hidden = { id: string; title: string; date: string; hiddenAt: string; hiddenBy: string };
+
+    const KIND_LABELS: Record<string, string> = {
+      result: 'Result', milestone: 'Milestone', debut: 'Debut', badge: 'New badge', social: 'Social', upcoming: 'Fixture',
+    };
+    const listEl = document.getElementById('posts') as HTMLUListElement;
+    const olderSection = document.getElementById('older') as HTMLElement;
+    const olderList = document.getElementById('older-posts') as HTMLUListElement;
+    const statusEl = document.getElementById('status') as HTMLElement;
+    const chips = Array.from(document.querySelectorAll<HTMLButtonElement>('.chip'));
+
+    let posts: Post[] = [];
+    let hidden: Hidden[] = [];
+
+    const fmtDate = (d: string) => {
+      if (!d) return '';
+      const [y, m, day] = d.slice(0, 10).split('-').map(Number);
+      return new Date(Date.UTC(y, m - 1, day)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+    };
+    const titleOf = (p: Post) => (p.playerName ? `${p.playerName} ${p.title}` : p.title);
+
+    function row(opts: { id: string; title: string; meta: string; isHidden: boolean; date: string }): HTMLLIElement {
+      const li = document.createElement('li');
+      li.className = 'post' + (opts.isHidden ? ' post--hidden' : '');
+      const body = document.createElement('div');
+      body.className = 'post-body';
+      const title = document.createElement('span');
+      title.className = 'post-title';
+      title.textContent = opts.title;
+      const meta = document.createElement('span');
+      meta.className = 'post-meta';
+      meta.textContent = opts.meta;
+      body.append(title, meta);
+      if (opts.isHidden) {
+        const tag = document.createElement('span');
+        tag.className = 'post-tag';
+        tag.textContent = 'Hidden';
+        body.append(tag);
+      }
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = opts.isHidden ? 'btn-unhide' : 'btn-hide';
+      button.textContent = opts.isHidden ? 'Unhide' : 'Hide';
+      button.addEventListener('click', () => toggle(opts.id, !opts.isHidden, opts.title, opts.date, button));
+      li.append(body, button);
+      return li;
+    }
+
+    function render() {
+      const filter = chips.find((c) => c.getAttribute('aria-pressed') === 'true')?.dataset.filter;
+      const hiddenIds = new Set(hidden.map((h) => h.id));
+      const shown = posts
+        .map((p) => ({ ...p, hidden: hiddenIds.has(p.id) }))
+        .filter((p) => filter !== 'hidden' || p.hidden);
+
+      listEl.replaceChildren(...shown.map((p) =>
+        row({
+          id: p.id,
+          title: titleOf(p),
+          meta: [KIND_LABELS[p.kind] || p.kind, fmtDate(p.date), p.detail].filter(Boolean).join(' · '),
+          isHidden: !!p.hidden,
+          date: p.date,
+        })
+      ));
+
+      const inWindow = new Set(posts.map((p) => p.id));
+      const older = hidden.filter((h) => !inWindow.has(h.id));
+      olderSection.hidden = older.length === 0;
+      olderList.replaceChildren(...older.map((h) =>
+        row({ id: h.id, title: h.title, meta: `${fmtDate(h.date)} · hidden by ${h.hiddenBy}`, isHidden: true, date: h.date })
+      ));
+
+      statusEl.textContent = filter === 'hidden'
+        ? `${hidden.length} hidden post${hidden.length === 1 ? '' : 's'}`
+        : `${posts.length} posts (coming up + last 8 weeks) · ${hidden.length} hidden`;
+    }
+
+    async function toggle(id: string, hide: boolean, title: string, date: string, button: HTMLButtonElement) {
+      button.disabled = true;
+      try {
+        const res = await fetch('/.netlify/functions/feed-hide', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ id, hidden: hide, title, date }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to update');
+        hidden = data.hiddenPosts;
+        render();
+        (window as any).toast?.success(hide ? 'Post hidden from the Club Feed' : 'Post is back on the Club Feed');
+      } catch (err) {
+        (window as any).toast?.error(err instanceof Error ? err.message : 'Failed to update');
+        button.disabled = false;
+      }
+    }
+
+    async function load() {
+      try {
+        const [feedRes, hiddenRes] = await Promise.all([
+          fetch('/.netlify/functions/club-feed-get?includeHidden=1', { credentials: 'same-origin' }),
+          fetch('/.netlify/functions/feed-hide', { credentials: 'same-origin' }),
+        ]);
+        if (!feedRes.ok || !hiddenRes.ok) throw new Error('Failed to load posts');
+        // "Coming up" fixtures are hideable too, so list them first
+        const feed = await feedRes.json();
+        posts = [...(feed.upcoming || []), ...(feed.items || [])];
+        hidden = (await hiddenRes.json()).hiddenPosts || [];
+        render();
+      } catch (err) {
+        statusEl.textContent = err instanceof Error ? err.message : 'Failed to load posts';
+      }
+    }
+
+    chips.forEach((chip) => chip.addEventListener('click', () => {
+      chips.forEach((c) => c.setAttribute('aria-pressed', c === chip ? 'true' : 'false'));
+      render();
+    }));
+    load();
+  </script>
+
+  <style>
+    .feed-admin { max-width: 900px; }
+    .page-header { margin-bottom: 1.25rem; }
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .chips { display: flex; gap: 6px; }
+    .chip {
+      padding: 6px 14px;
+      border-radius: 9999px;
+      border: 1px solid #e5e0d6;
+      background: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      color: #4b5563;
+      cursor: pointer;
+    }
+    .chip[aria-pressed='true'] { background: #8C1D18; border-color: #8C1D18; color: #fff; }
+    .view-link { font-size: 13px; font-weight: 600; color: #8C1D18; }
+    .status { font-size: 13px; color: #6b7280; margin: 0 0 10px; }
+    .posts {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+      overflow: hidden;
+    }
+    .posts:empty { display: none; }
+    .posts :global(.post) {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border-top: 1px solid #f3f3f3;
+    }
+    .posts :global(.post:first-child) { border-top: 0; }
+    .posts :global(.post--hidden) { background: #fafafa; }
+    .posts :global(.post--hidden .post-title) { color: #9ca3af; text-decoration: line-through; }
+    .posts :global(.post-body) { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .posts :global(.post-title) { font-size: 14px; font-weight: 600; color: #111827; }
+    .posts :global(.post-meta) { font-size: 12px; color: #6b7280; overflow-wrap: anywhere; }
+    .posts :global(.post-tag) {
+      align-self: flex-start;
+      margin-top: 2px;
+      padding: 0 8px;
+      border-radius: 9999px;
+      background: #fef2f2;
+      color: #dc2626;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .posts :global(.btn-hide), .posts :global(.btn-unhide) {
+      flex-shrink: 0;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .posts :global(.btn-hide) { border: 1px solid #e5e7eb; background: #fff; color: #374151; }
+    .posts :global(.btn-hide:hover) { border-color: #dc2626; color: #dc2626; }
+    .posts :global(.btn-unhide) { border: 1px solid #8C1D18; background: #8C1D18; color: #fff; }
+    .posts :global(button:disabled) { opacity: 0.5; cursor: default; }
+    .older { margin-top: 28px; }
+    .older-title { font-size: 16px; font-weight: 700; color: #111827; margin: 0 0 4px; }
+    .older-desc { font-size: 13px; color: #6b7280; margin: 0 0 10px; }
+  </style>
+</AdminLayout>

@@ -1,24 +1,29 @@
 import { Handler, HandlerEvent } from '@netlify/functions';
-import { validateAdminSession, isMember } from '../../src/middleware/auth';
-import { addDays, buildFeed, FEED_WEEKS, UPCOMING_DAYS } from '../../src/utils/feed';
+import { validateAdminSession, isMember, isAdmin } from '../../src/middleware/auth';
+import { addDays, buildFeed, clubFeedCacheHeaders, FEED_WEEKS, UPCOMING_DAYS } from '../../src/utils/feed';
 import type { FeedPlayer } from '../../src/utils/feed';
 import type { Fixture, Season } from '../../src/types/player';
 import type { SocialFeedData } from '../../src/types/social';
 import {
   avatarUrl,
-  blobStore,
   isListedMember,
   loadFeedEvents,
+  loadHiddenPosts,
   loadPlayers,
+  readJSON,
   todayString,
 } from './_profile-stats';
 
 /**
  * Club feed for /feed: results, Player of the Match, milestones, new badges,
  * upcoming fixtures and Instagram/YouTube posts from the last few weeks.
- * GET /.netlify/functions/club-feed-get[?playerId=<id>]
+ * GET /.netlify/functions/club-feed-get[?playerId=<id>][&includeHidden=1]
  *   With playerId: that player's own posts (POTMs, milestones, badges) from any
  *   date, for "Recent activity" on /players/[id].
+ *   includeHidden=1 (admins only): keep posts admins hid, flagged `hidden: true`
+ *   (Admin → Club Feed). Everyone else never receives hidden posts.
+ * Signed-out responses are cached on the CDN (see clubFeedCacheHeaders) and
+ * purged whenever the feed changes.
  * Public. Profiles and photos are members-only, so signed-out visitors see
  * player names without links or photos.
  * Returns: { upcoming: FeedItem[], items: FeedItem[] }
@@ -36,11 +41,17 @@ export const handler: Handler = async (event: HandlerEvent) => {
     const from = addDays(today, -FEED_WEEKS * 7);
     const until = addDays(today, UPCOMING_DAYS);
 
-    const [players, events, seasons, social] = await Promise.all([
-      loadPlayers(),
-      loadFeedEvents(),
-      blobStore('seasons').get('seasons-list', { type: 'json' }) as Promise<Season[] | null>,
-      (blobStore('social-feed').get('feed', { type: 'json' }) as Promise<SocialFeedData | null>).catch(() => null),
+    const includeHidden = event.queryStringParameters?.includeHidden === '1' && !!session && isAdmin(session);
+
+    // Strong reads: this response may be cached right after a purge, so it has
+    // to reflect the write that triggered the purge (see readJSON)
+    const strong = { strong: true };
+    const [players, events, hidden, seasons, social] = await Promise.all([
+      loadPlayers(strong),
+      loadFeedEvents(strong),
+      loadHiddenPosts(strong),
+      readJSON<Season[]>('seasons', 'seasons-list', strong),
+      readJSON<SocialFeedData>('social-feed', 'feed', strong).catch(() => null),
     ]);
 
     // A player's own activity (profile page) is members-only, like the profile itself
@@ -54,7 +65,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
     );
     const fixtureLists = await Promise.all(
       relevant.map((s) =>
-        (blobStore('fixtures').get(`fixtures-${s.id}`, { type: 'json' }) as Promise<Fixture[] | null>).catch(() => null)
+        readJSON<Fixture[]>('fixtures', `fixtures-${s.id}`, strong).catch(() => null)
       )
     );
 
@@ -62,7 +73,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
       players.map((p) => [
         p.id,
         signedIn
-          ? { id: p.id, name: `${p.firstName} ${p.lastName}`, photoUrl: avatarUrl(p), listed: isListedMember(p) }
+          ? { id: p.id, name: `${p.firstName} ${p.lastName}`, photoUrl: avatarUrl(p, 'small'), listed: isListedMember(p) }
           : { id: p.id, name: `${p.firstName} ${p.lastName}`, listed: false },
       ])
     );
@@ -74,11 +85,13 @@ export const handler: Handler = async (event: HandlerEvent) => {
       social: social?.items || [],
       todayStr: today,
       playerId,
+      hiddenIds: new Set(hidden.map((h) => h.id)),
+      includeHidden,
     });
 
     return {
       statusCode: 200,
-      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store' },
+      headers: { 'Content-Type': 'application/json', ...clubFeedCacheHeaders(signedIn) },
       body: JSON.stringify(feed),
     };
   } catch (error) {

@@ -96,7 +96,8 @@ export interface DirectoryCard {
   firstName: string;
   lastName: string;
   role?: string;
-  photoUrl?: string;
+  photoUrl?: string;             // 400px
+  photoSmallUrl?: string;        // 240px (falls back to 400px server-side)
   umpireStatus?: UmpireStatus;
   seasonMatches: number;         // This season
   seasonPotm: number;            // This season
@@ -122,12 +123,22 @@ export interface FeedItem {
   thumbnailUrl?: string;         // Social posts
   link?: { href: string; label: string };
   tone: 'win' | 'loss' | 'neutral' | 'gold' | 'blue' | 'green';
+  hidden?: boolean;              // Admin view only: an admin hid this post from the feed
   potm?: {                       // Results only: Player of the Match, shown under the result
     playerName: string;
     playerId?: string;           // Only for members listed on /players
     photoUrl?: string;
     note?: string;               // "2nd this season"
   };
+}
+
+/** A post an admin hid from the Club Feed (player-profiles/feed-hidden). */
+export interface HiddenFeedPost {
+  id: string;                    // FeedItem.id
+  title: string;                 // Snapshot for the admin list, e.g. "Tigers beat X"
+  date: string;                  // Post date
+  hiddenAt: string;
+  hiddenBy: string;
 }
 
 /** Player events precomputed with the profile stats (milestones, debuts, new badges). */

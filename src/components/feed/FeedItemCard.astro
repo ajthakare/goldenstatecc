@@ -9,9 +9,11 @@ import type { FeedItem } from '../../types/profile';
 
 interface Props {
     item: FeedItem;
+    /** Admins: show a Hide button (wired up by the page) */
+    canHide?: boolean;
 }
 
-const { item } = Astro.props;
+const { item, canHide = false } = Astro.props;
 
 const kindIcon: Record<string, string> = {
     result: 'trophy', milestone: 'cricket-bat', debut: 'sparkles',
@@ -69,6 +71,17 @@ const dateLabel = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
                 <a href={item.link.href} target="_blank" rel="noopener noreferrer" class="feed-link">
                     {item.link.label} <Icon name="external-link" size={11} />
                 </a>
+            )}
+            {canHide && (
+                <button
+                    type="button"
+                    class="feed-hide"
+                    data-hide-post={item.id}
+                    data-title={item.playerName ? `${item.playerName} ${item.title}` : item.title}
+                    data-date={item.date}
+                >
+                    Hide
+                </button>
             )}
         </p>
     </div>
@@ -151,4 +164,16 @@ const dateLabel = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
         color: #8C1D18;
     }
     .feed-link:hover { text-decoration: underline; }
+    .feed-hide {
+        margin-left: auto;
+        padding: 2px 10px;
+        border: 1px solid #e5e7eb;
+        border-radius: 9999px;
+        background: #fff;
+        font-size: 11px;
+        font-weight: 600;
+        color: #6b7280;
+        cursor: pointer;
+    }
+    .feed-hide:hover { border-color: #dc2626; color: #dc2626; }
 </style>
