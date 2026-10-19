@@ -113,7 +113,30 @@ const countryCodes = [
                 {player.photoUpdatedAt && (
                   <button type="button" id="photo-remove" class="link-danger">Remove photo</button>
                 )}
-                <p class="form-hint">Square photos work best. We crop to the centre and resize, so any size is fine.</p>
+                <p class="form-hint">Any photo works. You'll be able to drag and zoom to pick the exact square to use.</p>
+              </div>
+            </div>
+
+            <div id="photo-cropper" class="cropper" hidden>
+              <p class="cropper-hint">Drag to position and zoom to fit. The circle shows how it looks as your avatar; the whole square is used on player cards.</p>
+              <div
+                id="cropper-frame"
+                class="cropper-frame"
+                tabindex="0"
+                role="application"
+                aria-label="Photo crop area. Drag or use arrow keys to move; plus and minus to zoom."
+              >
+                <canvas id="cropper-canvas"></canvas>
+                <div class="cropper-mask" aria-hidden="true"></div>
+              </div>
+              <div class="cropper-zoom">
+                <button type="button" id="cropper-zoom-out" class="cropper-zoom-btn" aria-label="Zoom out">−</button>
+                <input type="range" id="cropper-zoom" min="1" max="5" step="0.01" value="1" aria-label="Zoom" />
+                <button type="button" id="cropper-zoom-in" class="cropper-zoom-btn" aria-label="Zoom in">+</button>
+              </div>
+              <div class="cropper-actions">
+                <button type="button" id="cropper-cancel" class="cropper-cancel">Cancel</button>
+                <button type="button" id="cropper-apply" class="btn btn-lg">Use this crop</button>
               </div>
             </div>
             <div id="photo-error" class="alert alert-error" style="display: none;"></div>
@@ -477,9 +500,10 @@ const countryCodes = [
     });
 
     // ---------------------------------------------------------------------
-    // Profile photo: crop to a centred square and save two sizes as WebP (JPEG
-    // where the browser can't encode WebP): 400px for the profile page and
-    // high-res screens (~25 KB), 240px for feed avatars and the card grid (~10 KB).
+    // Profile photo: the player drags/zooms to choose a square, then we save two
+    // sizes as WebP (JPEG where the browser can't encode WebP): 400px for the
+    // profile page and high-res screens (~25 KB), 240px for feed avatars and the
+    // card grid (~10 KB). The original photo never leaves the device.
     // ---------------------------------------------------------------------
     const PHOTO_SIZE = 400;
     const SMALL_PHOTO_SIZE = 240;
@@ -490,10 +514,9 @@ const countryCodes = [
       return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
     }
 
-    async function squareImage(bitmap, size, quality) {
-      const side = Math.min(bitmap.width, bitmap.height);
-      const sx = (bitmap.width - side) / 2;
-      const sy = (bitmap.height - side) / 2;
+    // crop = { sx, sy, side } in source-image pixels
+    async function squareImage(bitmap, crop, size, quality) {
+      const { sx, sy, side } = crop;
       const canvas = document.createElement('canvas');
       canvas.width = size;
       canvas.height = size;
@@ -507,22 +530,179 @@ const countryCodes = [
       return blob;
     }
 
-    async function prepareImage(file) {
-      let bitmap;
-      try {
-        bitmap = await createImageBitmap(file);
-      } catch {
-        throw new Error('Could not read that image. Please choose a JPEG or PNG.');
-      }
-      try {
-        return {
-          full: await squareImage(bitmap, PHOTO_SIZE, 0.85),
-          small: await squareImage(bitmap, SMALL_PHOTO_SIZE, 0.8),
-        };
-      } finally {
-        bitmap.close?.();
-      }
+    async function encodeCrop(bitmap, crop) {
+      return {
+        full: await squareImage(bitmap, crop, PHOTO_SIZE, 0.85),
+        small: await squareImage(bitmap, crop, SMALL_PHOTO_SIZE, 0.8),
+      };
     }
+
+    // ---- Cropper: square frame, drag to pan, zoom with slider / wheel / pinch
+    const cropper = {
+      bitmap: null,
+      view: 0,        // frame size in CSS px
+      base: 1,        // scale where the image just covers the frame (zoom 1)
+      zoom: 1,
+      x: 0,           // image top-left inside the frame, CSS px
+      y: 0,
+      pointers: new Map(),
+      pinch: null,
+    };
+    const frame = $('cropper-frame');
+    const canvasEl = $('cropper-canvas');
+    const zoomInput = $('cropper-zoom');
+
+    const scale = () => cropper.base * cropper.zoom;
+
+    function clampPosition() {
+      const { bitmap, view } = cropper;
+      const w = bitmap.width * scale();
+      const h = bitmap.height * scale();
+      cropper.x = Math.min(0, Math.max(view - w, cropper.x));
+      cropper.y = Math.min(0, Math.max(view - h, cropper.y));
+    }
+
+    function drawCropper() {
+      const { bitmap, view } = cropper;
+      if (!bitmap) return;
+      const dpr = window.devicePixelRatio || 1;
+      if (canvasEl.width !== Math.round(view * dpr)) {
+        canvasEl.width = Math.round(view * dpr);
+        canvasEl.height = Math.round(view * dpr);
+      }
+      const ctx = canvasEl.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.imageSmoothingQuality = 'high';
+      ctx.clearRect(0, 0, view, view);
+      ctx.drawImage(bitmap, cropper.x, cropper.y, bitmap.width * scale(), bitmap.height * scale());
+    }
+
+    // Zoom keeping the point (fx, fy) of the frame fixed under the finger/cursor
+    function setZoom(zoom, fx = cropper.view / 2, fy = cropper.view / 2) {
+      const next = Math.min(Number(zoomInput.max), Math.max(1, zoom));
+      const ix = (fx - cropper.x) / scale();
+      const iy = (fy - cropper.y) / scale();
+      cropper.zoom = next;
+      cropper.x = fx - ix * scale();
+      cropper.y = fy - iy * scale();
+      clampPosition();
+      zoomInput.value = String(next);
+      drawCropper();
+    }
+
+    function openCropper(bitmap) {
+      cropper.bitmap?.close?.();
+      cropper.bitmap = bitmap;
+      const box = $('photo-cropper');
+      box.hidden = false;
+      // Square frame: up to 280px, smaller on narrow phones
+      const pad = parseFloat(getComputedStyle(box).paddingLeft) * 2;
+      const size = Math.floor(Math.min(280, box.clientWidth - pad));
+      frame.style.width = `${size}px`;
+      frame.style.height = `${size}px`;
+      cropper.view = size;
+      cropper.base = cropper.view / Math.min(bitmap.width, bitmap.height);
+      cropper.zoom = 1;
+      zoomInput.value = '1';
+      // Start centred, like the old automatic crop
+      cropper.x = (cropper.view - bitmap.width * scale()) / 2;
+      cropper.y = (cropper.view - bitmap.height * scale()) / 2;
+      drawCropper();
+      frame.focus({ preventScroll: true });
+      frame.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function closeCropper() {
+      $('photo-cropper').hidden = true;
+      cropper.bitmap?.close?.();
+      cropper.bitmap = null;
+      cropper.pointers.clear();
+      cropper.pinch = null;
+      $('photo-input').value = '';
+    }
+
+    const framePoint = (e) => {
+      const r = frame.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    };
+
+    frame?.addEventListener('pointerdown', (e) => {
+      frame.setPointerCapture(e.pointerId);
+      cropper.pointers.set(e.pointerId, framePoint(e));
+      if (cropper.pointers.size === 2) {
+        const [a, b] = [...cropper.pointers.values()];
+        cropper.pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom: cropper.zoom };
+      }
+    });
+    frame?.addEventListener('pointermove', (e) => {
+      if (!cropper.pointers.has(e.pointerId)) return;
+      const prev = cropper.pointers.get(e.pointerId);
+      const pt = framePoint(e);
+      cropper.pointers.set(e.pointerId, pt);
+      if (cropper.pointers.size === 2 && cropper.pinch) {
+        const [a, b] = [...cropper.pointers.values()];
+        const dist = Math.hypot(a.x - b.x, a.y - b.y);
+        setZoom(cropper.pinch.zoom * (dist / cropper.pinch.dist), (a.x + b.x) / 2, (a.y + b.y) / 2);
+      } else if (cropper.pointers.size === 1) {
+        cropper.x += pt.x - prev.x;
+        cropper.y += pt.y - prev.y;
+        clampPosition();
+        drawCropper();
+      }
+    });
+    const endPointer = (e) => {
+      cropper.pointers.delete(e.pointerId);
+      if (cropper.pointers.size < 2) cropper.pinch = null;
+    };
+    frame?.addEventListener('pointerup', endPointer);
+    frame?.addEventListener('pointercancel', endPointer);
+    frame?.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const pt = framePoint(e);
+      setZoom(cropper.zoom * Math.exp(-e.deltaY * 0.0015), pt.x, pt.y);
+    }, { passive: false });
+    frame?.addEventListener('keydown', (e) => {
+      const step = e.shiftKey ? 30 : 8;
+      const moves = { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] };
+      if (moves[e.key]) {
+        e.preventDefault();
+        cropper.x += moves[e.key][0];
+        cropper.y += moves[e.key][1];
+        clampPosition();
+        drawCropper();
+      } else if (e.key === '+' || e.key === '=') {
+        e.preventDefault();
+        setZoom(cropper.zoom * 1.1);
+      } else if (e.key === '-') {
+        e.preventDefault();
+        setZoom(cropper.zoom / 1.1);
+      }
+    });
+    zoomInput?.addEventListener('input', () => setZoom(Number(zoomInput.value)));
+    $('cropper-zoom-in')?.addEventListener('click', () => setZoom(cropper.zoom * 1.2));
+    $('cropper-zoom-out')?.addEventListener('click', () => setZoom(cropper.zoom / 1.2));
+    $('cropper-cancel')?.addEventListener('click', closeCropper);
+
+    $('cropper-apply')?.addEventListener('click', async () => {
+      if (!cropper.bitmap) return;
+      const button = $('cropper-apply');
+      button.disabled = true;
+      try {
+        const s = scale();
+        const crop = { sx: -cropper.x / s, sy: -cropper.y / s, side: cropper.view / s };
+        ({ full: pendingPhoto, small: pendingSmallPhoto } = await encodeCrop(cropper.bitmap, crop));
+        const url = URL.createObjectURL(pendingPhoto);
+        $('photo-preview-wrap').innerHTML =
+          `<img src="${url}" alt="New profile photo preview" width="96" height="96" style="width: 96px; height: 96px; border-radius: 9999px; object-fit: cover; display: block; box-shadow: 0 0 0 3px #fff, 0 0 0 4px #E5C878;" />`;
+        $('photo-save').style.display = '';
+        closeCropper();
+        showMessage('photo', 'success', 'Looks good? Click Save photo to use it.');
+      } catch (error) {
+        showMessage('photo', 'error', error.message);
+      } finally {
+        button.disabled = false;
+      }
+    });
 
     function uploadPhoto(blob, variant) {
       return fetch(`/.netlify/functions/profile-photo${variant ? `?variant=${variant}` : ''}`, {
@@ -537,16 +717,20 @@ const countryCodes = [
       const file = e.target.files?.[0];
       if (!file) return;
       showMessage('photo', null);
+      pendingPhoto = null;
+      pendingSmallPhoto = null;
+      $('photo-save').style.display = 'none';
       try {
-        ({ full: pendingPhoto, small: pendingSmallPhoto } = await prepareImage(file));
-        const url = URL.createObjectURL(pendingPhoto);
-        $('photo-preview-wrap').innerHTML =
-          `<img src="${url}" alt="New profile photo preview" width="96" height="96" style="width: 96px; height: 96px; border-radius: 9999px; object-fit: cover; display: block; box-shadow: 0 0 0 3px #fff, 0 0 0 4px #E5C878;" />`;
-        $('photo-save').style.display = '';
+        let bitmap;
+        try {
+          bitmap = await createImageBitmap(file);
+        } catch {
+          throw new Error('Could not read that image. Please choose a JPEG or PNG.');
+        }
+        openCropper(bitmap);
       } catch (error) {
-        pendingPhoto = null;
-        pendingSmallPhoto = null;
         showMessage('photo', 'error', error.message);
+        $('photo-input').value = '';
       }
     });
 
@@ -692,6 +876,93 @@ const countryCodes = [
 
     .photo-controls .form-hint { flex-basis: 100%; }
 
+    .cropper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      padding: 16px;
+      margin-bottom: 12px;
+      border-radius: 12px;
+      background: #faf7f2;
+      border: 1px solid #efe6d2;
+    }
+
+    .cropper[hidden] { display: none; }
+
+    .cropper-hint {
+      font-size: 13px;
+      color: #4b5563;
+      text-align: center;
+      margin: 0;
+      max-width: 340px;
+    }
+
+    .cropper-frame {
+      position: relative;
+      width: 280px;
+      height: 280px;
+      max-width: 100%;
+      overflow: hidden;
+      border-radius: 8px;
+      background: #1f2937;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .cropper-frame:active { cursor: grabbing; }
+    .cropper-frame:focus-visible { outline: 3px solid #E5C878; outline-offset: 2px; }
+
+    .cropper-frame canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .cropper-mask {
+      position: absolute;
+      inset: 0;
+      border-radius: 9999px;
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+      border: 2px solid rgba(255, 255, 255, 0.9);
+      pointer-events: none;
+    }
+
+    .cropper-zoom {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      max-width: 280px;
+    }
+
+    .cropper-zoom input { flex: 1; min-width: 0; accent-color: #8C1D18; }
+
+    .cropper-zoom-btn {
+      width: 30px;
+      height: 30px;
+      flex-shrink: 0;
+      border-radius: 9999px;
+      border: 1px solid #d1d5db;
+      background: #fff;
+      font-size: 18px;
+      line-height: 1;
+      color: #374151;
+      cursor: pointer;
+    }
+
+    .cropper-actions { display: flex; gap: 12px; align-items: center; }
+
+    .cropper-cancel {
+      font-size: 14px;
+      font-weight: 600;
+      color: #4b5563;
+      background: none;
+      border: 0;
+      cursor: pointer;
+    }
+
     .photo-btn { cursor: pointer; }
 
     .link-danger {
@@ -792,6 +1063,7 @@ const countryCodes = [
     }
 
     @media (max-width: 768px) {
+      .cropper { padding: 12px 8px; }
       .form-row { grid-template-columns: 1fr; }
       .settings-summary { padding: 16px 18px; }
       .settings-body { padding: 4px 18px 20px; }
