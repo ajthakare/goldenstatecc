@@ -1,5 +1,6 @@
 import { Handler, HandlerEvent } from '@netlify/functions';
-import { validateAdminSession, isMember, isAdmin } from '../../src/middleware/auth';
+import { validateAdminSession, isMember } from '../../src/middleware/auth';
+import { isCurrentAdmin } from './_admin-auth';
 import { addDays, buildFeed, clubFeedCacheHeaders, FEED_WEEKS, UPCOMING_DAYS } from '../../src/utils/feed';
 import type { FeedPlayer } from '../../src/utils/feed';
 import type { Fixture, Season } from '../../src/types/player';
@@ -41,7 +42,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
     const from = addDays(today, -FEED_WEEKS * 7);
     const until = addDays(today, UPCOMING_DAYS);
 
-    const includeHidden = event.queryStringParameters?.includeHidden === '1' && !!session && isAdmin(session);
+    const includeHidden = event.queryStringParameters?.includeHidden === '1' && !!session && (await isCurrentAdmin(session));
 
     // Strong reads: this response may be cached right after a purge, so it has
     // to reflect the write that triggered the purge (see readJSON)

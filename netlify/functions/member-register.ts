@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { hashPassword } from '../../src/middleware/auth';
 import { addAuditLog } from '../../src/utils/auditLog';
 import type { Player } from '../../src/types/player';
+import { readPlayersForUpdate, writePlayers } from './_players-store';
 
 export default async (req: Request, context: Context) => {
   // Only allow POST
@@ -143,7 +144,7 @@ export default async (req: Request, context: Context) => {
       siteID: process.env.SITE_ID || '',
       token: process.env.NETLIFY_AUTH_TOKEN || '',
     });
-    const playersData = await playersStore.get('players-all', { type: 'json' });
+    const playersData = await readPlayersForUpdate();
     const players: Player[] = (playersData as Player[]) || [];
 
     // Check if email already exists (case-insensitive)
@@ -195,7 +196,7 @@ export default async (req: Request, context: Context) => {
     players.push(newPlayer);
 
     // Save to Blobs
-    await playersStore.setJSON('players-all', players);
+    await writePlayers(players);
 
     await addAuditLog(
       normalizedEmail,

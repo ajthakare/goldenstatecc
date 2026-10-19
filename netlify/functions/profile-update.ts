@@ -4,6 +4,7 @@ import { validateAdminSession, isMember, verifyPassword, hashPassword } from '..
 import { addAuditLog } from '../../src/utils/auditLog';
 import type { Player } from '../../src/types/player';
 import { BATTING_STYLES, BOWLING_STYLES } from '../../src/types/player';
+import { readPlayersForUpdate, writePlayers } from './_players-store';
 
 /**
  * Update member profile (phone, password, usacId, playerRole, cricket style, CricClubs link,
@@ -83,7 +84,7 @@ export const handler: Handler = async (
       siteID: process.env.SITE_ID || '',
       token: process.env.NETLIFY_AUTH_TOKEN || '',
     });
-    const playersData = await playersStore.get('players-all', { type: 'json' });
+    const playersData = await readPlayersForUpdate();
     let players: Player[] = (playersData as Player[]) || [];
 
     // Find player by userId from session
@@ -292,7 +293,7 @@ export const handler: Handler = async (
     player.updatedBy = session.email;
 
     // Save updated players array
-    await playersStore.setJSON('players-all', players);
+    await writePlayers(players);
 
     const updates: string[] = [];
     if (phone !== undefined) updates.push('phone');

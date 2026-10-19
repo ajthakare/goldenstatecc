@@ -1,8 +1,10 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
 import { validateAdminSession, AdminUser } from '../../src/middleware/auth';
+import { currentRole } from './_admin-auth';
 import { addAuditLog } from '../../src/utils/auditLog';
 import type { Player } from '../../src/types/player';
+import { readPlayersForUpdate, writePlayers } from './_players-store';
 
 /**
  * Promote a registered member to admin or super_admin role
@@ -26,7 +28,7 @@ export const handler: Handler = async (
     const cookieHeader = event.headers.cookie;
     const session = validateAdminSession(cookieHeader);
 
-    if (!session || session.role !== 'super_admin') {
+    if (!session || (await currentRole(session)) !== 'super_admin') {
       return {
         statusCode: 403,
         body: JSON.stringify({ error: 'Super admin access required' }),
@@ -58,7 +60,7 @@ export const handler: Handler = async (
       token: process.env.NETLIFY_AUTH_TOKEN || '',
     });
 
-    const playersData = await playersStore.get('players-all', { type: 'json' });
+    const playersData = await readPlayersForUpdate();
     const players: Player[] = (playersData as Player[]) || [];
 
     // Find the player
@@ -99,7 +101,7 @@ export const handler: Handler = async (
     const now = new Date().toISOString();
 
     // Save updated players
-    await playersStore.setJSON('players-all', players);
+    await writePlayers(players);
 
     // Create admin user entry
     const adminStore = getStore({

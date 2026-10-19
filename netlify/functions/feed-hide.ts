@@ -1,5 +1,6 @@
 import { Handler, HandlerEvent } from '@netlify/functions';
-import { validateAdminSession, isAdmin } from '../../src/middleware/auth';
+import { validateAdminSession } from '../../src/middleware/auth';
+import { isCurrentAdmin } from './_admin-auth';
 import { addAuditLog } from '../../src/utils/auditLog';
 import { loadHiddenPosts, purgeClubFeed, saveHiddenPosts } from './_profile-stats';
 
@@ -21,7 +22,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
     }
 
     // Admin endpoint: a valid member session isn't enough
-    if (!isAdmin(session)) {
+    if (!(await isCurrentAdmin(session))) {
       return { statusCode: 403, body: JSON.stringify({ error: 'Admin access required' }) };
     }
 

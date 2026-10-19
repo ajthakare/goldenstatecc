@@ -37,7 +37,10 @@ export default async (req: Request, _context: Context) => {
     });
 
     const existing = (await store.get('subscriptions', { type: 'json' })) || [];
-    const filtered = existing.filter((s: any) => s.subscription.endpoint !== endpoint);
+    // Only the signed-in member's own subscription for this device can be removed
+    const filtered = existing.filter(
+      (s: any) => !(s.subscription.endpoint === endpoint && s.playerId === session.userId)
+    );
     await store.setJSON('subscriptions', filtered);
 
     return new Response(JSON.stringify({ success: true }), {

@@ -1,9 +1,7 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import {
-  validateAdminSession,
-  isSuperAdmin,
-} from '../../src/middleware/auth';
+import { validateAdminSession } from '../../src/middleware/auth';
+import { isCurrentSuperAdmin } from './_admin-auth';
 import { addAuditLog } from '../../src/utils/auditLog';
 
 /**
@@ -30,7 +28,7 @@ export const handler: Handler = async (
     const cookieHeader = event.headers.cookie;
     const session = validateAdminSession(cookieHeader);
 
-    if (!session || !isSuperAdmin(session)) {
+    if (!session || !(await isCurrentSuperAdmin(session))) {
       return {
         statusCode: 403,
         body: JSON.stringify({

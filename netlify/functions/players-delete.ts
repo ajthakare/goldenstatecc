@@ -1,8 +1,10 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import { validateAdminSession, isAdmin } from '../../src/middleware/auth';
+import { validateAdminSession } from '../../src/middleware/auth';
+import { isCurrentAdmin } from './_admin-auth';
 import type { Player } from '../../src/types/player';
 import { addAuditLog } from '../../src/utils/auditLog';
+import { readPlayersForUpdate, writePlayers } from './_players-store';
 
 /**
  * Delete player(s) - soft delete (mark as inactive)
@@ -28,7 +30,7 @@ export const handler: Handler = async (
     }
 
     // Admin endpoint: a valid member session isn't enough
-    if (!isAdmin(session)) {
+    if (!(await isCurrentAdmin(session))) {
       return {
         statusCode: 403,
         body: JSON.stringify({ error: 'Admin access required' }),
@@ -85,7 +87,7 @@ export const handler: Handler = async (
     });
 
     const players =
-      (await store.get('players-all', { type: 'json' })) as Player[] | null;
+      (await readPlayersForUpdate()) as Player[] | null;
 
     if (!players || players.length === 0) {
       return {
@@ -117,7 +119,7 @@ export const handler: Handler = async (
     }
 
     // Save to Blobs
-    await store.setJSON('players-all', players);
+    await writePlayers(players);
 
     // Wait for audit log to complete
     const description = deletedCount === 1

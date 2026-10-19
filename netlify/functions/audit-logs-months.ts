@@ -1,5 +1,6 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { validateAdminSession } from '../../src/middleware/auth';
+import { currentRole } from './_admin-auth';
 import { listLogMonths } from '../../src/utils/auditLog';
 
 /**
@@ -25,7 +26,7 @@ export const handler: Handler = async (
     }
 
     // Get user role (with fallback for old sessions)
-    const userRole = session.role || (session.username === 'admin' ? 'super_admin' : 'admin');
+    const userRole = await currentRole(session);
 
     // Only super admin can view audit logs
     if (userRole !== 'super_admin') {

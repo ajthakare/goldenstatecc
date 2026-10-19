@@ -1,5 +1,6 @@
 import { Handler, HandlerEvent } from '@netlify/functions';
-import { validateAdminSession, isAdmin } from '../../src/middleware/auth';
+import { validateAdminSession } from '../../src/middleware/auth';
+import { isCurrentAdmin } from './_admin-auth';
 import { recalculateProfileStats } from './_profile-stats';
 
 /**
@@ -15,7 +16,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
   }
   try {
     const session = validateAdminSession(event.headers.cookie);
-    if (!session || !isAdmin(session)) {
+    if (!session || !(await isCurrentAdmin(session))) {
       return { statusCode: 403, body: JSON.stringify({ error: 'Admin access required' }) };
     }
 

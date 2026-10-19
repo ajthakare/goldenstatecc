@@ -1,7 +1,8 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
 import Papa from 'papaparse';
-import { validateAdminSession, isAdmin } from '../../src/middleware/auth';
+import { validateAdminSession } from '../../src/middleware/auth';
+import { isCurrentAdmin } from './_admin-auth';
 import { SITE_CONFIG, isWinterCheckInAdminRestricted } from '../../src/config';
 import {
   WINTER_CHECKIN_COLUMNS,
@@ -21,7 +22,7 @@ export const handler: Handler = async (
   _context: HandlerContext
 ) => {
   const session = validateAdminSession(event.headers.cookie);
-  if (!session || !isAdmin(session) || isWinterCheckInAdminRestricted(session.email)) {
+  if (!session || !(await isCurrentAdmin(session)) || isWinterCheckInAdminRestricted(session.email)) {
     return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
   }
 

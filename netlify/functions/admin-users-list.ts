@@ -1,6 +1,7 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import { validateAdminSession, AdminUser } from '../../src/middleware/auth';
+import { validateAdminSession } from '../../src/middleware/auth';
+import { currentRole } from './_admin-auth';
 
 /**
  * List all admin users (without password hashes)
@@ -25,7 +26,7 @@ export const handler: Handler = async (
     }
 
     // Get user role (with fallback for old sessions without role)
-    const userRole = session.role || (session.username === 'admin' ? 'super_admin' : 'admin');
+    const userRole = await currentRole(session);
 
     // Only super admin can list all users
     if (userRole !== 'super_admin') {

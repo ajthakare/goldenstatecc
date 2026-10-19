@@ -1,6 +1,7 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import { validateAdminSession, isAdmin } from '../../src/middleware/auth';
+import { validateAdminSession } from '../../src/middleware/auth';
+import { isCurrentAdmin } from './_admin-auth';
 
 /**
  * INSTANT PAGE LOAD: Get pre-calculated statistics summary
@@ -35,7 +36,7 @@ export const handler: Handler = async (
     }
 
     // Admin endpoint: a valid member session isn't enough
-    if (!isAdmin(session)) {
+    if (!(await isCurrentAdmin(session))) {
       return {
         statusCode: 403,
         body: JSON.stringify({ error: 'Admin access required' }),

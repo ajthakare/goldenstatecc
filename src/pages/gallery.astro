@@ -95,7 +95,7 @@ try {
 
 <style>
     /* The theme only drops the first section's top padding when it directly follows the page
-       header (.page-head + .section-spacing). Astro can inject the viewer's <script> in between,
+       header (.page-head + .section-spacing). Astro can inject the viewer's script tag in between,
        which breaks that adjacency, so use the general-sibling form here. */
     :global(.page-head ~ .section-spacing:first-of-type) { padding-top: 0; }
 
