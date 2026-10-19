@@ -4,7 +4,9 @@ import { blobStore } from './_profile-stats';
 
 /**
  * Serve a player's profile photo
- * GET /.netlify/functions/player-avatar?id=<playerId>&v=<photoUpdatedAt>
+ * GET /.netlify/functions/player-avatar?id=<playerId>&v=<photoUpdatedAt>[&size=small]
+ * size=small serves the 240px copy (falls back to the 400px photo for photos
+ * uploaded before small copies existed).
  * Requires: any signed-in member (photos are members-only, like profiles)
  * `v` changes on every upload, so the browser can cache each version for a long time.
  */
@@ -18,7 +20,11 @@ export const handler: Handler = async (event: HandlerEvent) => {
     const id = event.queryStringParameters?.id;
     if (!id) return { statusCode: 400, body: 'Player ID is required' };
 
-    const result = await blobStore('player-avatars').getWithMetadata(`avatar-${id}`, { type: 'arrayBuffer' });
+    const store = blobStore('player-avatars');
+    const result =
+      (event.queryStringParameters?.size === 'small'
+        ? await store.getWithMetadata(`avatar-small-${id}`, { type: 'arrayBuffer' })
+        : null) || (await store.getWithMetadata(`avatar-${id}`, { type: 'arrayBuffer' }));
     if (!result) return { statusCode: 404, body: 'No photo' };
 
     return {

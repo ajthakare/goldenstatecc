@@ -4,11 +4,17 @@ export const prerender = false;
 import Layout from '../layouts/Layout.astro';
 import PageHeader from '../components/PageHeader.astro';
 import FeedItemCard from '../components/feed/FeedItemCard.astro';
+import { validateAdminSession, isMember, isAdmin } from '../middleware/auth';
+import { clubFeedCacheHeaders } from '../utils/feed';
 import type { FeedItem } from '../types/profile';
 
-// Public page. The endpoint applies each member's public-visibility settings,
-// so signed-in members and visitors can see different names/photos.
+// Public page. Signed-out visitors get a CDN-cached copy (purged whenever the
+// feed changes); members get a fresh page with profile links and photos, and
+// admins also get a Hide button on each post.
 const cookieHeader = Astro.request.headers.get('cookie') || '';
+const session = validateAdminSession(cookieHeader);
+const signedIn = !!(session && isMember(session));
+const canHide = !!(session && isAdmin(session));
 
 let upcoming: FeedItem[] = [];
 let items: FeedItem[] = [];
@@ -20,6 +26,11 @@ try {
 } catch (err) {
     console.error('Club feed error:', err);
     error = 'Could not load the club feed. Please try again.';
+}
+
+// Never cache an error page on the CDN
+for (const [name, value] of Object.entries(error ? { 'Cache-Control': 'no-store' } : clubFeedCacheHeaders(signedIn))) {
+    Astro.response.headers.set(name, value);
 }
 
 // Group by week (weeks start Monday), newest first
@@ -84,11 +95,42 @@ for (const item of items) {
             <section>
                 <h2 class="feed-week">{week.label}</h2>
                 <ol class="feed-list">
-                    {week.items.map((item) => <FeedItemCard item={item} />)}
+                    {week.items.map((item) => <FeedItemCard item={item} canHide={canHide} />)}
                 </ol>
             </section>
         ))}
     </div>
+
+    {canHide && (
+        <script>
+            // Admins: hide a post from the Club Feed (undo from Admin → Club Feed)
+            document.querySelectorAll<HTMLButtonElement>('[data-hide-post]').forEach((button) => {
+                button.addEventListener('click', async () => {
+                    const card = button.closest('li');
+                    if (!confirm('Hide this post from the Club Feed? You can unhide it from Admin → Club Feed.')) return;
+                    button.disabled = true;
+                    try {
+                        const res = await fetch('/.netlify/functions/feed-hide', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'same-origin',
+                            body: JSON.stringify({
+                                id: button.dataset.hidePost,
+                                hidden: true,
+                                title: button.dataset.title,
+                                date: button.dataset.date,
+                            }),
+                        });
+                        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed to hide post');
+                        card?.remove();
+                    } catch (err) {
+                        alert(err instanceof Error ? err.message : 'Failed to hide post');
+                        button.disabled = false;
+                    }
+                });
+            });
+        </script>
+    )}
 
     <style>
         /* Feed */

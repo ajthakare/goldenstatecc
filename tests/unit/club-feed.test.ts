@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import {
   addDays,
   badgeSnapshot,
+  clubFeedCacheHeaders,
   buildFeed,
   computeMilestoneEvents,
   diffBadgeEvents,
@@ -215,5 +216,40 @@ describe('review fixes', () => {
     expect(isUmpireUpgrade('certified', 'panel')).toBe(true);
     expect(isUmpireUpgrade('panel', 'certified')).toBe(false);
     expect(isUmpireUpgrade('pre-panel', 'pre-panel')).toBe(false);
+  });
+});
+
+describe('hidden posts and caching', () => {
+  const players = new Map<string, FeedPlayer>([['star', { id: 'star', name: 'Star Player', listed: true }]]);
+  const fixtures = [
+    fixture('w1', '2026-06-01', { result: 'win', playerOfMatch: 'star' }),
+    fixture('w2', '2026-06-07', { result: 'win', playerOfMatch: 'star' }),
+    fixture('next', '2026-06-13'),
+  ];
+  const base = { fixtures, players, events: [], social: [], todayStr: TODAY };
+
+  it('removes hidden posts for everyone, including upcoming and player activity', () => {
+    const hiddenIds = new Set(['result-w1', 'upcoming-next']);
+    const feed = buildFeed({ ...base, hiddenIds });
+    expect(feed.items.map((i) => i.id)).toEqual(['result-w2']);
+    expect(feed.upcoming).toEqual([]);
+    expect(buildFeed({ ...base, hiddenIds, playerId: 'star' }).items.map((i) => i.id)).toEqual(['result-w2']);
+  });
+
+  it('flags hidden posts instead of removing them for the admin view', () => {
+    const feed = buildFeed({ ...base, hiddenIds: new Set(['result-w1']), includeHidden: true });
+    expect(feed.items.find((i) => i.id === 'result-w1')?.hidden).toBe(true);
+    expect(feed.items.find((i) => i.id === 'result-w2')?.hidden).toBeUndefined();
+  });
+
+  it('caches only signed-out views on the CDN', () => {
+    const anon = clubFeedCacheHeaders(false);
+    expect(anon['Netlify-CDN-Cache-Control']).toContain('s-maxage=600');
+    expect(anon['Netlify-Cache-Tag']).toBe('club-feed');
+    expect(anon['Netlify-Vary']).toBe('cookie=bengals_admin_session');
+    const member = clubFeedCacheHeaders(true);
+    expect(member['Cache-Control']).toBe('private, no-store');
+    expect(member['Netlify-CDN-Cache-Control']).toBeUndefined();
+    expect(member['Netlify-Vary']).toBe('cookie=bengals_admin_session');
   });
 });

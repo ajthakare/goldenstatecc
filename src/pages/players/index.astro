@@ -86,7 +86,9 @@ const chips = [
                                 <div class="pcard-photo">
                                     {p.photoUrl ? (
                                         <img
-                                            src={p.photoUrl}
+                                            src={p.photoSmallUrl || p.photoUrl}
+                                            srcset={p.photoSmallUrl ? `${p.photoSmallUrl} 240w, ${p.photoUrl} 400w` : undefined}
+                                            sizes="(max-width: 480px) 46vw, 240px"
                                             alt={`${p.firstName} ${p.lastName}`}
                                             width="240"
                                             height="160"

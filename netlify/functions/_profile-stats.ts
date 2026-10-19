@@ -10,10 +10,11 @@
  *    They whitelist fields and apply the member's privacy settings.
  */
 import { getStore } from '@netlify/blobs';
+import { purgeCache } from '@netlify/functions';
 import { getPacificToday } from './_utils';
 import { computeProfileStats, currentSeason, deriveBadges } from '../../src/utils/badges';
 import type { SeasonInput } from '../../src/utils/badges';
-import { badgeSnapshot, computeMilestoneEvents, diffBadgeEvents, mergeEvents } from '../../src/utils/feed';
+import { badgeSnapshot, computeMilestoneEvents, diffBadgeEvents, mergeEvents, CLUB_FEED_CACHE_TAG } from '../../src/utils/feed';
 import type { BadgeSnapshot } from '../../src/utils/feed';
 import { PRIVACY_DEFAULTS } from '../../src/types/player';
 import type {
@@ -30,6 +31,7 @@ import type {
   ProfileStatsData,
   PublicPlayerProfile,
   StoredFeedEvent,
+  HiddenFeedPost,
 } from '../../src/types/profile';
 
 // Keys in the `player-profiles` store
@@ -37,6 +39,8 @@ export const PROFILE_STATS_KEY = 'profile-stats';
 export const FEED_MILESTONES_KEY = 'feed-milestones';  // Rebuilt every recalculation
 export const FEED_EVENTS_KEY = 'feed-events';          // Append-only: new badges, umpire certifications
 export const BADGE_SNAPSHOT_KEY = 'badge-snapshot';    // Last recalculation's badges, for diffing
+export const FEED_HIDDEN_KEY = 'feed-hidden';          // Posts admins hid from the Club Feed
+
 
 export function blobStore(name: string) {
   return getStore({
@@ -128,6 +132,7 @@ export async function recalculateProfileStats(): Promise<ProfileStatsData> {
     console.error('Failed to update club feed events:', error);
   }
 
+  await purgeClubFeed();
   return data;
 }
 
@@ -135,6 +140,34 @@ export async function appendFeedEvents(events: StoredFeedEvent[]): Promise<void>
   const store = blobStore('player-profiles');
   const existing = ((await store.get(FEED_EVENTS_KEY, { type: 'json' })) as StoredFeedEvent[] | null) || [];
   await store.setJSON(FEED_EVENTS_KEY, mergeEvents(existing, events));
+  await purgeClubFeed();
+}
+
+export async function loadHiddenPosts(): Promise<HiddenFeedPost[]> {
+  try {
+    return ((await blobStore('player-profiles').get(FEED_HIDDEN_KEY, { type: 'json' })) as HiddenFeedPost[] | null) || [];
+  } catch (error) {
+    console.error('Failed to load hidden feed posts:', error);
+    return [];
+  }
+}
+
+export async function saveHiddenPosts(posts: HiddenFeedPost[]): Promise<void> {
+  await blobStore('player-profiles').setJSON(FEED_HIDDEN_KEY, posts);
+}
+
+/**
+ * Clear the CDN copy of the public Club Feed so signed-out visitors see a change
+ * straight away. Call after anything that changes what the feed shows. Never
+ * throws: a failed purge only means up to 10 minutes of staleness (and it's a
+ * no-op in local dev, where there's no CDN).
+ */
+export async function purgeClubFeed(): Promise<void> {
+  try {
+    await purgeCache({ tags: [CLUB_FEED_CACHE_TAG] });
+  } catch (error) {
+    console.warn('Club Feed cache purge skipped:', error instanceof Error ? error.message : error);
+  }
 }
 
 export async function loadFeedEvents(): Promise<StoredFeedEvent[]> {
@@ -169,9 +202,10 @@ export function isListedMember(p: Player): boolean {
   return !p.registrationStatus || p.registrationStatus === 'approved';
 }
 
-export function avatarUrl(p: Player): string | undefined {
+export function avatarUrl(p: Player, size: 'full' | 'small' = 'full'): string | undefined {
   if (!p.photoUpdatedAt) return undefined;
-  return `/.netlify/functions/player-avatar?id=${encodeURIComponent(p.id)}&v=${encodeURIComponent(p.photoUpdatedAt)}`;
+  return `/.netlify/functions/player-avatar?id=${encodeURIComponent(p.id)}&v=${encodeURIComponent(p.photoUpdatedAt)}` +
+    (size === 'small' ? '&size=small' : '');
 }
 
 function memberSince(p: Player): string | undefined {
@@ -219,6 +253,7 @@ export function toDirectoryCard(p: Player, stats: PlayerProfileStats | null | un
     lastName: p.lastName,
     role: p.role,
     photoUrl: avatarUrl(p),
+    photoSmallUrl: avatarUrl(p, 'small'),
     umpireStatus: p.umpireStatus,
     seasonMatches: season?.matchesPlayed || 0,
     seasonPotm: season?.potm || 0,

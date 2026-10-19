@@ -3,6 +3,7 @@ import { getStore } from '@netlify/blobs';
 import { validateAdminSession, isAdmin } from '../../src/middleware/auth';
 import { addAuditLog } from '../../src/utils/auditLog';
 import type { Fixture } from '../../src/types/player';
+import { purgeClubFeed } from './_profile-stats';
 
 /**
  * Update fixture result
@@ -199,6 +200,7 @@ export const handler: Handler = async (
 
     // Save back to Blobs
     await fixturesStore.setJSON(`fixtures-${seasonId}`, fixtures);
+    await purgeClubFeed(); // Club Feed shows results, POTM, upcoming fixtures and social posts
 
     const changedFields = Object.keys(updates);
     const descriptionParts: string[] = [];

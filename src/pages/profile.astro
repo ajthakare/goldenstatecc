@@ -477,14 +477,34 @@ const countryCodes = [
     });
 
     // ---------------------------------------------------------------------
-    // Profile photo: crop to a centred square, resize to 400px, upload as WebP
-    // (JPEG where the browser can't encode WebP). Keeps uploads ~30-60 KB.
+    // Profile photo: crop to a centred square and save two sizes as WebP (JPEG
+    // where the browser can't encode WebP): 400px for the profile page and
+    // high-res screens (~25 KB), 240px for feed avatars and the card grid (~10 KB).
     // ---------------------------------------------------------------------
     const PHOTO_SIZE = 400;
+    const SMALL_PHOTO_SIZE = 240;
     let pendingPhoto = null;
+    let pendingSmallPhoto = null;
 
     function canvasToBlob(canvas, type, quality) {
       return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+    }
+
+    async function squareImage(bitmap, size, quality) {
+      const side = Math.min(bitmap.width, bitmap.height);
+      const sx = (bitmap.width - side) / 2;
+      const sy = (bitmap.height - side) / 2;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(bitmap, sx, sy, side, side, 0, 0, size, size);
+
+      let blob = await canvasToBlob(canvas, 'image/webp', quality);
+      if (!blob || blob.type !== 'image/webp') blob = await canvasToBlob(canvas, 'image/jpeg', quality);
+      if (!blob) throw new Error('Could not process that image.');
+      return blob;
     }
 
     async function prepareImage(file) {
@@ -494,21 +514,23 @@ const countryCodes = [
       } catch {
         throw new Error('Could not read that image. Please choose a JPEG or PNG.');
       }
-      const side = Math.min(bitmap.width, bitmap.height);
-      const sx = (bitmap.width - side) / 2;
-      const sy = (bitmap.height - side) / 2;
-      const canvas = document.createElement('canvas');
-      canvas.width = PHOTO_SIZE;
-      canvas.height = PHOTO_SIZE;
-      const ctx = canvas.getContext('2d');
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(bitmap, sx, sy, side, side, 0, 0, PHOTO_SIZE, PHOTO_SIZE);
-      bitmap.close?.();
+      try {
+        return {
+          full: await squareImage(bitmap, PHOTO_SIZE, 0.85),
+          small: await squareImage(bitmap, SMALL_PHOTO_SIZE, 0.8),
+        };
+      } finally {
+        bitmap.close?.();
+      }
+    }
 
-      let blob = await canvasToBlob(canvas, 'image/webp', 0.85);
-      if (!blob || blob.type !== 'image/webp') blob = await canvasToBlob(canvas, 'image/jpeg', 0.85);
-      if (!blob) throw new Error('Could not process that image.');
-      return blob;
+    function uploadPhoto(blob, variant) {
+      return fetch(`/.netlify/functions/profile-photo${variant ? `?variant=${variant}` : ''}`, {
+        method: 'POST',
+        headers: { 'Content-Type': blob.type },
+        credentials: 'same-origin',
+        body: blob,
+      });
     }
 
     $('photo-input')?.addEventListener('change', async (e) => {
@@ -516,13 +538,14 @@ const countryCodes = [
       if (!file) return;
       showMessage('photo', null);
       try {
-        pendingPhoto = await prepareImage(file);
+        ({ full: pendingPhoto, small: pendingSmallPhoto } = await prepareImage(file));
         const url = URL.createObjectURL(pendingPhoto);
         $('photo-preview-wrap').innerHTML =
           `<img src="${url}" alt="New profile photo preview" width="96" height="96" style="width: 96px; height: 96px; border-radius: 9999px; object-fit: cover; display: block; box-shadow: 0 0 0 3px #fff, 0 0 0 4px #E5C878;" />`;
         $('photo-save').style.display = '';
       } catch (error) {
         pendingPhoto = null;
+        pendingSmallPhoto = null;
         showMessage('photo', 'error', error.message);
       }
     });
@@ -534,12 +557,10 @@ const countryCodes = [
       button.textContent = 'Uploading...';
       showMessage('photo', null);
       try {
-        const response = await fetch('/.netlify/functions/profile-photo', {
-          method: 'POST',
-          headers: { 'Content-Type': pendingPhoto.type },
-          credentials: 'same-origin',
-          body: pendingPhoto,
-        });
+        // Small first: the full upload switches everyone to the new version, and
+        // a missing small copy only means the full one is used instead
+        if (pendingSmallPhoto) await uploadPhoto(pendingSmallPhoto, 'small').catch(() => {});
+        const response = await uploadPhoto(pendingPhoto);
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || 'Upload failed');
         showMessage('photo', 'success', 'Photo saved!');

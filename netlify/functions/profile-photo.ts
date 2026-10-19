@@ -6,9 +6,11 @@ import { blobStore, loadPlayers } from './_profile-stats';
 /**
  * Upload or remove a profile photo
  *
- * POST /.netlify/functions/profile-photo
+ * POST /.netlify/functions/profile-photo[?variant=small]
  *   Body: raw image bytes (Content-Type image/webp, image/jpeg or image/png).
- *   The browser crops + resizes to 400x400 before upload, so files are small.
+ *   The browser crops + resizes before upload: 400x400 (the photo; also bumps
+ *   photoUpdatedAt so every page picks up the new version) and, sent first,
+ *   a 240x240 `variant=small` copy for small avatars.
  *   Always updates the caller's own photo.
  *
  * DELETE /.netlify/functions/profile-photo[?playerId=<id>]
@@ -57,6 +59,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
 
     if (event.httpMethod === 'DELETE') {
       await avatarsStore.delete(`avatar-${targetId}`);
+      await avatarsStore.delete(`avatar-small-${targetId}`);
       player.photoUpdatedAt = undefined;
       player.updatedAt = new Date().toISOString();
       player.updatedBy = actor;
@@ -81,7 +84,28 @@ export const handler: Handler = async (event: HandlerEvent) => {
     }
 
     const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+
+    // Small copy: stored alongside, served once the full upload bumps the version
+    if (event.queryStringParameters?.variant === 'small') {
+      await avatarsStore.set(`avatar-small-${targetId}`, arrayBuffer, {
+        metadata: { contentType, uploadedAt: new Date().toISOString() },
+      });
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ success: true }),
+      };
+    }
+
     await avatarsStore.set(`avatar-${targetId}`, arrayBuffer, { metadata: { contentType } });
+
+    // The small copy is uploaded just before this. If it's missing or left over
+    // from an older photo, drop it so the new full photo is served instead.
+    const small = await avatarsStore.getMetadata(`avatar-small-${targetId}`);
+    const smallAt = Date.parse(String(small?.metadata?.uploadedAt || ''));
+    if (small && !(Date.now() - smallAt < 10 * 60 * 1000)) {
+      await avatarsStore.delete(`avatar-small-${targetId}`);
+    }
 
     const now = new Date().toISOString();
     player.photoUpdatedAt = now;

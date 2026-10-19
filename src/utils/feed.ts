@@ -15,6 +15,35 @@ import type { Badge, FeedItem, PlayerProfileStats, StoredFeedEvent } from '../ty
 import type { SocialFeedItem } from '../types/social';
 
 export const FEED_WEEKS = 8;             // How far back the feed goes
+
+// ============================================================================
+// CDN caching (public Club Feed)
+// ============================================================================
+
+/** Cache tag on the public Club Feed (the /feed page and club-feed-get). Purged on changes. */
+export const CLUB_FEED_CACHE_TAG = 'club-feed';
+export const SESSION_COOKIE = 'bengals_admin_session';
+
+/**
+ * Response headers for the Club Feed. Signed-out visitors share one CDN copy
+ * (10 min, refreshed in the background, and purged whenever the feed changes);
+ * members always get a fresh, uncached response. Netlify-Vary on the session
+ * cookie keeps the two apart in the CDN.
+ */
+export function clubFeedCacheHeaders(signedIn: boolean): Record<string, string> {
+  if (signedIn) {
+    return {
+      'Cache-Control': 'private, no-store',
+      'Netlify-Vary': `cookie=${SESSION_COOKIE}`,
+    };
+  }
+  return {
+    'Cache-Control': 'public, max-age=0, must-revalidate',
+    'Netlify-CDN-Cache-Control': 'public, durable, s-maxage=600, stale-while-revalidate=86400',
+    'Netlify-Cache-Tag': CLUB_FEED_CACHE_TAG,
+    'Netlify-Vary': `cookie=${SESSION_COOKIE}`,
+  };
+}
 export const UPCOMING_DAYS = 7;          // "Coming up" window
 
 function dateOnly(date: string): string {
@@ -186,6 +215,9 @@ export interface BuildFeedInput {
   todayStr: string;
   /** Player mode ("Recent activity" on a profile): only this player's posts, any date. */
   playerId?: string;
+  /** Post ids an admin hid. Removed from the feed, or flagged when includeHidden (admin view). */
+  hiddenIds?: Set<string>;
+  includeHidden?: boolean;
 }
 
 export const PLAYER_ACTIVITY_LIMIT = 12;
@@ -218,7 +250,7 @@ function withPlayer(item: FeedItem, players: Map<string, FeedPlayer>, playerId: 
   };
 }
 
-export function buildFeed({ fixtures, players, events, social, todayStr, playerId }: BuildFeedInput): {
+export function buildFeed({ fixtures, players, events, social, todayStr, playerId, hiddenIds, includeHidden }: BuildFeedInput): {
   upcoming: FeedItem[];
   items: FeedItem[];
 } {
@@ -294,7 +326,14 @@ export function buildFeed({ fixtures, players, events, social, todayStr, playerI
   // Newest first; within a day, results, then player news, then social
   const order: Record<string, number> = { result: 0, milestone: 1, debut: 1, badge: 2, social: 3, upcoming: 4 };
   items.sort((a, b) => b.date.localeCompare(a.date) || order[a.kind] - order[b.kind]);
-  if (playerId) return { upcoming: [], items: items.slice(0, PLAYER_ACTIVITY_LIMIT) };
+  const applyHidden = (list: FeedItem[]): FeedItem[] => {
+    if (!hiddenIds?.size) return list;
+    return includeHidden
+      ? list.map((i) => (hiddenIds.has(i.id) ? { ...i, hidden: true } : i))
+      : list.filter((i) => !hiddenIds.has(i.id));
+  };
+
+  if (playerId) return { upcoming: [], items: applyHidden(items).slice(0, PLAYER_ACTIVITY_LIMIT) };
 
   const upcoming: FeedItem[] = sortedFixtures
     .filter((f) => !f.result && dateOnly(f.date) >= todayStr && dateOnly(f.date) <= until)
@@ -309,5 +348,5 @@ export function buildFeed({ fixtures, players, events, social, todayStr, playerI
       tone: 'neutral' as const,
     }));
 
-  return { upcoming, items };
+  return { upcoming: applyHidden(upcoming), items: applyHidden(items) };
 }
