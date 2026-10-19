@@ -1,0 +1,101 @@
+---
+/**
+ * BadgeList — pill badges for player achievements (see src/utils/badges.ts).
+ * `compact` shows label only (directory cards); full mode adds the detail line.
+ */
+import Icon from '../Icon.astro';
+import type { Badge } from '../../types/profile';
+
+interface Props {
+    badges: Badge[];
+    compact?: boolean;
+    limit?: number;
+}
+
+const { badges, compact = false, limit } = Astro.props;
+const shown = limit ? badges.slice(0, limit) : badges;
+const hidden = badges.length - shown.length;
+---
+{badges.length > 0 && (
+    <ul class:list={['badge-list', { 'badge-list--compact': compact }]}>
+        {shown.map((b) => (
+            <li class={`badge badge--${b.tone}`} title={b.detail}>
+                <span class="badge__icon"><Icon name={b.icon} size={compact ? 13 : 18} /></span>
+                {compact ? (
+                    <span class="badge__label">{b.label}</span>
+                ) : (
+                    <span class="badge__text">
+                        <span class="badge__label">{b.label}</span>
+                        <span class="badge__detail">{b.detail}</span>
+                    </span>
+                )}
+            </li>
+        ))}
+        {hidden > 0 && <li class="badge badge--gray badge--more">+{hidden}</li>}
+    </ul>
+)}
+
+<style>
+    .badge-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+    .badge-list:not(.badge-list--compact) {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    }
+    .badge {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border-radius: 12px;
+        padding: 10px 14px;
+        border: 1px solid var(--badge-border);
+        background: var(--badge-bg);
+        color: var(--badge-fg);
+    }
+    .badge-list--compact .badge {
+        gap: 5px;
+        padding: 3px 10px;
+        border-radius: 9999px;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1.5;
+    }
+    .badge__icon {
+        display: flex;
+        flex-shrink: 0;
+    }
+    .badge-list:not(.badge-list--compact) .badge__icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 9999px;
+        align-items: center;
+        justify-content: center;
+        background: var(--badge-border);
+    }
+    .badge__text {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+    .badge__label {
+        font-weight: 700;
+        font-size: 14px;
+    }
+    .badge__detail {
+        font-size: 12px;
+        opacity: 0.8;
+        line-height: 1.35;
+    }
+    .badge--gold   { --badge-bg: #fdf8e8; --badge-border: #f1e2ae; --badge-fg: #7a5b0c; }
+    .badge--red    { --badge-bg: #fdf0ef; --badge-border: #f4cfcc; --badge-fg: #8C1D18; }
+    .badge--blue   { --badge-bg: #eef4fb; --badge-border: #cfe0f3; --badge-fg: #1e4f86; }
+    .badge--green  { --badge-bg: #eef8f1; --badge-border: #cbe9d4; --badge-fg: #1d6b3a; }
+    .badge--purple { --badge-bg: #f4f0fb; --badge-border: #ddd2f2; --badge-fg: #5b3a99; }
+    .badge--gray   { --badge-bg: #f4f4f5; --badge-border: #e2e2e5; --badge-fg: #3f3f46; }
+</style>

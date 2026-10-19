@@ -249,6 +249,15 @@ if (!session || !isMember(session)) {
       gap: 0.5rem;
     }
 
+    a.player-name-badge {
+      text-decoration: none;
+      transition: box-shadow 0.15s;
+    }
+
+    a.player-name-badge:hover {
+      box-shadow: 0 0 0 2px currentColor;
+    }
+
     .player-name-badge {
       display: inline-flex;
       align-items: center;
@@ -740,6 +749,12 @@ if (!session || !isMember(session)) {
     // Track which practices have loaded players
     const loadedPlayers = new Set<string>();
 
+    // Player names link to their profile; names are user-entered, so escape them
+    const escapeHtml = (s: string) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[c]);
+    const playerBadge = (p: { id?: string; name: string }, cls: string, suffix = '') => p.id
+      ? `<a href="/players/${encodeURIComponent(p.id)}" class="player-name-badge ${cls}">${escapeHtml(p.name)}${suffix}</a>`
+      : `<span class="player-name-badge ${cls}">${escapeHtml(p.name)}${suffix}</span>`;
+
     async function toggleAvailablePlayers(practiceId: string) {
       const toggleBtn = document.getElementById(`toggle-${practiceId}`);
       const playersList = document.getElementById(`players-${practiceId}`);
@@ -796,9 +811,7 @@ if (!session || !isMember(session)) {
                 <div class="players-section-title available">${_svg(IC.check, 14)} Available Players (${data.totalYes})</div>
                 <div class="player-names-list">
                   ${data.yesPlayers.map(p => `
-                    <span class="player-name-badge available">
-                      ${p.name}${p.extraPlayers > 0 ? ` +${p.extraPlayers}` : ''}
-                    </span>
+                    ${playerBadge(p, 'available', p.extraPlayers > 0 ? ` +${p.extraPlayers}` : '')}
                   `).join('')}
                 </div>
               </div>
@@ -812,9 +825,7 @@ if (!session || !isMember(session)) {
                 <div class="players-section-title bowling-only">${_svg(IC.activity, 14)} Bowling Only (${data.totalBowlingOnly})</div>
                 <div class="player-names-list">
                   ${data.bowlingOnlyPlayers.map(p => `
-                    <span class="player-name-badge bowling-only">
-                      ${p.name}${p.extraPlayers > 0 ? ` +${p.extraPlayers}` : ''}
-                    </span>
+                    ${playerBadge(p, 'bowling-only', p.extraPlayers > 0 ? ` +${p.extraPlayers}` : '')}
                   `).join('')}
                 </div>
               </div>

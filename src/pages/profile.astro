@@ -3,7 +3,13 @@ export const prerender = false;
 
 import Layout from '../layouts/Layout.astro';
 import PageHeader from '../components/PageHeader.astro';
+import ProfileSummary from '../components/profile/ProfileSummary.astro';
+import PlayerAvatar from '../components/profile/PlayerAvatar.astro';
+import Icon from '../components/Icon.astro';
 import { validateAdminSession, isMember } from '../middleware/auth';
+import { BATTING_STYLES, BOWLING_STYLES, PRIVACY_DEFAULTS } from '../types/player';
+import type { Player } from '../types/player';
+import type { PublicPlayerProfile } from '../types/profile';
 
 // Check authentication
 const cookieHeader = Astro.request.headers.get('cookie');
@@ -11,16 +17,15 @@ const session = validateAdminSession(cookieHeader || '');
 
 // Redirect to login if not authenticated
 if (!session || !isMember(session)) {
-  return Astro.redirect('/login');
+  return Astro.redirect('/login?redirect=/profile');
 }
 
-// Fetch player data directly from players store using userId
-let player = null;
+let player: Omit<Player, 'passwordHash'> | null = null;
+let publicProfile: PublicPlayerProfile | null = null;
 let error = null;
 let isOldStyleAdmin = false;
 
 try {
-  // Get the userId from session
   const userId = session.userId;
 
   if (!userId) {
@@ -30,18 +35,14 @@ try {
     isOldStyleAdmin = true;
     error = 'This is an old-style admin account without a player profile. Please contact a super admin to link your account to a player record, or register as a new member.';
   } else {
-    // Fetch player data directly using players-get endpoint
-    const response = await fetch(
-      `${Astro.url.origin}/.netlify/functions/players-get?id=${userId}`,
-      {
-        headers: {
-          cookie: cookieHeader || '',
-        },
-      }
-    );
+    const response = await fetch(`${Astro.url.origin}/.netlify/functions/profile-get`, {
+      headers: { cookie: cookieHeader || '' },
+    });
 
     if (response.ok) {
-      player = await response.json();
+      const data = await response.json();
+      player = data.player;
+      publicProfile = data.publicProfile;
     } else {
       const errorData = await response.json().catch(() => ({}));
       error = `Failed to load player profile: ${errorData.error || response.statusText}`;
@@ -52,10 +53,17 @@ try {
   error = 'Failed to load profile data';
   console.error('Profile fetch error:', err);
 }
+
+const privacy = { ...PRIVACY_DEFAULTS, ...(player?.privacy || {}) };
+const missingEmergency = !!player && !(player.emergencyContactName && player.emergencyContactNumber);
+const countryCodes = [
+  ['+1', '🇺🇸 +1'], ['+91', '🇮🇳 +91'], ['+44', '🇬🇧 +44'], ['+61', '🇦🇺 +61'], ['+86', '🇨🇳 +86'],
+  ['+81', '🇯🇵 +81'], ['+49', '🇩🇪 +49'], ['+33', '🇫🇷 +33'], ['+971', '🇦🇪 +971'], ['+65', '🇸🇬 +65'],
+];
 ---
 
 <Layout title="My Profile - Golden State Cricket Club">
-  <PageHeader kicker="Your account" title="My Profile" subtitle="Manage your account settings" />
+  <PageHeader kicker="Your account" title="My Profile" subtitle="Your player card, achievements and account settings" />
   <div class="max-w-4xl mx-auto px-4 py-8 pt-0">
 
     {error && (
@@ -68,7 +76,7 @@ try {
               <p class="text-body-base mb-2"><strong>Options:</strong></p>
               <ul class="list-disc list-inside space-y-1 text-body-base">
                 <li>Register as a new member at <a href="/register" class="text-primary hover:underline">/register</a></li>
-                <li>Contact a super admin to link your admin account to a player record</li>
+                <li>Contact a super admin to link your account to a player record</li>
               </ul>
             </div>
           )}
@@ -76,754 +84,486 @@ try {
       </div>
     )}
 
-    {player && (
+    {player && publicProfile && (
       <>
-        {/* Personal Information */}
-        <div class="card mb-6">
-          <h2 class="card-title">Personal Information</h2>
-
-          <div class="info-grid">
-            <div class="info-item">
-              <label class="info-label">Name</label>
-              <p class="info-value">{player.firstName} {player.lastName}</p>
-            </div>
-
-            <div class="info-item">
-              <label class="info-label">Email</label>
-              <p class="info-value">{player.email}</p>
-              <p class="info-hint">Email cannot be changed after registration</p>
-            </div>
-
-            <div class="info-item">
-              <label class="info-label">Phone</label>
-              <p class="info-value">{player.phone || 'Not set'}</p>
-              <p class="info-hint">Update below</p>
-            </div>
-
-            <div class="info-item">
-              <label class="info-label">USAC ID</label>
-              <p class="info-value">{player.usacId || 'Not set'}</p>
-              <p class="info-hint">Update below</p>
-            </div>
-
-            <div class="info-item">
-              <label class="info-label">Playing Role</label>
-              <p class="info-value">{player.role || 'Not set'}</p>
-              <p class="info-hint">Update below</p>
-            </div>
-
-            <div class="info-item">
-              <label class="info-label">Emergency Contact Name</label>
-              <p class="info-value">{player.emergencyContactName || 'Not set'}</p>
-              <p class="info-hint">Update below</p>
-            </div>
-
-            <div class="info-item">
-              <label class="info-label">Emergency Contact Number</label>
-              <p class="info-value">{player.emergencyContactNumber || 'Not set'}</p>
-              <p class="info-hint">Update below</p>
-            </div>
-
-            <div class="info-item">
-              <label class="info-label">Company</label>
-              <p class="info-value">{player.jobCompany || 'Not set'}</p>
-              <p class="info-hint">Update below</p>
-            </div>
-
-            <div class="info-item">
-              <label class="info-label">Job Title</label>
-              <p class="info-value">{player.jobTitle || 'Not set'}</p>
-              <p class="info-hint">Update below</p>
-            </div>
+        <ProfileSummary profile={publicProfile} isOwn>
+          <div class="own-actions">
+            <a href={`/players/${player.id}`} class="own-action"><Icon name="users" size={14} /> View as others see it</a>
+            <a href="/players" class="own-action"><Icon name="arrow-right" size={14} /> Browse players</a>
           </div>
-        </div>
+        </ProfileSummary>
 
-        {/* Update Player Info */}
-        <div class="card mb-6">
-          <h2 class="card-title">Update Player Information</h2>
+        <h2 class="settings-heading">Edit profile</h2>
 
-          <form id="player-info-form" class="form" method="post" action="javascript:void(0);">
-            <div class="form-group">
-              <label for="usac-id" class="form-label">USAC ID</label>
-              <input
-                type="text"
-                id="usac-id"
-                name="usacId"
-                class="form-input"
-                placeholder="Enter your USAC ID"
-                value={player.usacId || ''}
-              />
-              <p class="form-hint">Your USA Cricket Association ID number</p>
+        {/* Profile photo */}
+        <details class="card settings" open={!player.photoUpdatedAt}>
+          <summary class="settings-summary">
+            <span><span class="settings-title">Profile Photo</span><span class="settings-sub">{player.photoUpdatedAt ? 'Change or remove your photo' : 'Add a photo so teammates recognise you'}</span></span>
+            <Icon name="chevron-down" size={18} class="settings-chevron" />
+          </summary>
+          <div class="settings-body">
+            <div class="photo-row">
+              <div id="photo-preview-wrap">
+                <PlayerAvatar firstName={player.firstName} lastName={player.lastName} photoUrl={publicProfile.photoUrl} size={96} />
+              </div>
+              <div class="photo-controls">
+                <input type="file" id="photo-input" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" class="sr-only" />
+                <label for="photo-input" class="btn btn-lg photo-btn">Choose photo</label>
+                <button type="button" id="photo-save" class="btn btn-lg photo-btn" style="display: none;">Save photo</button>
+                {player.photoUpdatedAt && (
+                  <button type="button" id="photo-remove" class="link-danger">Remove photo</button>
+                )}
+                <p class="form-hint">Square photos work best. We crop to the centre and resize, so any size is fine.</p>
+              </div>
+            </div>
+            <div id="photo-error" class="alert alert-error" style="display: none;"></div>
+            <div id="photo-success" class="alert alert-success" style="display: none;"></div>
+          </div>
+        </details>
+
+        {/* Cricket profile */}
+        <details class="card settings">
+          <summary class="settings-summary">
+            <span><span class="settings-title">Cricket Profile</span><span class="settings-sub">Playing role, batting & bowling style, USAC ID, CricClubs</span></span>
+            <Icon name="chevron-down" size={18} class="settings-chevron" />
+          </summary>
+          <form id="player-info-form" class="form settings-body" method="post" action="javascript:void(0);">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="player-role" class="form-label">Playing Role</label>
+                <select id="player-role" name="playerRole" class="form-input">
+                  <option value="">-- Select your role --</option>
+                  {['Batsman', 'Bowler', 'All-rounder', 'Wicket Keeper', 'Wicket Keeper Batsman'].map((r) => (
+                    <option value={r} selected={player!.role === r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="usac-id" class="form-label">USAC ID</label>
+                <input type="text" id="usac-id" name="usacId" class="form-input" placeholder="Enter your USAC ID" value={player.usacId || ''} />
+                <p class="form-hint">Private — only admins see this</p>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="batting-style" class="form-label">Batting Style</label>
+                <select id="batting-style" name="battingStyle" class="form-input">
+                  <option value="">-- Not set --</option>
+                  {BATTING_STYLES.map((s) => <option value={s} selected={player!.battingStyle === s}>{s}</option>)}
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="bowling-style" class="form-label">Bowling Style</label>
+                <select id="bowling-style" name="bowlingStyle" class="form-input">
+                  <option value="">-- Not set --</option>
+                  {BOWLING_STYLES.map((s) => <option value={s} selected={player!.bowlingStyle === s}>{s}</option>)}
+                </select>
+              </div>
             </div>
 
             <div class="form-group">
-              <label for="player-role" class="form-label">Playing Role / Position</label>
-              <select
-                id="player-role"
-                name="playerRole"
-                class="form-input"
-              >
-                <option value="">-- Select your role --</option>
-                <option value="Batsman" selected={player.role === 'Batsman'}>Batsman</option>
-                <option value="Bowler" selected={player.role === 'Bowler'}>Bowler</option>
-                <option value="All-rounder" selected={player.role === 'All-rounder'}>All-rounder</option>
-                <option value="Wicket Keeper" selected={player.role === 'Wicket Keeper'}>Wicket Keeper</option>
-                <option value="Wicket Keeper Batsman" selected={player.role === 'Wicket Keeper Batsman'}>Wicket Keeper Batsman</option>
-              </select>
-              <p class="form-hint">Your primary playing position</p>
+              <label for="cricclubs-url" class="form-label">CricClubs Profile Link (Optional)</label>
+              <input type="url" id="cricclubs-url" name="cricclubsUrl" class="form-input" placeholder="https://cricclubs.com/.../viewPlayer.do?playerId=..." value={player.cricclubsUrl || ''} />
+              <p class="form-hint">Open your player page on CricClubs and paste the link here</p>
             </div>
 
-            <div id="player-info-error" class="alert alert-error" style="display: none;">
-              <span id="player-info-error-text"></span>
-            </div>
+            <div id="player-info-error" class="alert alert-error" style="display: none;"></div>
+            <div id="player-info-success" class="alert alert-success" style="display: none;"></div>
 
-            <div id="player-info-success" class="alert alert-success" style="display: none;">
-              <span id="player-info-success-text"></span>
-            </div>
-
-            <button type="submit" id="player-info-button" class="btn btn-lg">
-              Update Player Info
-            </button>
+            <button type="submit" id="player-info-button" class="btn btn-lg">Save Cricket Profile</button>
           </form>
-        </div>
+        </details>
 
-        {/* Update Emergency Contact */}
-        <div class="card mb-6">
-          <h2 class="card-title">Emergency Contact Information</h2>
-          <p class="text-sm text-gray-600 mb-4">Required for all members. This person will be contacted in case of emergency.</p>
+        {/* Privacy */}
+        <details class="card settings">
+          <summary class="settings-summary">
+            <span><span class="settings-title">Privacy</span><span class="settings-sub">Choose what other members see on your profile</span></span>
+            <Icon name="chevron-down" size={18} class="settings-chevron" />
+          </summary>
+          <form id="privacy-form" class="form settings-body" method="post" action="javascript:void(0);">
+            <p class="form-hint" style="margin: 0;">
+              Player profiles are only visible to signed-in club members. Your email, USAC ID and emergency contact are never shown.
+            </p>
+            <label class="toggle">
+              <input type="checkbox" id="privacy-phone" checked={privacy.showPhone} />
+              <span><strong>Show my phone number</strong><br /><span class="form-hint">{player.phone || 'No phone number saved'}</span></span>
+            </label>
+            <label class="toggle">
+              <input type="checkbox" id="privacy-company" checked={privacy.showCompany} />
+              <span><strong>Show my company & job title</strong><br /><span class="form-hint">Helps teammates with job referrals</span></span>
+            </label>
+            <div id="privacy-error" class="alert alert-error" style="display: none;"></div>
+            <div id="privacy-success" class="alert alert-success" style="display: none;"></div>
+            <button type="submit" id="privacy-button" class="btn btn-lg">Save Privacy Settings</button>
+          </form>
+        </details>
 
-          <form id="emergency-form" class="form" method="post" action="javascript:void(0);">
+        {/* Phone */}
+        <details class="card settings">
+          <summary class="settings-summary">
+            <span><span class="settings-title">Phone Number</span><span class="settings-sub">{player.phone || 'Not set'}</span></span>
+            <Icon name="chevron-down" size={18} class="settings-chevron" />
+          </summary>
+          <form id="phone-form" class="form settings-body" method="post" action="javascript:void(0);">
+            <div class="form-group">
+              <label for="phone-number" class="form-label">Phone Number</label>
+              <div class="flex gap-2">
+                <select id="phone-country" name="phoneCountry" class="form-input country-select">
+                  {countryCodes.map(([v, label]) => <option value={v}>{label}</option>)}
+                </select>
+                <input type="tel" id="phone-number" name="phoneNumber" class="form-input" placeholder="1234567890" pattern="[0-9]{7,15}" />
+              </div>
+              <p class="form-hint">Enter phone number without country code. Used for team communications.</p>
+            </div>
+            <div id="phone-error" class="alert alert-error" style="display: none;"></div>
+            <div id="phone-success" class="alert alert-success" style="display: none;"></div>
+            <button type="submit" id="phone-button" class="btn btn-lg">Update Phone</button>
+          </form>
+        </details>
+
+        {/* Emergency contact */}
+        <details class="card settings" id="emergency-section" open={missingEmergency}>
+          <summary class="settings-summary">
+            <span>
+              <span class="settings-title">Emergency Contact {missingEmergency && <span class="required-pill">Required</span>}</span>
+              <span class="settings-sub">{missingEmergency ? 'Required for all members' : `${player.emergencyContactName} · ${player.emergencyContactNumber}`}</span>
+            </span>
+            <Icon name="chevron-down" size={18} class="settings-chevron" />
+          </summary>
+          <form id="emergency-form" class="form settings-body" method="post" action="javascript:void(0);">
+            <p class="form-hint" style="margin: 0;">This person will be contacted in case of emergency. Only admins can see it.</p>
             <div class="form-group">
               <label for="emergency-contact-name" class="form-label">
                 Emergency Contact Name <span class="text-red-500">*</span>
               </label>
-              <input
-                type="text"
-                id="emergency-contact-name"
-                name="emergencyContactName"
-                required
-                maxlength="100"
-                class="form-input"
-                placeholder="Jane Doe"
-                value={player.emergencyContactName || ''}
-              />
-              <p class="form-hint">Person to contact in case of emergency</p>
+              <input type="text" id="emergency-contact-name" name="emergencyContactName" required maxlength="100" class="form-input" placeholder="Jane Doe" value={player.emergencyContactName || ''} />
             </div>
-
             <div class="form-group">
-              <label for="emergency-contact-number" class="form-label">
+              <label for="emergency-number" class="form-label">
                 Emergency Contact Number <span class="text-red-500">*</span>
               </label>
               <div class="flex gap-2">
-                <select
-                  id="emergency-country"
-                  name="emergencyCountry"
-                  class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A82B24] w-28"
-                >
-                  <option value="+1">🇺🇸 +1</option>
-                  <option value="+91">🇮🇳 +91</option>
-                  <option value="+44">🇬🇧 +44</option>
-                  <option value="+61">🇦🇺 +61</option>
-                  <option value="+86">🇨🇳 +86</option>
-                  <option value="+81">🇯🇵 +81</option>
-                  <option value="+49">🇩🇪 +49</option>
-                  <option value="+33">🇫🇷 +33</option>
-                  <option value="+971">🇦🇪 +971</option>
-                  <option value="+65">🇸🇬 +65</option>
+                <select id="emergency-country" name="emergencyCountry" class="form-input country-select">
+                  {countryCodes.map(([v, label]) => <option value={v}>{label}</option>)}
                 </select>
-                <input
-                  type="tel"
-                  id="emergency-number"
-                  name="emergencyNumber"
-                  required
-                  class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A82B24]"
-                  placeholder="1234567890"
-                  pattern="[0-9]{7,15}"
-                />
+                <input type="tel" id="emergency-number" name="emergencyNumber" required class="form-input" placeholder="1234567890" pattern="[0-9]{7,15}" />
               </div>
-              <p class="form-hint">Emergency contact's phone number</p>
             </div>
-
-            <div id="emergency-error" class="alert alert-error" style="display: none;">
-              <span id="emergency-error-text"></span>
-            </div>
-
-            <div id="emergency-success" class="alert alert-success" style="display: none;">
-              <span id="emergency-success-text"></span>
-            </div>
-
-            <button type="submit" id="emergency-button" class="btn btn-lg">
-              Update Emergency Contact
-            </button>
+            <div id="emergency-error" class="alert alert-error" style="display: none;"></div>
+            <div id="emergency-success" class="alert alert-success" style="display: none;"></div>
+            <button type="submit" id="emergency-button" class="btn btn-lg">Update Emergency Contact</button>
           </form>
-        </div>
+        </details>
 
-        {/* Update Job Information */}
-        <div class="card mb-6">
-          <h2 class="card-title">Job Information</h2>
-          <p class="text-sm text-gray-600 mb-4">Optional. Help the community with job referrals by sharing your employment details.</p>
-
-          <form id="job-form" class="form" method="post" action="javascript:void(0);">
-            <div class="form-group">
-              <label for="job-company" class="form-label">Company (Optional)</label>
-              <input
-                type="text"
-                id="job-company"
-                name="jobCompany"
-                maxlength="200"
-                class="form-input"
-                placeholder="ABC Corp"
-                value={player.jobCompany || ''}
-              />
-            </div>
-
-            <div class="form-group">
-              <label for="job-title" class="form-label">Job Title (Optional)</label>
-              <input
-                type="text"
-                id="job-title"
-                name="jobTitle"
-                maxlength="200"
-                class="form-input"
-                placeholder="Software Engineer"
-                value={player.jobTitle || ''}
-              />
-            </div>
-
-            <div id="job-error" class="alert alert-error" style="display: none;">
-              <span id="job-error-text"></span>
-            </div>
-
-            <div id="job-success" class="alert alert-success" style="display: none;">
-              <span id="job-success-text"></span>
-            </div>
-
-            <button type="submit" id="job-button" class="btn btn-lg">
-              Update Job Information
-            </button>
-          </form>
-        </div>
-
-        {/* Update Phone */}
-        <div class="card mb-6">
-          <h2 class="card-title">Update Phone Number</h2>
-
-          <form id="phone-form" class="form" method="post" action="javascript:void(0);">
-            <div class="form-group">
-              <label for="phone" class="form-label">Phone Number</label>
-              <div class="flex gap-2">
-                <select
-                  id="phone-country"
-                  name="phoneCountry"
-                  class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A82B24] w-28"
-                >
-                  <option value="+1">🇺🇸 +1</option>
-                  <option value="+91">🇮🇳 +91</option>
-                  <option value="+44">🇬🇧 +44</option>
-                  <option value="+61">🇦🇺 +61</option>
-                  <option value="+86">🇨🇳 +86</option>
-                  <option value="+81">🇯🇵 +81</option>
-                  <option value="+49">🇩🇪 +49</option>
-                  <option value="+33">🇫🇷 +33</option>
-                  <option value="+971">🇦🇪 +971</option>
-                  <option value="+65">🇸🇬 +65</option>
-                </select>
-                <input
-                  type="tel"
-                  id="phone-number"
-                  name="phoneNumber"
-                  class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A82B24]"
-                  placeholder="1234567890"
-                  pattern="[0-9]{7,15}"
-                />
+        {/* Job */}
+        <details class="card settings">
+          <summary class="settings-summary">
+            <span><span class="settings-title">Job Information</span><span class="settings-sub">Optional · helps the community with job referrals</span></span>
+            <Icon name="chevron-down" size={18} class="settings-chevron" />
+          </summary>
+          <form id="job-form" class="form settings-body" method="post" action="javascript:void(0);">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="job-company" class="form-label">Company</label>
+                <input type="text" id="job-company" name="jobCompany" maxlength="200" class="form-input" placeholder="ABC Corp" value={player.jobCompany || ''} />
               </div>
-              <p class="form-hint">Enter phone number without country code. Used for team communications.</p>
+              <div class="form-group">
+                <label for="job-title" class="form-label">Job Title</label>
+                <input type="text" id="job-title" name="jobTitle" maxlength="200" class="form-input" placeholder="Software Engineer" value={player.jobTitle || ''} />
+              </div>
             </div>
-
-            <div id="phone-error" class="alert alert-error" style="display: none;">
-              <span id="phone-error-text"></span>
-            </div>
-
-            <div id="phone-success" class="alert alert-success" style="display: none;">
-              <span id="phone-success-text"></span>
-            </div>
-
-            <button type="submit" id="phone-button" class="btn btn-lg">
-              Update Phone
-            </button>
+            <div id="job-error" class="alert alert-error" style="display: none;"></div>
+            <div id="job-success" class="alert alert-success" style="display: none;"></div>
+            <button type="submit" id="job-button" class="btn btn-lg">Update Job Information</button>
           </form>
-        </div>
+        </details>
 
-        {/* Change Password */}
-        <div class="card">
-          <h2 class="card-title">Change Password</h2>
-
-          <form id="password-form" class="form" method="post" action="javascript:void(0);">
+        {/* Account */}
+        <details class="card settings">
+          <summary class="settings-summary">
+            <span><span class="settings-title">Account & Password</span><span class="settings-sub">{player.email}</span></span>
+            <Icon name="chevron-down" size={18} class="settings-chevron" />
+          </summary>
+          <form id="password-form" class="form settings-body" method="post" action="javascript:void(0);">
+            <p class="form-hint" style="margin: 0;">Email cannot be changed after registration.</p>
             <div class="form-group">
               <label for="current-password" class="form-label">Current Password</label>
-              <input
-                type="password"
-                id="current-password"
-                name="currentPassword"
-                required
-                class="form-input"
-                placeholder="Enter current password"
-              />
+              <input type="password" id="current-password" name="currentPassword" required class="form-input" placeholder="Enter current password" autocomplete="current-password" />
             </div>
-
-            <div class="form-group">
-              <label for="new-password" class="form-label">New Password</label>
-              <input
-                type="password"
-                id="new-password"
-                name="newPassword"
-                required
-                minlength="8"
-                class="form-input"
-                placeholder="Minimum 8 characters"
-              />
-              <p class="form-hint">Minimum 8 characters</p>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="new-password" class="form-label">New Password</label>
+                <input type="password" id="new-password" name="newPassword" required minlength="8" class="form-input" placeholder="Minimum 8 characters" autocomplete="new-password" />
+              </div>
+              <div class="form-group">
+                <label for="confirm-password" class="form-label">Confirm New Password</label>
+                <input type="password" id="confirm-password" name="confirmPassword" required minlength="8" class="form-input" placeholder="Re-enter new password" autocomplete="new-password" />
+              </div>
             </div>
-
-            <div class="form-group">
-              <label for="confirm-password" class="form-label">Confirm New Password</label>
-              <input
-                type="password"
-                id="confirm-password"
-                name="confirmPassword"
-                required
-                minlength="8"
-                class="form-input"
-                placeholder="Re-enter new password"
-              />
-            </div>
-
-            <div id="password-error" class="alert alert-error" style="display: none;">
-              <span id="password-error-text"></span>
-            </div>
-
-            <div id="password-success" class="alert alert-success" style="display: none;">
-              <span id="password-success-text"></span>
-            </div>
-
-            <button type="submit" id="password-button" class="btn btn-lg">
-              Change Password
-            </button>
+            <div id="password-error" class="alert alert-error" style="display: none;"></div>
+            <div id="password-success" class="alert alert-success" style="display: none;"></div>
+            <button type="submit" id="password-button" class="btn btn-lg">Change Password</button>
           </form>
-        </div>
+        </details>
       </>
     )}
   </div>
 
   <script define:vars={{
     playerPhone: player?.phone,
-    playerUsacId: player?.usacId,
-    playerRole: player?.role,
-    playerEmergencyContactName: player?.emergencyContactName,
     playerEmergencyContactNumber: player?.emergencyContactNumber,
-    playerJobCompany: player?.jobCompany,
-    playerJobTitle: player?.jobTitle
+    missingEmergency,
   }}>
+    const $ = (id) => document.getElementById(id);
 
-    // Check if emergency contact info is missing and show warning
-    const hasEmergencyInfo = playerEmergencyContactName && playerEmergencyContactNumber;
+    function showMessage(prefix, kind, text) {
+      $(`${prefix}-error`).style.display = 'none';
+      $(`${prefix}-success`).style.display = 'none';
+      if (!kind) return;
+      const el = $(`${prefix}-${kind}`);
+      el.textContent = text;
+      el.style.display = 'block';
+    }
 
-    if (!hasEmergencyInfo) {
-      // Show warning modal on page load
-      const showWarningModal = () => {
+    /**
+     * POST to profile-update, show the result in the section's alert boxes,
+     * then reload so the profile card reflects the change.
+     */
+    async function saveProfile(prefix, button, body, { idleText, busyText = 'Saving...', successText, reload = true }) {
+      showMessage(prefix, null);
+      button.disabled = true;
+      button.textContent = busyText;
+      try {
+        const response = await fetch('/.netlify/functions/profile-update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to save');
+        showMessage(prefix, 'success', successText || data.message || 'Saved!');
+        if (reload) setTimeout(() => window.location.reload(), 1000);
+        return true;
+      } catch (error) {
+        showMessage(prefix, 'error', error.message || 'Unknown error');
+        return false;
+      } finally {
+        button.disabled = false;
+        button.textContent = idleText;
+      }
+    }
+
+    // "+1 1234567890" -> fill a country select + number input
+    function fillPhone(value, selectId, inputId) {
+      if (!value) return;
+      const select = $(selectId);
+      const input = $(inputId);
+      if (!select || !input) return;
+      const match = value.match(/^(\+\d+)\s*(.+)$/);
+      if (match) {
+        if (Array.from(select.options).some((o) => o.value === match[1])) select.value = match[1];
+        input.value = match[2];
+      } else {
+        input.value = value;
+      }
+    }
+    fillPhone(playerPhone, 'phone-country', 'phone-number');
+    fillPhone(playerEmergencyContactNumber, 'emergency-country', 'emergency-number');
+
+    // ---------------------------------------------------------------------
+    // Emergency contact is mandatory: warn and keep the user on the page
+    // ---------------------------------------------------------------------
+    const blockUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = 'You must fill in emergency contact information before leaving this page.';
+      return e.returnValue;
+    };
+
+    if (missingEmergency && $('emergency-form')) {
+      setTimeout(() => {
         const modal = document.createElement('div');
-        modal.style.cssText = `
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0, 0, 0, 0.5);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 9999;
-        `;
-
+        modal.style.cssText = 'position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; z-index: 9999;';
         modal.innerHTML = `
           <div style="background: white; padding: 32px; border-radius: 12px; max-width: 500px; margin: 20px;">
             <h2 style="font-size: 24px; font-weight: 700; color: #dc2626; margin-bottom: 16px;">⚠️ Emergency Contact Required</h2>
             <p style="font-size: 16px; color: #374151; margin-bottom: 24px;">
-              Please scroll down and fill in the "Emergency Contact Information" section.
+              Please fill in the "Emergency Contact" section before continuing.
             </p>
             <button id="close-warning-modal" style="width: 100%; padding: 12px 24px; background: #8C1D18; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer;">
               I Understand
             </button>
           </div>
         `;
-
         document.body.appendChild(modal);
-
-        document.getElementById('close-warning-modal').addEventListener('click', () => {
+        $('close-warning-modal').addEventListener('click', () => {
           modal.remove();
-          // Scroll to emergency contact form
-          document.getElementById('emergency-form').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          $('emergency-section').open = true;
+          $('emergency-form').scrollIntoView({ behavior: 'smooth', block: 'center' });
         });
-      };
-
-      // Show modal after a short delay
-      setTimeout(showWarningModal, 500);
-
-      // Prevent navigation away from page
-      window.addEventListener('beforeunload', (e) => {
-        e.preventDefault();
-        e.returnValue = 'You must fill in emergency contact information before leaving this page.';
-        return 'You must fill in emergency contact information before leaving this page.';
-      });
+      }, 500);
+      window.addEventListener('beforeunload', blockUnload);
     }
 
-    // Parse existing emergency contact number and populate form
-    if (playerEmergencyContactNumber) {
-      const emergencyCountrySelect = document.getElementById('emergency-country');
-      const emergencyNumberInput = document.getElementById('emergency-number');
-
-      if (emergencyCountrySelect && emergencyNumberInput) {
-        // Try to extract country code from phone (e.g., "+1 1234567890")
-        const phoneMatch = playerEmergencyContactNumber.match(/^(\+\d+)\s*(.+)$/);
-        if (phoneMatch) {
-          const countryCode = phoneMatch[1];
-          const number = phoneMatch[2];
-
-          // Set country code if it exists in options
-          const option = Array.from(emergencyCountrySelect.options).find(opt => opt.value === countryCode);
-          if (option) {
-            emergencyCountrySelect.value = countryCode;
-          }
-          emergencyNumberInput.value = number;
-        }
+    $('emergency-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const ok = await saveProfile('emergency', $('emergency-button'), {
+        emergencyContactName: formData.get('emergencyContactName'),
+        emergencyContactNumber: `${formData.get('emergencyCountry')} ${formData.get('emergencyNumber')}`,
+      }, { idleText: 'Update Emergency Contact', busyText: 'Updating...', reload: false });
+      if (ok) {
+        window.removeEventListener('beforeunload', blockUnload);
+        setTimeout(() => window.location.reload(), 1000);
       }
-    }
+    });
 
-    // Emergency contact update form
-    const emergencyForm = document.getElementById('emergency-form');
-    const emergencyButton = document.getElementById('emergency-button');
-    const emergencyError = document.getElementById('emergency-error');
-    const emergencyErrorText = document.getElementById('emergency-error-text');
-    const emergencySuccess = document.getElementById('emergency-success');
-    const emergencySuccessText = document.getElementById('emergency-success-text');
+    // ---------------------------------------------------------------------
+    // Other sections
+    // ---------------------------------------------------------------------
+    $('player-info-form')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      saveProfile('player-info', $('player-info-button'), {
+        usacId: formData.get('usacId'),
+        playerRole: formData.get('playerRole') || undefined,
+        battingStyle: formData.get('battingStyle'),
+        bowlingStyle: formData.get('bowlingStyle'),
+        cricclubsUrl: formData.get('cricclubsUrl'),
+      }, { idleText: 'Save Cricket Profile', successText: 'Cricket profile saved!' });
+    });
 
-    if (emergencyForm) {
-      emergencyForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
+    $('privacy-form')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      saveProfile('privacy', $('privacy-button'), {
+        privacy: {
+          showPhone: $('privacy-phone').checked,
+          showCompany: $('privacy-company').checked,
+        },
+      }, { idleText: 'Save Privacy Settings', successText: 'Privacy settings saved!' });
+    });
 
-        emergencyError.style.display = 'none';
-        emergencySuccess.style.display = 'none';
+    $('job-form')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      saveProfile('job', $('job-button'), {
+        jobCompany: formData.get('jobCompany'),
+        jobTitle: formData.get('jobTitle'),
+      }, { idleText: 'Update Job Information', busyText: 'Updating...' });
+    });
 
-        const formData = new FormData(emergencyForm);
-        const emergencyContactName = formData.get('emergencyContactName');
-        const emergencyCountry = formData.get('emergencyCountry');
-        const emergencyNumber = formData.get('emergencyNumber');
-        const emergencyContactNumber = `${emergencyCountry} ${emergencyNumber}`;
+    $('phone-form')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const phoneNumber = formData.get('phoneNumber');
+      saveProfile('phone', $('phone-button'), {
+        phone: phoneNumber ? `${formData.get('phoneCountry')} ${phoneNumber}` : '',
+      }, { idleText: 'Update Phone', busyText: 'Updating...', successText: 'Phone number updated!' });
+    });
 
-        emergencyButton.disabled = true;
-        emergencyButton.textContent = 'Updating...';
-
-        try {
-          const response = await fetch('/.netlify/functions/profile-update', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            credentials: 'same-origin',
-            body: JSON.stringify({
-              emergencyContactName,
-              emergencyContactNumber
-            }),
-          });
-
-          const data = await response.json();
-
-          if (!response.ok) {
-            throw new Error(data.error || 'Failed to update emergency contact');
-          }
-
-          emergencySuccess.style.display = 'block';
-          emergencySuccessText.textContent = data.message || 'Emergency contact updated successfully!';
-
-          // Remove beforeunload listener if emergency info was just filled
-          if (!hasEmergencyInfo) {
-            window.removeEventListener('beforeunload', () => {});
-          }
-
-          // Reload page after 1 second to show updated info
-          setTimeout(() => {
-            window.location.reload();
-          }, 1000);
-        } catch (error) {
-          emergencyError.style.display = 'block';
-          emergencyErrorText.textContent = error.message || 'Unknown error';
-        } finally {
-          emergencyButton.disabled = false;
-          emergencyButton.textContent = 'Update Emergency Contact';
-        }
-      });
-    }
-
-    // Job information update form
-    const jobForm = document.getElementById('job-form');
-    const jobButton = document.getElementById('job-button');
-    const jobError = document.getElementById('job-error');
-    const jobErrorText = document.getElementById('job-error-text');
-    const jobSuccess = document.getElementById('job-success');
-    const jobSuccessText = document.getElementById('job-success-text');
-
-    if (jobForm) {
-      jobForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-
-        jobError.style.display = 'none';
-        jobSuccess.style.display = 'none';
-
-        const formData = new FormData(jobForm);
-        const jobCompany = formData.get('jobCompany');
-        const jobTitle = formData.get('jobTitle');
-
-        jobButton.disabled = true;
-        jobButton.textContent = 'Updating...';
-
-        try {
-          const response = await fetch('/.netlify/functions/profile-update', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            credentials: 'same-origin',
-            body: JSON.stringify({
-              jobCompany: jobCompany || undefined,
-              jobTitle: jobTitle || undefined
-            }),
-          });
-
-          const data = await response.json();
-
-          if (!response.ok) {
-            throw new Error(data.error || 'Failed to update job information');
-          }
-
-          jobSuccess.style.display = 'block';
-          jobSuccessText.textContent = data.message || 'Job information updated successfully!';
-
-          // Reload page after 1 second to show updated info
-          setTimeout(() => {
-            window.location.reload();
-          }, 1000);
-        } catch (error) {
-          jobError.style.display = 'block';
-          jobErrorText.textContent = error.message || 'Unknown error';
-        } finally {
-          jobButton.disabled = false;
-          jobButton.textContent = 'Update Job Information';
-        }
-      });
-    }
-
-    // Player info update form
-    const playerInfoForm = document.getElementById('player-info-form');
-    const playerInfoButton = document.getElementById('player-info-button');
-    const playerInfoError = document.getElementById('player-info-error');
-    const playerInfoErrorText = document.getElementById('player-info-error-text');
-    const playerInfoSuccess = document.getElementById('player-info-success');
-    const playerInfoSuccessText = document.getElementById('player-info-success-text');
-
-    if (playerInfoForm) {
-      playerInfoForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-
-        playerInfoError.style.display = 'none';
-        playerInfoSuccess.style.display = 'none';
-
-        const formData = new FormData(playerInfoForm);
-        const usacId = formData.get('usacId');
-        const playerRole = formData.get('playerRole');
-
-
-        playerInfoButton.disabled = true;
-        playerInfoButton.textContent = 'Updating...';
-
-        try {
-          const response = await fetch('/.netlify/functions/profile-update', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            credentials: 'same-origin',
-            body: JSON.stringify({ usacId, playerRole }),
-          });
-
-          const data = await response.json();
-
-          if (!response.ok) {
-            throw new Error(data.error || 'Failed to update player info');
-          }
-
-          playerInfoSuccess.style.display = 'block';
-          playerInfoSuccessText.textContent = data.message || 'Player information updated successfully!';
-
-          // Reload page after 1 second to show updated info
-          setTimeout(() => {
-            window.location.reload();
-          }, 1000);
-        } catch (error) {
-          playerInfoError.style.display = 'block';
-          playerInfoErrorText.textContent = error.message || 'Unknown error';
-        } finally {
-          playerInfoButton.disabled = false;
-          playerInfoButton.textContent = 'Update Player Info';
-        }
-      });
-    }
-
-    // Parse existing phone number and populate form
-    if (playerPhone) {
-      const phoneCountrySelect = document.getElementById('phone-country');
-      const phoneNumberInput = document.getElementById('phone-number');
-
-      if (phoneCountrySelect && phoneNumberInput) {
-        // Try to extract country code from phone (e.g., "+1 1234567890")
-        const phoneMatch = playerPhone.match(/^(\+\d+)\s*(.+)$/);
-        if (phoneMatch) {
-          const countryCode = phoneMatch[1];
-          const number = phoneMatch[2];
-
-          // Set country code if it exists in options
-          const option = Array.from(phoneCountrySelect.options).find(opt => opt.value === countryCode);
-          if (option) {
-            phoneCountrySelect.value = countryCode;
-          }
-          phoneNumberInput.value = number;
-        } else {
-          // Old format without country code, put in number field
-          phoneNumberInput.value = playerPhone;
-        }
+    $('password-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      if (formData.get('newPassword') !== formData.get('confirmPassword')) {
+        showMessage('password', 'error', 'New passwords do not match');
+        return;
       }
+      const ok = await saveProfile('password', $('password-button'), {
+        currentPassword: formData.get('currentPassword'),
+        newPassword: formData.get('newPassword'),
+      }, { idleText: 'Change Password', busyText: 'Changing...', successText: 'Password changed!' });
+      if (ok) e.target.reset();
+    });
+
+    // ---------------------------------------------------------------------
+    // Profile photo: crop to a centred square, resize to 400px, upload as WebP
+    // (JPEG where the browser can't encode WebP). Keeps uploads ~30-60 KB.
+    // ---------------------------------------------------------------------
+    const PHOTO_SIZE = 400;
+    let pendingPhoto = null;
+
+    function canvasToBlob(canvas, type, quality) {
+      return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
     }
 
-    // Phone update form
-    const phoneForm = document.getElementById('phone-form');
-    const phoneButton = document.getElementById('phone-button');
-    const phoneError = document.getElementById('phone-error');
-    const phoneErrorText = document.getElementById('phone-error-text');
-    const phoneSuccess = document.getElementById('phone-success');
-    const phoneSuccessText = document.getElementById('phone-success-text');
+    async function prepareImage(file) {
+      let bitmap;
+      try {
+        bitmap = await createImageBitmap(file);
+      } catch {
+        throw new Error('Could not read that image. Please choose a JPEG or PNG.');
+      }
+      const side = Math.min(bitmap.width, bitmap.height);
+      const sx = (bitmap.width - side) / 2;
+      const sy = (bitmap.height - side) / 2;
+      const canvas = document.createElement('canvas');
+      canvas.width = PHOTO_SIZE;
+      canvas.height = PHOTO_SIZE;
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(bitmap, sx, sy, side, side, 0, 0, PHOTO_SIZE, PHOTO_SIZE);
+      bitmap.close?.();
 
-    if (phoneForm) {
-      phoneForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-
-        phoneError.style.display = 'none';
-        phoneSuccess.style.display = 'none';
-
-        const formData = new FormData(phoneForm);
-        const phoneCountry = formData.get('phoneCountry');
-        const phoneNumber = formData.get('phoneNumber');
-        const phone = phoneNumber ? `${phoneCountry} ${phoneNumber}` : '';
-
-
-        phoneButton.disabled = true;
-        phoneButton.textContent = 'Updating...';
-
-        try {
-          const response = await fetch('/.netlify/functions/profile-update', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            credentials: 'same-origin',
-            body: JSON.stringify({ phone }),
-          });
-
-          const data = await response.json();
-
-          if (!response.ok) {
-            throw new Error(data.error || 'Failed to update phone');
-          }
-
-          phoneSuccess.style.display = 'block';
-          phoneSuccessText.textContent = data.message || 'Phone number updated successfully!';
-
-          // Reload page after 1 second to show updated phone
-          setTimeout(() => {
-            window.location.reload();
-          }, 1000);
-        } catch (error) {
-          phoneError.style.display = 'block';
-          phoneErrorText.textContent = error.message || 'Unknown error';
-        } finally {
-          phoneButton.disabled = false;
-          phoneButton.textContent = 'Update Phone';
-        }
-      });
+      let blob = await canvasToBlob(canvas, 'image/webp', 0.85);
+      if (!blob || blob.type !== 'image/webp') blob = await canvasToBlob(canvas, 'image/jpeg', 0.85);
+      if (!blob) throw new Error('Could not process that image.');
+      return blob;
     }
 
-    // Password change form
-    const passwordForm = document.getElementById('password-form');
-    const passwordButton = document.getElementById('password-button');
-    const passwordError = document.getElementById('password-error');
-    const passwordErrorText = document.getElementById('password-error-text');
-    const passwordSuccess = document.getElementById('password-success');
-    const passwordSuccessText = document.getElementById('password-success-text');
+    $('photo-input')?.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      showMessage('photo', null);
+      try {
+        pendingPhoto = await prepareImage(file);
+        const url = URL.createObjectURL(pendingPhoto);
+        $('photo-preview-wrap').innerHTML =
+          `<img src="${url}" alt="New profile photo preview" width="96" height="96" style="width: 96px; height: 96px; border-radius: 9999px; object-fit: cover; display: block; box-shadow: 0 0 0 3px #fff, 0 0 0 4px #E5C878;" />`;
+        $('photo-save').style.display = '';
+      } catch (error) {
+        pendingPhoto = null;
+        showMessage('photo', 'error', error.message);
+      }
+    });
 
-    if (passwordForm) {
-      passwordForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
+    $('photo-save')?.addEventListener('click', async () => {
+      if (!pendingPhoto) return;
+      const button = $('photo-save');
+      button.disabled = true;
+      button.textContent = 'Uploading...';
+      showMessage('photo', null);
+      try {
+        const response = await fetch('/.netlify/functions/profile-photo', {
+          method: 'POST',
+          headers: { 'Content-Type': pendingPhoto.type },
+          credentials: 'same-origin',
+          body: pendingPhoto,
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'Upload failed');
+        showMessage('photo', 'success', 'Photo saved!');
+        setTimeout(() => window.location.reload(), 800);
+      } catch (error) {
+        showMessage('photo', 'error', error.message);
+        button.disabled = false;
+        button.textContent = 'Save photo';
+      }
+    });
 
-        passwordError.style.display = 'none';
-        passwordSuccess.style.display = 'none';
-
-        const formData = new FormData(passwordForm);
-        const currentPassword = formData.get('currentPassword');
-        const newPassword = formData.get('newPassword');
-        const confirmPassword = formData.get('confirmPassword');
-
-        // Validate passwords match
-        if (newPassword !== confirmPassword) {
-          passwordError.style.display = 'block';
-          passwordErrorText.textContent = 'New passwords do not match';
-          return;
-        }
-
-
-        passwordButton.disabled = true;
-        passwordButton.textContent = 'Changing...';
-
-        try {
-          const response = await fetch('/.netlify/functions/profile-update', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            credentials: 'same-origin',
-            body: JSON.stringify({ currentPassword, newPassword }),
-          });
-
-          const data = await response.json();
-
-          if (!response.ok) {
-            throw new Error(data.error || 'Failed to change password');
-          }
-
-          passwordSuccess.style.display = 'block';
-          passwordSuccessText.textContent = data.message || 'Password changed successfully!';
-          passwordForm.reset();
-
-          // Reload page after 1 second (consistent with phone update)
-          setTimeout(() => {
-            window.location.reload();
-          }, 1000);
-        } catch (error) {
-          passwordError.style.display = 'block';
-          passwordErrorText.textContent = error.message || 'Unknown error';
-        } finally {
-          passwordButton.disabled = false;
-          passwordButton.textContent = 'Change Password';
-        }
-      });
-    }
+    $('photo-remove')?.addEventListener('click', async () => {
+      if (!confirm('Remove your profile photo?')) return;
+      try {
+        const response = await fetch('/.netlify/functions/profile-photo', {
+          method: 'DELETE',
+          credentials: 'same-origin',
+        });
+        if (!response.ok) throw new Error('Failed to remove photo');
+        window.location.reload();
+      } catch (error) {
+        showMessage('photo', 'error', error.message);
+      }
+    });
   </script>
 
   <style>
@@ -831,60 +571,145 @@ try {
       background: white;
       border-radius: 12px;
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-      padding: 24px;
     }
 
-    .card-title {
-      font-size: 20px;
-      font-weight: 600;
-      color: #111827;
-      margin-bottom: 20px;
-    }
-
-    .info-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 24px;
-      margin-bottom: 8px;
-    }
-
-    .info-item {
+    .own-actions {
       display: flex;
-      flex-direction: column;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: 14px;
     }
 
-    .info-label {
-      font-size: 14px;
-      font-weight: 500;
-      color: #6b7280;
-      margin-bottom: 4px;
+    .own-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #8C1D18;
     }
 
-    .info-value {
-      font-size: 16px;
+    .own-action:hover { text-decoration: underline; }
+
+    .settings-heading {
+      font-size: 22px;
+      font-weight: 700;
       color: #111827;
-      font-weight: 500;
+      margin: 36px 0 14px;
     }
 
-    .info-hint {
-      font-size: 12px;
+    .settings {
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+
+    .settings-summary {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 18px 24px;
+      cursor: pointer;
+      list-style: none;
+    }
+
+    .settings-summary::-webkit-details-marker { display: none; }
+
+    .settings-summary:hover { background: #fafafa; }
+
+    .settings-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #111827;
+    }
+
+    .settings-sub {
+      display: block;
+      font-size: 13px;
+      color: #6b7280;
+      margin-top: 2px;
+    }
+
+    .settings :global(.settings-chevron) {
+      flex-shrink: 0;
       color: #9ca3af;
-      margin-top: 4px;
+      transition: transform 0.2s;
     }
 
-    .role-badge {
-      display: inline-block;
-      padding: 4px 12px;
-      background: #dbeafe;
-      color: #1e40af;
-      border-radius: 12px;
+    .settings[open] :global(.settings-chevron) { transform: rotate(180deg); }
+
+    .settings-body {
+      padding: 4px 24px 24px;
+    }
+
+    .required-pill {
+      font-size: 11px;
+      font-weight: 700;
+      color: #dc2626;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      padding: 1px 8px;
+      border-radius: 9999px;
+    }
+
+    .photo-row {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .photo-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .photo-controls .form-hint { flex-basis: 100%; }
+
+    .photo-btn { cursor: pointer; }
+
+    .link-danger {
       font-size: 14px;
       font-weight: 600;
+      color: #dc2626;
+      background: none;
+      border: 0;
+      cursor: pointer;
+    }
+
+    .link-danger:hover { text-decoration: underline; }
+
+    .toggle {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      font-size: 14px;
+      color: #374151;
+      cursor: pointer;
+    }
+
+    .toggle input {
+      width: 18px;
+      height: 18px;
+      margin-top: 2px;
+      accent-color: #8C1D18;
+      flex-shrink: 0;
     }
 
     .form {
       display: flex;
       flex-direction: column;
+      gap: 20px;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
       gap: 20px;
     }
 
@@ -906,13 +731,19 @@ try {
       border: 1px solid #d1d5db;
       border-radius: 8px;
       font-size: 14px;
+      background: #fff;
       transition: all 0.2s;
     }
 
     .form-input:focus {
       outline: none;
       border-color: #A82B24;
-      box-shadow: 0 0 0 3px rgba(246, 114, 128, 0.1);
+      box-shadow: 0 0 0 3px rgba(168, 43, 36, 0.12);
+    }
+
+    .country-select {
+      width: 7.5rem;
+      flex-shrink: 0;
     }
 
     .form-hint {
@@ -940,10 +771,11 @@ try {
     }
 
     @media (max-width: 768px) {
-      .info-grid {
-        grid-template-columns: 1fr;
-        gap: 16px;
-      }
+      .form-row { grid-template-columns: 1fr; }
+      .settings-summary { padding: 16px 18px; }
+      .settings-body { padding: 4px 18px 20px; }
+      .photo-row { flex-direction: column; text-align: center; }
+      .photo-controls { justify-content: center; }
     }
   </style>
 </Layout>

@@ -1,0 +1,279 @@
+---
+/**
+ * ProfileSummary — the read-only player profile shown on /players/[id] and at
+ * the top of /profile. Takes an already privacy-filtered PublicPlayerProfile.
+ */
+import Icon from '../Icon.astro';
+import PlayerAvatar from './PlayerAvatar.astro';
+import BadgeList from './BadgeList.astro';
+import { bestPracticeRate, currentSeason } from '../../utils/badges';
+import { UMPIRE_STATUS_LABELS } from '../../types/player';
+import type { PublicPlayerProfile } from '../../types/profile';
+
+interface Props {
+    profile: PublicPlayerProfile;
+    /** Slot for actions under the name (e.g. "View public profile") */
+    isOwn?: boolean;
+}
+
+const { profile, isOwn = false } = Astro.props;
+const stats = profile.stats;
+const season = currentSeason(stats);
+const memberYear = profile.memberSince ? new Date(profile.memberSince).getFullYear() : null;
+const umpireLabel = profile.umpireStatus ? UMPIRE_STATUS_LABELS[profile.umpireStatus] : null;
+const styles = [profile.battingStyle, profile.bowlingStyle].filter(Boolean);
+// Net and field practice are scored separately; show the stronger of the two
+const practice = season ? bestPracticeRate(season) : null;
+const updated = profile.statsCalculatedAt
+    ? new Date(profile.statsCalculatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })
+    : null;
+---
+<section class="ps-card ps-hero">
+    <PlayerAvatar firstName={profile.firstName} lastName={profile.lastName} photoUrl={profile.photoUrl} size={112} />
+    <div class="ps-hero__body">
+        <h2 class="ps-name">{profile.firstName} {profile.lastName}</h2>
+        <p class="ps-role">
+            {profile.role || 'Player'}
+            {styles.length > 0 && <span class="ps-dot">·</span>}
+            {styles.join(' · ')}
+        </p>
+        <div class="ps-chips">
+            {profile.currentTeams.map((t) => <span class="ps-chip ps-chip--team">{t}</span>)}
+            {umpireLabel && <span class="ps-chip ps-chip--umpire"><Icon name="shield" size={13} /> {umpireLabel}</span>}
+            {memberYear && <span class="ps-chip"><Icon name="calendar" size={13} /> Member since {memberYear}</span>}
+        </div>
+        {(profile.cricclubsUrl || profile.phone || profile.jobCompany || profile.jobTitle) && (
+            <div class="ps-links">
+                {profile.cricclubsUrl && (
+                    <a href={profile.cricclubsUrl} target="_blank" rel="noopener noreferrer" class="ps-link">
+                        <Icon name="external-link" size={14} /> CricClubs profile
+                    </a>
+                )}
+                {profile.phone && (
+                    <a href={`tel:${profile.phone.replace(/\s/g, '')}`} class="ps-link"><Icon name="phone" size={14} /> {profile.phone}</a>
+                )}
+                {(profile.jobTitle || profile.jobCompany) && (
+                    <span class="ps-link ps-link--plain">
+                        <Icon name="briefcase" size={14} />
+                        {[profile.jobTitle, profile.jobCompany].filter(Boolean).join(' at ')}
+                    </span>
+                )}
+            </div>
+        )}
+        <slot />
+    </div>
+</section>
+
+<section class="ps-card">
+    <div class="ps-head">
+        <h3 class="ps-title">Achievements</h3>
+    </div>
+    {profile.badges.length > 0 ? (
+        <BadgeList badges={profile.badges} />
+    ) : (
+        <p class="ps-empty">
+            {isOwn
+                ? 'No badges yet. Play matches, help out on match days and turn up to practice to earn them.'
+                : 'No badges yet.'}
+        </p>
+    )}
+</section>
+
+{stats && (
+    <section class="ps-card">
+        <div class="ps-head">
+            <h3 class="ps-title">{season ? season.seasonName : 'Club record'}</h3>
+            {updated && <span class="ps-updated">Updated {updated}</span>}
+        </div>
+        <div class="ps-stats">
+            <div class="ps-stat">
+                <span class="ps-stat__value">{season?.matchesPlayed ?? 0}</span>
+                <span class="ps-stat__label">Matches</span>
+            </div>
+            <div class="ps-stat">
+                <span class="ps-stat__value">{season && season.teamFixtures > 0 ? `${season.availabilityRate}%` : '–'}</span>
+                <span class="ps-stat__label">Availability</span>
+            </div>
+            <div class="ps-stat">
+                <span class="ps-stat__value">{practice ? `${practice.rate}%` : '–'}</span>
+                <span class="ps-stat__label">{practice ? `${practice.type === 'net' ? 'Net' : 'Field'} practice sign-ups` : 'Practice sign-ups'}</span>
+            </div>
+            <div class="ps-stat">
+                <span class="ps-stat__value">{season?.duties ?? 0}</span>
+                <span class="ps-stat__label">Duties</span>
+            </div>
+        </div>
+        <p class="ps-career">
+            Career: <strong>{stats.matchesPlayed}</strong> matches ·
+            <strong>{stats.potm}</strong> Player of the Match ·
+            <strong>{stats.duties}</strong> duties
+        </p>
+    </section>
+)}
+
+{stats && stats.seasons.length > 0 && (
+    <section class="ps-card">
+        <h3 class="ps-title">Club history</h3>
+        <ol class="ps-timeline">
+            {stats.seasons.map((s) => (
+                <li class="ps-timeline__item">
+                    <div class="ps-timeline__season">
+                        {s.seasonName}
+                        {s.isActive && <span class="ps-current">Current</span>}
+                    </div>
+                    <div class="ps-timeline__teams">
+                        {s.teams.length > 0 ? s.teams.map((t) => (
+                            <span class="ps-chip ps-chip--team">
+                                {t}
+                                {s.captainOf.includes(t) && <strong class="ps-cap" title="Captain">C</strong>}
+                                {s.viceCaptainOf.includes(t) && <strong class="ps-cap" title="Vice-captain">VC</strong>}
+                            </span>
+                        )) : <span class="ps-muted">No team</span>}
+                        {s.alsoPlayedFor?.length > 0 && (
+                            <span class="ps-also">Also played for {s.alsoPlayedFor.join(', ')}</span>
+                        )}
+                    </div>
+                    <div class="ps-timeline__nums">
+                        {s.matchesPlayed} matches
+                        {s.potm > 0 && <> · {s.potm} POTM</>}
+                        {s.duties > 0 && <> · {s.duties} duties</>}
+                    </div>
+                </li>
+            ))}
+        </ol>
+    </section>
+)}
+
+<style>
+    .ps-card {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        padding: 24px;
+        margin-bottom: 24px;
+    }
+    .ps-hero {
+        display: flex;
+        gap: 24px;
+        align-items: center;
+    }
+    .ps-hero__body { min-width: 0; flex: 1; }
+    .ps-name {
+        font-size: 28px;
+        font-weight: 800;
+        color: #111827;
+        line-height: 1.15;
+        margin: 0;
+    }
+    .ps-role {
+        color: #4b5563;
+        font-size: 15px;
+        margin: 4px 0 12px;
+    }
+    .ps-dot { margin: 0 6px; color: #9ca3af; }
+    .ps-chips, .ps-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .ps-links { margin-top: 14px; gap: 16px; }
+    .ps-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 10px;
+        border-radius: 9999px;
+        font-size: 12px;
+        font-weight: 600;
+        background: #f4f4f5;
+        color: #3f3f46;
+    }
+    .ps-chip--team { background: #fdf0ef; color: #8C1D18; }
+    .ps-chip--umpire { background: #eef4fb; color: #1e4f86; }
+    .ps-cap {
+        margin-left: 2px;
+        padding: 0 5px;
+        border-radius: 4px;
+        background: #8C1D18;
+        color: #fff;
+        font-size: 10px;
+    }
+    .ps-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 14px;
+        color: #8C1D18;
+        font-weight: 500;
+    }
+    .ps-link:hover { text-decoration: underline; }
+    .ps-link--plain { color: #4b5563; }
+    .ps-link--plain:hover { text-decoration: none; }
+    .ps-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+    .ps-title {
+        font-size: 20px;
+        font-weight: 600;
+        color: #111827;
+        margin: 0 0 16px;
+    }
+    .ps-head .ps-title { margin: 0; }
+    .ps-updated { font-size: 12px; color: #9ca3af; }
+    .ps-empty, .ps-muted { color: #6b7280; font-size: 14px; margin: 0; }
+    .ps-stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+    }
+    .ps-stat {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 14px 8px;
+        border-radius: 10px;
+        background: #faf7f2;
+        text-align: center;
+    }
+    .ps-stat__value { font-size: 26px; font-weight: 800; color: #8C1D18; line-height: 1.1; }
+    .ps-stat__label { font-size: 12px; color: #6b7280; margin-top: 4px; }
+    .ps-career { font-size: 13px; color: #4b5563; margin: 14px 0 0; }
+    .ps-timeline { list-style: none; margin: 0; padding: 0; }
+    .ps-timeline__item {
+        display: grid;
+        grid-template-columns: 160px 1fr auto;
+        gap: 12px;
+        align-items: center;
+        padding: 12px 0;
+        border-top: 1px solid #f0f0f0;
+    }
+    .ps-timeline__item:first-child { border-top: 0; padding-top: 0; }
+    .ps-timeline__season { font-weight: 600; color: #111827; display: flex; align-items: center; gap: 8px; }
+    .ps-current {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #1d6b3a;
+        background: #eef8f1;
+        padding: 1px 6px;
+        border-radius: 4px;
+    }
+    .ps-timeline__teams { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ps-also { flex-basis: 100%; font-size: 12px; color: #6b7280; }
+    .ps-timeline__nums { font-size: 13px; color: #6b7280; white-space: nowrap; }
+
+    @media (max-width: 640px) {
+        .ps-card { padding: 18px; }
+        .ps-hero { flex-direction: column; text-align: center; }
+        .ps-chips, .ps-links { justify-content: center; }
+        .ps-name { font-size: 24px; }
+        .ps-stats { grid-template-columns: repeat(2, 1fr); }
+        .ps-timeline__item { grid-template-columns: 1fr; gap: 6px; }
+        .ps-timeline__nums { white-space: normal; }
+    }
+</style>

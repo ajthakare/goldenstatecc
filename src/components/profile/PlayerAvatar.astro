@@ -1,0 +1,49 @@
+---
+/**
+ * PlayerAvatar — profile photo, or initials on a brand-coloured circle.
+ * Explicit width/height + object-fit (see CLAUDE.md: no aspect-ratio on images).
+ */
+interface Props {
+    firstName: string;
+    lastName: string;
+    photoUrl?: string;
+    size?: number;
+    class?: string;
+}
+
+const { firstName, lastName, photoUrl, size = 64, class: klass = '' } = Astro.props;
+const initials = `${firstName?.[0] || ''}${lastName?.[0] || ''}`.toUpperCase();
+---
+<div
+    class:list={['player-avatar', klass]}
+    style={`width: ${size}px; height: ${size}px; font-size: ${Math.round(size * 0.38)}px;`}
+>
+    {photoUrl ? (
+        <img
+            src={photoUrl}
+            alt={`${firstName} ${lastName}`}
+            width={size}
+            height={size}
+            loading="lazy"
+            style="width: 100%; height: 100%; object-fit: cover; display: block;"
+        />
+    ) : (
+        <span aria-hidden="true">{initials}</span>
+    )}
+</div>
+
+<style>
+    .player-avatar {
+        flex-shrink: 0;
+        border-radius: 9999px;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #8C1D18, #A82B24);
+        color: #fff;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        box-shadow: 0 0 0 3px #fff, 0 0 0 4px #E5C878;
+    }
+</style>

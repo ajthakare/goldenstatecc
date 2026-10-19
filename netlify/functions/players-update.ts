@@ -2,9 +2,11 @@ import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
 import { validateAdminSession, isAdmin, withoutPasswordHash } from '../../src/middleware/auth';
 import type { Player } from '../../src/types/player';
-import { PLAYER_ROLES } from '../../src/types/player';
+import { PLAYER_ROLES, UMPIRE_STATUSES, UMPIRE_STATUS_LABELS } from '../../src/types/player';
 import { addAuditLog, buildFieldDiff } from '../../src/utils/auditLog';
 import { spawn } from 'child_process';
+import { appendFeedEvents, todayString } from './_profile-stats';
+import { isUmpireUpgrade } from '../../src/utils/badges';
 
 /**
  * Update player details
@@ -125,6 +127,17 @@ export const handler: Handler = async (
           validRoles: PLAYER_ROLES,
         }),
       };
+    }
+
+    // Validate umpire status if provided ('' clears it)
+    if (updates.umpireStatus !== undefined) {
+      if (updates.umpireStatus && !UMPIRE_STATUSES.includes(updates.umpireStatus)) {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({ error: 'Invalid umpire status', validStatuses: UMPIRE_STATUSES }),
+        };
+      }
+      if (!updates.umpireStatus) updates.umpireStatus = undefined;
     }
 
     // Validate emergency contact name if provided
@@ -274,6 +287,22 @@ export const handler: Handler = async (
       );
     } catch (err) {
       console.error('Audit log failed:', err);
+    }
+
+    // Announce a new or upgraded umpire certification in the club feed
+    if (updatedPlayer.umpireStatus && isUmpireUpgrade(existingPlayer.umpireStatus, updatedPlayer.umpireStatus)) {
+      const label = UMPIRE_STATUS_LABELS[updatedPlayer.umpireStatus];
+      try {
+        await appendFeedEvents([{
+          id: `badge-${updatedPlayer.id}-umpire|${label}`,
+          kind: 'badge',
+          date: todayString(),
+          playerId: updatedPlayer.id,
+          title: `is now a ${label}`,
+        }]);
+      } catch (err) {
+        console.error('Feed event failed:', err);
+      }
     }
 
     // Auto-sync player name in availability records if name changed (non-blocking)

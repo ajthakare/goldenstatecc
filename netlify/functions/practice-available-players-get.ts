@@ -1,6 +1,7 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
 import { validateAdminSession, isMember } from '../../src/middleware/auth';
+import { isListedMember } from './_profile-stats';
 import type { PracticeSession, Player } from '../../src/types/player';
 
 /**
@@ -70,6 +71,8 @@ export const handler: Handler = async (
 
     // Create a map of playerId to current player name
     const playerNameMap = new Map<string, string>();
+    // Only members listed on /players have a profile to link to
+    const listedIds = new Set((allPlayers || []).filter(isListedMember).map((pl) => pl.id));
     if (allPlayers) {
       allPlayers.forEach(player => {
         playerNameMap.set(player.id, `${player.firstName} ${player.lastName}`);
@@ -80,6 +83,7 @@ export const handler: Handler = async (
     const yesPlayers = practice.playerAvailability
       .filter(p => p.response === 'yes')
       .map(p => ({
+        id: listedIds.has(p.playerId) ? p.playerId : undefined,
         name: playerNameMap.get(p.playerId) || p.playerName, // Use current name or fallback to cached
         extraPlayers: p.extraPlayers || 0,
       }))
@@ -88,6 +92,7 @@ export const handler: Handler = async (
     const bowlingOnlyPlayers = practice.playerAvailability
       .filter(p => p.response === 'bowling-only')
       .map(p => ({
+        id: listedIds.has(p.playerId) ? p.playerId : undefined,
         name: playerNameMap.get(p.playerId) || p.playerName, // Use current name or fallback to cached
         extraPlayers: p.extraPlayers || 0,
       }))
