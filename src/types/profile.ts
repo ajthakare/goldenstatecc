@@ -99,8 +99,8 @@ export interface DirectoryCard {
   photoUrl?: string;             // 400px
   photoSmallUrl?: string;        // 240px (falls back to 400px server-side)
   umpireStatus?: UmpireStatus;
-  seasonMatches: number;         // This season
-  seasonPotm: number;            // This season
+  matchesPlayed: number;         // Career, all seasons (matches the badges)
+  potm: number;                  // Career Player of the Match awards
   badges: Badge[];               // Sorted by importance
 }
 
