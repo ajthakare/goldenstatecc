@@ -1,8 +1,10 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import { validateAdminSession, isSuperAdmin } from '../../src/middleware/auth';
+import { validateAdminSession } from '../../src/middleware/auth';
+import { isCurrentSuperAdmin } from './_admin-auth';
 import { addAuditLog } from '../../src/utils/auditLog';
 import type { Player } from '../../src/types/player';
+import { readPlayersForUpdate, writePlayers } from './_players-store';
 
 /**
  * Reactivate suspended member (super admin only)
@@ -23,7 +25,7 @@ export const handler: Handler = async (
   try {
     // Validate super admin session
     const session = validateAdminSession(event.headers.cookie);
-    if (!session || !isSuperAdmin(session)) {
+    if (!session || !(await isCurrentSuperAdmin(session))) {
       return {
         statusCode: 403,
         body: JSON.stringify({ error: 'Super admin access required' }),
@@ -46,7 +48,7 @@ export const handler: Handler = async (
       siteID: process.env.SITE_ID || '',
       token: process.env.NETLIFY_AUTH_TOKEN || '',
     });
-    const playersData = await playersStore.get('players-all', { type: 'json' });
+    const playersData = await readPlayersForUpdate();
     let players: Player[] = (playersData as Player[]) || [];
 
     // Find player
@@ -77,7 +79,7 @@ export const handler: Handler = async (
     player.updatedBy = session.username || 'super_admin';
 
     // Save updated players array
-    await playersStore.setJSON('players-all', players);
+    await writePlayers(players);
 
     await addAuditLog(
       session.email!,

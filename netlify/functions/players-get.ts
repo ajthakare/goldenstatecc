@@ -1,6 +1,7 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import { validateAdminSession, isAdmin, withoutPasswordHash } from '../../src/middleware/auth';
+import { validateAdminSession, withoutPasswordHash } from '../../src/middleware/auth';
+import { isCurrentAdmin } from './_admin-auth';
 import type { Player } from '../../src/types/player';
 
 /**
@@ -36,7 +37,7 @@ export const handler: Handler = async (
     }
 
     // Members may only read their own record (used by /profile)
-    if (!isAdmin(session) && session.userId !== playerId) {
+    if (!(await isCurrentAdmin(session)) && session.userId !== playerId) {
       return {
         statusCode: 403,
         body: JSON.stringify({ error: 'Admin access required' }),

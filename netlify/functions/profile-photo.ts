@@ -1,7 +1,9 @@
 import { Handler, HandlerEvent } from '@netlify/functions';
-import { validateAdminSession, isMember, isAdmin } from '../../src/middleware/auth';
+import { validateAdminSession, isMember } from '../../src/middleware/auth';
+import { isCurrentAdmin } from './_admin-auth';
 import { addAuditLog } from '../../src/utils/auditLog';
 import { blobStore, loadPlayers } from './_profile-stats';
+import { readPlayersForUpdate, writePlayers } from './_players-store';
 
 /**
  * Upload or remove a profile photo
@@ -43,13 +45,13 @@ export const handler: Handler = async (event: HandlerEvent) => {
       event.httpMethod === 'DELETE' && event.queryStringParameters?.playerId
         ? event.queryStringParameters.playerId
         : session.userId;
-    if (targetId !== session.userId && !isAdmin(session)) {
+    if (targetId !== session.userId && !(await isCurrentAdmin(session))) {
       return { statusCode: 403, body: JSON.stringify({ error: 'You can only change your own photo' }) };
     }
 
     const playersStore = blobStore('players');
     const avatarsStore = blobStore('player-avatars');
-    const players = await loadPlayers();
+    const players = await readPlayersForUpdate();
     const player = players.find((p) => p.id === targetId);
     if (!player) {
       return { statusCode: 404, body: JSON.stringify({ error: 'Player not found' }) };
@@ -63,7 +65,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
       player.photoUpdatedAt = undefined;
       player.updatedAt = new Date().toISOString();
       player.updatedBy = actor;
-      await playersStore.setJSON('players-all', players);
+      await writePlayers(players);
       await addAuditLog(actor, 'PROFILE_PHOTO_REMOVED', `Removed profile photo for ${playerName}`, targetId, {
         entityType: 'player',
       }).catch((err) => console.error('Audit log failed:', err));
@@ -111,7 +113,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
     player.photoUpdatedAt = now;
     player.updatedAt = now;
     player.updatedBy = actor;
-    await playersStore.setJSON('players-all', players);
+    await writePlayers(players);
 
     await addAuditLog(actor, 'PROFILE_PHOTO_UPDATED', `Updated profile photo for ${playerName}`, targetId, {
       entityType: 'player',

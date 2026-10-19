@@ -1,10 +1,12 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import { validateAdminSession, isAdmin, withoutPasswordHash } from '../../src/middleware/auth';
+import { validateAdminSession, withoutPasswordHash } from '../../src/middleware/auth';
+import { isCurrentAdmin } from './_admin-auth';
 import type { Player } from '../../src/types/player';
 import { PLAYER_ROLES } from '../../src/types/player';
 import { randomUUID } from 'crypto';
 import { addAuditLog } from '../../src/utils/auditLog';
+import { readPlayersForUpdate, writePlayers } from './_players-store';
 
 /**
  * Create a new player in the global pool
@@ -30,7 +32,7 @@ export const handler: Handler = async (
     }
 
     // Admin endpoint: a valid member session isn't enough
-    if (!isAdmin(session)) {
+    if (!(await isCurrentAdmin(session))) {
       return {
         statusCode: 403,
         body: JSON.stringify({ error: 'Admin access required' }),
@@ -179,7 +181,7 @@ export const handler: Handler = async (
     });
 
     const existingPlayers =
-      (await store.get('players-all', { type: 'json' })) as Player[] | null;
+      (await readPlayersForUpdate()) as Player[] | null;
 
     const players = existingPlayers || [];
 
@@ -233,7 +235,7 @@ export const handler: Handler = async (
     players.push(newPlayer);
 
     // Save to Blobs
-    await store.setJSON('players-all', players);
+    await writePlayers(players);
 
     // Wait for audit log to complete
     try {

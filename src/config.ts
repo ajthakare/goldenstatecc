@@ -48,8 +48,9 @@ export const SITE_CONFIG = {
     },
 
     // Winter Season Check-In Form (/winter-checkin)
-    // `isOpen`                   → show the link in the site nav (public launch). The
-    //                              page still works by direct URL when this is false.
+    // `isOpen`                   → whether the form counts as open (shown on the admin
+    //                              page). The page isn't in the site nav; it's reached
+    //                              by direct URL.
     // `acceptingResponses`       → master switch, blocks submissions for everyone
     //                              (guests + members) when false.
     // `acceptingMemberResponses` → fallback default for whether logged-in members can

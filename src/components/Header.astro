@@ -19,11 +19,7 @@ const navItems = [
     { linkText: 'Fixtures', href: '/fixtures' },
     { linkText: 'Club Feed', href: '/feed' },
     { linkText: 'Members', href: '/members' },
-    // /winter-checkin is hidden from nav until the club launches it publicly
-    // (SITE_CONFIG.winterCheckIn.isOpen). The page still works by direct URL.
-    ...(SITE_CONFIG.winterCheckIn?.isOpen
-        ? [{ linkText: 'Winter Check-In', href: '/winter-checkin' }]
-        : []),
+    // /winter-checkin is no longer in the nav; the page still works by direct URL.
     { linkText: 'Gallery', href: '/gallery' },
     { linkText: 'Contact Us', href: '/contact' }
 ];

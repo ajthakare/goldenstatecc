@@ -1,11 +1,13 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import { validateAdminSession, isAdmin } from '../../src/middleware/auth';
+import { validateAdminSession } from '../../src/middleware/auth';
+import { isCurrentAdmin } from './_admin-auth';
 import { addAuditLog } from '../../src/utils/auditLog';
 import type { Player, ImportResult } from '../../src/types/player';
 import { PLAYER_ROLES } from '../../src/types/player';
 import { randomUUID } from 'crypto';
 import Papa from 'papaparse';
+import { readPlayersForUpdate, writePlayers } from './_players-store';
 
 /**
  * Bulk import players from CSV
@@ -31,7 +33,7 @@ export const handler: Handler = async (
     }
 
     // Admin endpoint: a valid member session isn't enough
-    if (!isAdmin(session)) {
+    if (!(await isCurrentAdmin(session))) {
       return {
         statusCode: 403,
         body: JSON.stringify({ error: 'Admin access required' }),
@@ -113,7 +115,7 @@ export const handler: Handler = async (
     });
 
     const existingPlayers =
-      (await store.get('players-all', { type: 'json' })) as Player[] | null;
+      (await readPlayersForUpdate()) as Player[] | null;
 
     const players = existingPlayers || [];
 
@@ -309,7 +311,7 @@ export const handler: Handler = async (
 
     // Save players if any were created or updated
     if (importResult.created > 0 || importResult.updated > 0) {
-      await store.setJSON('players-all', players);
+      await writePlayers(players);
 
       await addAuditLog(
         session.username,

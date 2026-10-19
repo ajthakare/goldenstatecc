@@ -1,9 +1,7 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import {
-  validateAdminSession,
-  isSuperAdmin,
-} from '../../src/middleware/auth';
+import { validateAdminSession } from '../../src/middleware/auth';
+import { isCurrentSuperAdmin } from './_admin-auth';
 
 /**
  * List all password reset requests
@@ -28,7 +26,7 @@ export const handler: Handler = async (
     const cookieHeader = event.headers.cookie;
     const session = validateAdminSession(cookieHeader);
 
-    if (!session || !isSuperAdmin(session)) {
+    if (!session || !(await isCurrentSuperAdmin(session))) {
       return {
         statusCode: 403,
         body: JSON.stringify({

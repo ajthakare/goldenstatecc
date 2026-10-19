@@ -8,6 +8,7 @@ import {
   AuthRole,
 } from '../../src/middleware/auth';
 import type { Player } from '../../src/types/player';
+import { readPlayersForUpdate, writePlayers } from './_players-store';
 
 /**
  * Handle unified login (admin and member)
@@ -50,7 +51,7 @@ export const handler: Handler = async (
       siteID: process.env.SITE_ID || '',
       token: process.env.NETLIFY_AUTH_TOKEN || '',
     });
-    const playersData = await playersStore.get('players-all', { type: 'json' });
+    const playersData = await readPlayersForUpdate();
     const players: Player[] = (playersData as Player[]) || [];
 
     // Find player by email (case-insensitive)
@@ -107,7 +108,7 @@ export const handler: Handler = async (
 
     // Update lastLogin timestamp
     player.lastLogin = new Date().toISOString();
-    await playersStore.setJSON('players-all', players);
+    await writePlayers(players);
 
     // Get role (default to 'member' if not set)
     const role: AuthRole = player.role_auth || 'member';

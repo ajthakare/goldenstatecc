@@ -1,11 +1,9 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import {
-  validateAdminSession,
-  hashPassword,
-  isSuperAdmin,
-} from '../../src/middleware/auth';
+import { validateAdminSession, hashPassword } from '../../src/middleware/auth';
+import { isCurrentSuperAdmin } from './_admin-auth';
 import { addAuditLog } from '../../src/utils/auditLog';
+import { readPlayersForUpdate, writePlayers } from './_players-store';
 
 /**
  * Generate a random temporary password
@@ -58,7 +56,7 @@ export const handler: Handler = async (
     const cookieHeader = event.headers.cookie;
     const session = validateAdminSession(cookieHeader);
 
-    if (!session || !isSuperAdmin(session)) {
+    if (!session || !(await isCurrentSuperAdmin(session))) {
       return {
         statusCode: 403,
         body: JSON.stringify({
@@ -117,7 +115,7 @@ export const handler: Handler = async (
       token: process.env.NETLIFY_AUTH_TOKEN || '',
     });
 
-    const playersData = await playersStore.get('players-all', { type: 'json' }) as any[] | null;
+    const playersData = await readPlayersForUpdate() as any[] | null;
     const players = playersData || [];
 
     // Find the user
@@ -144,7 +142,7 @@ export const handler: Handler = async (
     players[userIndex] = updatedUser;
 
     // Save updated players
-    await playersStore.setJSON('players-all', players);
+    await writePlayers(players);
 
     // Mark request as completed
     requests[requestIndex] = {

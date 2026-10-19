@@ -4,17 +4,16 @@ export const prerender = false;
 import Layout from '../layouts/Layout.astro';
 import PageHeader from '../components/PageHeader.astro';
 import FeedItemCard from '../components/feed/FeedItemCard.astro';
-import { validateAdminSession, isMember, isAdmin } from '../middleware/auth';
+import { validateAdminSession, isMember } from '../middleware/auth';
 import { clubFeedCacheHeaders } from '../utils/feed';
 import type { FeedItem } from '../types/profile';
 
 // Public page. Signed-out visitors get a CDN-cached copy (purged whenever the
-// feed changes); members get a fresh page with profile links and photos, and
-// admins also get a Hide button on each post.
+// feed changes); members get a fresh page with profile links and photos.
+// Admins hide posts from Admin → Club Feed.
 const cookieHeader = Astro.request.headers.get('cookie') || '';
 const session = validateAdminSession(cookieHeader);
 const signedIn = !!(session && isMember(session));
-const canHide = !!(session && isAdmin(session));
 
 let upcoming: FeedItem[] = [];
 let items: FeedItem[] = [];
@@ -81,9 +80,6 @@ for (const item of items) {
                                 {u.detail && <span class="up-detail">{u.detail}</span>}
                             </span>
                             {u.link && <a href={u.link.href} target="_blank" rel="noopener noreferrer" class="up-link">{u.link.label}</a>}
-                            {canHide && (
-                                <button type="button" class="up-hide" data-hide-post={u.id} data-title={u.title} data-date={u.date}>Hide</button>
-                            )}
                         </li>
                     ))}
                 </ul>
@@ -98,42 +94,12 @@ for (const item of items) {
             <section>
                 <h2 class="feed-week">{week.label}</h2>
                 <ol class="feed-list">
-                    {week.items.map((item) => <FeedItemCard item={item} canHide={canHide} />)}
+                    {week.items.map((item) => <FeedItemCard item={item} />)}
                 </ol>
             </section>
         ))}
     </div>
 
-    {canHide && (
-        <script>
-            // Admins: hide a post from the Club Feed (undo from Admin → Club Feed)
-            document.querySelectorAll<HTMLButtonElement>('[data-hide-post]').forEach((button) => {
-                button.addEventListener('click', async () => {
-                    const card = button.closest('li');
-                    if (!confirm('Hide this post from the Club Feed? You can unhide it from Admin → Club Feed.')) return;
-                    button.disabled = true;
-                    try {
-                        const res = await fetch('/.netlify/functions/feed-hide', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            credentials: 'same-origin',
-                            body: JSON.stringify({
-                                id: button.dataset.hidePost,
-                                hidden: true,
-                                title: button.dataset.title,
-                                date: button.dataset.date,
-                            }),
-                        });
-                        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed to hide post');
-                        card?.remove();
-                    } catch (err) {
-                        alert(err instanceof Error ? err.message : 'Failed to hide post');
-                        button.disabled = false;
-                    }
-                });
-            });
-        </script>
-    )}
 
     <style>
         /* Feed */
@@ -180,17 +146,6 @@ for (const item of items) {
         .up-title { font-weight: 600; color: #111827; font-size: 14px; }
         .up-detail { font-size: 12px; color: #6b7280; }
         .up-link { font-size: 12px; font-weight: 600; color: #8C1D18; }
-        .up-hide {
-            padding: 2px 10px;
-            border: 1px solid #e5e7eb;
-            border-radius: 9999px;
-            background: #fff;
-            font-size: 11px;
-            font-weight: 600;
-            color: #6b7280;
-            cursor: pointer;
-        }
-        .up-hide:hover { border-color: #dc2626; color: #dc2626; }
         .feed-empty { color: #6b7280; font-size: 14px; margin-top: 24px; }
         .alert { padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-top: 24px; }
         .alert-error { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }

@@ -1,7 +1,9 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
 import { validateAdminSession, AdminUser } from '../../src/middleware/auth';
+import { currentRole } from './_admin-auth';
 import { addAuditLog } from '../../src/utils/auditLog';
+import { readPlayersForUpdate, writePlayers } from './_players-store';
 
 /**
  * Delete an admin user
@@ -35,7 +37,7 @@ export const handler: Handler = async (
     }
 
     // Get user role (with fallback for old sessions without role)
-    const userRole = session.role || (session.username === 'admin' ? 'super_admin' : 'admin');
+    const userRole = await currentRole(session);
 
     // Only super admin can delete users
     if (userRole !== 'super_admin') {
@@ -72,7 +74,7 @@ export const handler: Handler = async (
       siteID: process.env.SITE_ID || '',
       token: process.env.NETLIFY_AUTH_TOKEN || '',
     });
-    const playersData = await playersStore.get('players-all', { type: 'json' });
+    const playersData = await readPlayersForUpdate();
     const players = (playersData as any[]) || [];
 
     // Find user by email
@@ -104,7 +106,7 @@ export const handler: Handler = async (
     players[playerIndex].updatedBy = session.email || session.username;
 
     // Save updated players
-    await playersStore.setJSON('players-all', players);
+    await writePlayers(players);
 
     // Also remove from admin-users store for backwards compatibility
     const adminStore = getStore({

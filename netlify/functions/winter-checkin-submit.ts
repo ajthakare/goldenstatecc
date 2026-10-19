@@ -5,6 +5,7 @@ import { addAuditLog } from '../../src/utils/auditLog';
 import { SITE_CONFIG, isAcceptingMemberResponses } from '../../src/config';
 import type { Player } from '../../src/types/player';
 import type { WinterCheckInResponse } from '../../src/types/winter';
+import { readPlayersForUpdate, writePlayers } from './_players-store';
 
 const wc = SITE_CONFIG.winterCheckIn;
 const RESPONSES_KEY = `responses-${wc.seasonKey}`;
@@ -111,7 +112,7 @@ export const handler: Handler = async (
   const playersStore = getPlayersStore();
 
   if (memberSession) {
-    players = ((await playersStore.get('players-all', { type: 'json' })) as Player[]) || [];
+    players = ((await readPlayersForUpdate()) as Player[]) || [];
     playerRecord = players.find((p) => p.id === memberSession.userId);
     if (!playerRecord) {
       return { statusCode: 401, body: JSON.stringify({ error: 'Member record not found' }) };
@@ -374,7 +375,7 @@ export const handler: Handler = async (
 
     if (Object.keys(patch).length > 0) {
       Object.assign(playerRecord, patch, { updatedAt: now, updatedBy: 'winter-checkin' });
-      await playersStore.setJSON('players-all', players);
+      await writePlayers(players);
     }
   }
 
