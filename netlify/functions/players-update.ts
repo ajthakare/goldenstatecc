@@ -1,6 +1,6 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import { validateAdminSession } from '../../src/middleware/auth';
+import { validateAdminSession, isAdmin, withoutPasswordHash } from '../../src/middleware/auth';
 import type { Player } from '../../src/types/player';
 import { PLAYER_ROLES, UMPIRE_STATUSES, UMPIRE_STATUS_LABELS } from '../../src/types/player';
 import { addAuditLog, buildFieldDiff } from '../../src/utils/auditLog';
@@ -30,6 +30,14 @@ export const handler: Handler = async (
       };
     }
 
+    // Admin endpoint: a valid member session isn't enough
+    if (!isAdmin(session)) {
+      return {
+        statusCode: 403,
+        body: JSON.stringify({ error: 'Admin access required' }),
+      };
+    }
+
     // Only PUT method allowed
     if (event.httpMethod !== 'PUT') {
       return {
@@ -41,6 +49,14 @@ export const handler: Handler = async (
     // Parse request body
     const body = JSON.parse(event.body || '{}');
     const { id, ...updates } = body;
+
+    // Account and security fields are managed by their own endpoints (login,
+    // registration approval, admin-users-*), never through a generic update
+    const PROTECTED_FIELDS = [
+      'passwordHash', 'hasPassword', 'role_auth', 'registrationStatus', 'registeredAt',
+      'approvedAt', 'approvedBy', 'lastLogin', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy',
+    ];
+    for (const field of PROTECTED_FIELDS) delete updates[field];
 
     // Validate required ID
     if (!id) {
@@ -312,7 +328,7 @@ export const handler: Handler = async (
       },
       body: JSON.stringify({
         success: true,
-        data: updatedPlayer,
+        data: withoutPasswordHash(updatedPlayer),
         message: 'Player updated successfully',
       }),
     };

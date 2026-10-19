@@ -1,6 +1,6 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import { validateAdminSession } from '../../src/middleware/auth';
+import { validateAdminSession, isAdmin, withoutPasswordHash } from '../../src/middleware/auth';
 import type { Player } from '../../src/types/player';
 
 /**
@@ -22,6 +22,14 @@ export const handler: Handler = async (
       return {
         statusCode: 401,
         body: JSON.stringify({ error: 'Unauthorized' }),
+      };
+    }
+
+    // Admin endpoint: a valid member session isn't enough
+    if (!isAdmin(session)) {
+      return {
+        statusCode: 403,
+        body: JSON.stringify({ error: 'Admin access required' }),
       };
     }
 
@@ -92,7 +100,7 @@ export const handler: Handler = async (
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(filteredPlayers),
+      body: JSON.stringify(filteredPlayers.map(withoutPasswordHash)),
     };
   } catch (error) {
     console.error('Error listing players:', error);

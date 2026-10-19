@@ -639,11 +639,11 @@ if (!isSuperAdmin) {
         console.log('Players with email:', playersWithEmail.length);
         console.log('Players with email sample:', playersWithEmail.slice(0, 3));
 
-        // Filter members (players with passwordHash)
-        members = allPlayers.filter(p => p.passwordHash);
+        // Filter members (players with a login)
+        members = allPlayers.filter(p => p.hasPassword);
 
         console.log('Total players:', allPlayers.length);
-        console.log('Total members (with passwordHash):', members.length);
+        console.log('Total members (with a login):', members.length);
         console.log('Members:', members);
 
         // Debug: Check if any players have auth fields
@@ -746,11 +746,11 @@ if (!isSuperAdmin) {
         </div>
       `;
 
-      // Populate player dropdown (exclude members with passwordHash)
+      // Populate player dropdown (exclude players who already have a login)
       const targetPlayer = document.getElementById('target-player');
       targetPlayer.innerHTML = '<option value="">-- Search and select player --</option>';
 
-      const nonMemberPlayers = allPlayers.filter(p => !p.passwordHash);
+      const nonMemberPlayers = allPlayers.filter(p => !p.hasPassword);
       nonMemberPlayers.forEach(player => {
         const option = document.createElement('option');
         option.value = player.id;

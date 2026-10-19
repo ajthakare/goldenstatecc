@@ -152,6 +152,17 @@ export function validateAdminSession(
   return validateSession(token);
 }
 
+/**
+ * Strip the password hash before a player record leaves the server.
+ * `hasPassword` tells admin pages whether the player has a member login.
+ */
+export function withoutPasswordHash<T extends { passwordHash?: string }>(
+  player: T
+): Omit<T, 'passwordHash'> & { hasPassword: boolean } {
+  const { passwordHash, ...rest } = player;
+  return { ...rest, hasPassword: !!passwordHash };
+}
+
 // ============================================================================
 // Role-Based Authorization Helpers
 // ============================================================================
