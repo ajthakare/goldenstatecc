@@ -28,6 +28,7 @@ export function createDutySuggester(els: {
   const { button, panel, basis, body, close, getContext } = els;
   let history: DutyHistory | null = null;
   let historyFor = '';
+  let loading = false;   // a history request is in flight; keep the button disabled
 
   const isOpen = () => panel.style.display !== 'none';
 
@@ -62,7 +63,7 @@ export function createDutySuggester(els: {
     }
     const selected = ctx.players.filter((p) => p.wasSelected).length;
     button.style.display = ctx.locked ? 'none' : '';
-    button.disabled = selected < 11;
+    button.disabled = loading || selected < 11;
     button.title = selected < 11 ? 'Select 11 players first' : '';
     if (ctx.locked || selected < 11) panel.style.display = 'none';
     if (isOpen()) render(ctx);
@@ -73,6 +74,7 @@ export function createDutySuggester(els: {
     const ctx = getContext();
     if (!ctx) return;
     if (!history || historyFor !== ctx.fixtureId) {
+      loading = true;
       button.disabled = true;
       button.textContent = 'Loading…';
       try {
@@ -86,10 +88,12 @@ export function createDutySuggester(els: {
         console.error('Error loading duty history:', error);
         alert('Could not load past duties. Please try again.');
       } finally {
+        loading = false;
         button.textContent = 'Suggest Duties';
         refresh();
       }
-      if (!history) return;
+      // Fixture switched, or the XI dropped below 11, while loading
+      if (!history || button.disabled) return;
     }
     panel.style.display = 'block';
     render(ctx);
