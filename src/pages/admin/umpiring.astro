@@ -260,7 +260,7 @@ if (!isAdminUser) return Astro.redirect('/');
     const playerById = () => new Map(players.map((p) => [p.id, p]));
     const nameOf = (id?: string) => {
       const p = id ? playerById().get(id) : undefined;
-      return p ? `${p.firstName} ${p.lastName}` : 'Unknown player';
+      return p ? `${p.firstName} ${p.lastName}` : 'Removed player';
     };
     const filled = (s?: Slot): s is Slot => !!s && (!!s.playerId || !!s.externalName);
     const slotsOf = (d: Duty) => [d.umpire1, d.umpire2].filter(filled);
@@ -303,7 +303,7 @@ if (!isAdminUser) return Astro.redirect('/');
 
     async function init() {
       try {
-        const [seasonList, playerList] = await Promise.all([api('seasons-list'), api('players-list?status=active')]);
+        const [seasonList, playerList] = await Promise.all([api('seasons-list'), api('players-list')]);
         seasons = seasonList;
         players = playerList;
         const select = $<HTMLSelectElement>('season-select');
@@ -472,9 +472,9 @@ if (!isAdminUser) return Astro.redirect('/');
     function playerOptions(selected?: string): string {
       // Umpires first (any club player can be assigned)
       const rank = (p: Player) => (p.umpireStatus === 'panel' ? 0 : p.umpireStatus === 'pre-panel' ? 1 : p.umpireStatus === 'certified' ? 2 : 3);
-      const sorted = [...players].sort((a, b) => rank(a) - rank(b) || `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`));
-      // Keep a previously assigned player who's no longer active
-      if (selected && !sorted.some((p) => p.id === selected)) sorted.push({ id: selected, firstName: 'Inactive', lastName: 'player', isActive: false });
+      // Active players, plus whoever is already assigned (even if inactive or removed since)
+      const sorted = players.filter((p) => p.isActive || p.id === selected).sort((a, b) => rank(a) - rank(b) || `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`));
+      if (selected && !sorted.some((p) => p.id === selected)) sorted.push({ id: selected, firstName: 'Removed', lastName: 'player', isActive: false });
       const opt = (p: Player) => `<option value="${esc(p.id)}"${p.id === selected ? ' selected' : ''}>${esc(`${p.firstName} ${p.lastName}`)}${p.umpireStatus ? ` · ${UMPIRE_LABELS[p.umpireStatus] || p.umpireStatus}` : ''}${pushIds.has(p.id) ? '' : ' 🔕'}</option>`;
       const umpires = sorted.filter((p) => p.umpireStatus);
       const others = sorted.filter((p) => !p.umpireStatus);

@@ -14,6 +14,7 @@ import {
   sundayVoteMessage,
   to12Hour,
   toPublicDuty,
+  upcomingWeekDuties,
 } from '../../src/utils/umpiring';
 import { buildFeed } from '../../src/utils/feed';
 import type { FeedPlayer } from '../../src/utils/feed';
@@ -218,6 +219,17 @@ describe('notifications', () => {
     expect(sundayVoteMessage(false, true, 1)?.body).toBe('Fixture polls are open. 1 umpiring duty this week.');
     expect(sundayVoteMessage(false, false, 2)).toEqual({ title: 'Umpiring This Week', body: 'GSCC has 2 umpiring duties this week.', url: '/fixtures' });
     expect(sundayVoteMessage(false, false, 0)).toBeNull();
+  });
+
+  it('Sunday 8 PM counts from tomorrow: that day\'s games are already over', () => {
+    const week = upcomingWeekDuties([
+      duty('sun', '2026-11-01'),                   // today (the Sunday the job runs)
+      duty('sat', '2026-11-07'),
+      duty('nextSun', '2026-11-08'),
+      duty('cancelled', '2026-11-07', { cancelled: true }),
+      duty('later', '2026-11-09'),
+    ], '2026-11-01', '2026-11-08');
+    expect(week.map((d) => d.id)).toEqual(['sat', 'nextSun']);
   });
 
   it('leaves the existing messages unchanged without duties', () => {

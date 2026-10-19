@@ -10,7 +10,7 @@ import { schedule } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
 import { getPacificNow, parseLocalDate } from './_utils';
 import { sendPushToAll, sendPushToPlayers, toDateString } from './_push-utils';
-import { DUTY_STORE, clubUmpireIds, dutiesKey, dutyPushBody, sundayVoteMessage } from '../../src/utils/umpiring';
+import { DUTY_STORE, clubUmpireIds, dutiesKey, dutyPushBody, sundayVoteMessage, upcomingWeekDuties } from '../../src/utils/umpiring';
 import type { UmpiringDuty } from '../../src/types/umpiring';
 
 export const handler = schedule('0 3 * * 1', async () => {
@@ -93,11 +93,8 @@ export const handler = schedule('0 3 * * 1', async () => {
     });
     const allDuties: UmpiringDuty[] =
       (await dutiesStore.get(dutiesKey(activeSeason.id), { type: 'json' })) || [];
-    const todayStr = toDateString(today);
-    const weekEndStr = toDateString(sevenDaysLater);
-    const weekDuties = allDuties.filter(
-      (d) => !d.cancelled && d.date >= todayStr && d.date <= weekEndStr
-    );
+    // From tomorrow: today's (Sunday's) games finished before this 8 PM job runs
+    const weekDuties = upcomingWeekDuties(allDuties, toDateString(today), toDateString(sevenDaysLater));
 
     const hasPractice = hasWedPractice || hasFriPractice;
     const hasFixtures = upcomingFixtures.length > 0;

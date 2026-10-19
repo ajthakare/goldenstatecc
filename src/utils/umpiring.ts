@@ -342,6 +342,14 @@ export function dutySummary(duties: UmpiringDuty[], todayStr: string): DutySumma
   return s;
 }
 
+/**
+ * Duties the Sunday 8 PM job announces: after today (today's games are
+ * already over by 8 PM) up to and including `endStr`. Cancelled ones are left out.
+ */
+export function upcomingWeekDuties(duties: UmpiringDuty[], todayStr: string, endStr: string): UmpiringDuty[] {
+  return duties.filter((d) => !d.cancelled && d.date > todayStr && d.date <= endStr);
+}
+
 /** "Sun, Nov 1 · 8:45 AM · Wilson Field" */
 export function dutyPushBody(d: Pick<UmpiringDuty, 'date' | 'time' | 'venue'>): string {
   const [y, m, day] = d.date.split('-').map(Number);
