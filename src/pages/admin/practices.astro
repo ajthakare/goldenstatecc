@@ -988,35 +988,45 @@ if (!isAdminUser) {
         const typeEmoji = practice.type === 'net' ? '🎾' : '🏟️';
         const typeName = practice.type === 'net' ? 'Net Session' : 'Field Practice';
 
-        // Get players who said yes
+        const byName = (a, b) => a.playerName.localeCompare(b.playerName);
+
+        // Players who said yes
         const yesPlayers = practice.playerAvailability
           .filter(p => p.response === 'yes')
-          .map(p => p.playerName)
-          .sort();
+          .sort(byName);
 
-        // Get players who said bowling-only (only for net sessions)
+        // Players who said bowling-only (only for net sessions)
         const bowlingOnlyPlayers = practice.type === 'net'
-          ? practice.playerAvailability
-              .filter(p => p.response === 'bowling-only')
-              .map(p => p.playerName)
-              .sort()
+          ? practice.playerAvailability.filter(p => p.response === 'bowling-only').sort(byName)
           : [];
+
+        // Guests (net and field): "Name +1", "Name +2"… for each guest a coming
+        // player said they're bringing
+        const guests = [...yesPlayers, ...bowlingOnlyPlayers]
+          .sort(byName)
+          .flatMap(p => Array.from({ length: p.extraPlayers || 0 }, (_, i) => `${p.playerName} +${i + 1}`));
+
+        // Plain names, no @mentions: the practice channel doesn't tag people
+        // (team selection announcements do)
+        const numbered = (names) =>
+          names.map((name, idx) => `${String(idx + 1).padStart(2, ' ')}. ${name}`).join('\n') + '\n\n';
 
         let announcement = `${typeEmoji} ${typeName}\n`;
         announcement += `${formatDateDisplay(practice.date)} at ${practice.time}\n`;
         announcement += `${practice.location}\n\n`;
 
         if (yesPlayers.length > 0) {
-          announcement += yesPlayers.map((name, idx) =>
-            `${String(idx + 1).padStart(2, ' ')}.⁠ ⁠@⁨${name}⁩`
-          ).join('\n') + '\n\n';
+          announcement += numbered(yesPlayers.map(p => p.playerName));
         }
 
         if (bowlingOnlyPlayers.length > 0) {
           announcement += 'Bowling only:\n';
-          announcement += bowlingOnlyPlayers.map((name, idx) =>
-            `${String(idx + 1).padStart(2, ' ')}.⁠ ⁠@⁨${name}⁩`
-          ).join('\n') + '\n\n';
+          announcement += numbered(bowlingOnlyPlayers.map(p => p.playerName));
+        }
+
+        if (guests.length > 0) {
+          announcement += 'Guests:\n';
+          announcement += numbered(guests);
         }
 
         announcement += 'Please be on time to ensure we all get max time to practice!';
