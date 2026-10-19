@@ -107,6 +107,7 @@ const updated = profile.statsCalculatedAt
             Career: <strong>{stats.matchesPlayed}</strong> matches ·
             <strong>{stats.potm}</strong> Player of the Match ·
             <strong>{stats.duties}</strong> duties
+            {(stats.gamesUmpired ?? 0) > 0 && <> · <strong>{stats.gamesUmpired}</strong> {stats.gamesUmpired === 1 ? 'game' : 'games'} umpired</>}
         </p>
     </section>
 )}
@@ -137,6 +138,7 @@ const updated = profile.statsCalculatedAt
                         {s.matchesPlayed} matches
                         {s.potm > 0 && <> · {s.potm} POTM</>}
                         {s.duties > 0 && <> · {s.duties} duties</>}
+                        {(s.gamesUmpired ?? 0) > 0 && <> · {s.gamesUmpired} umpired</>}
                     </div>
                 </li>
             ))}

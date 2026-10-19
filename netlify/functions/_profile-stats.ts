@@ -2,7 +2,7 @@
  * Shared server-side helpers for player profiles (/players, /players/[id], /profile).
  *
  *  - recalculateProfileStats(): loads every season's fixtures, availability,
- *    core roster and practices, runs computeProfileStats() and saves the
+ *    core roster, practices and umpiring duties, runs computeProfileStats() and saves the
  *    result to `player-profiles/profile-stats`. Called weekly by
  *    schedule-statistics.ts and whenever an admin recalculates statistics.
  *  - toPublicProfile() / toDirectoryCard(): the ONLY way player data should
@@ -17,6 +17,8 @@ import type { SeasonInput } from '../../src/utils/badges';
 import { badgeSnapshot, computeMilestoneEvents, diffBadgeEvents, mergeEvents, CLUB_FEED_CACHE_TAG } from '../../src/utils/feed';
 import type { BadgeSnapshot } from '../../src/utils/feed';
 import { PRIVACY_DEFAULTS } from '../../src/types/player';
+import { DUTY_STORE, dutiesKey } from '../../src/utils/umpiring';
+import type { UmpiringDuty } from '../../src/types/umpiring';
 import type {
   Player,
   Season,
@@ -112,11 +114,12 @@ async function loadSeasonInput(season: Season, opts: { practices: boolean }): Pr
   const coreRosterStore = blobStore('core-roster');
   const practicesStore = blobStore('practice-sessions');
 
-  const [fixtures, coreRoster, availabilityIndex, practiceIndex] = await Promise.all([
+  const [fixtures, coreRoster, availabilityIndex, practiceIndex, umpiringDuties] = await Promise.all([
     getJSONWithRetry<Fixture[]>(fixturesStore, `fixtures-${season.id}`),
     getJSONWithRetry<CoreRosterAssignment[]>(coreRosterStore, `core-roster-${season.id}`),
     getJSONWithRetry<Array<{ fixtureId: string }>>(availabilityStore, `availability-index-${season.id}`),
     opts.practices ? getJSONWithRetry<string[]>(practicesStore, `practice-index-${season.id}`) : null,
+    getJSONWithRetry<UmpiringDuty[]>(blobStore(DUTY_STORE), dutiesKey(season.id)),
   ]);
 
   const availability = await mapLimit(availabilityIndex || [], 8, (item) =>
@@ -132,6 +135,7 @@ async function loadSeasonInput(season: Season, opts: { practices: boolean }): Pr
     coreRoster: coreRoster || [],
     availability: availability.filter((a): a is FixtureAvailability => !!a),
     practices: practices.filter((p): p is PracticeSession => !!p),
+    umpiringDuties: umpiringDuties || [],
   };
 }
 

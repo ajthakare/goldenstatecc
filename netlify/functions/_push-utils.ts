@@ -1,6 +1,6 @@
 /**
  * Shared push notification utility for scheduled functions.
- * Sends to all subscribers, auto-cleans expired subscriptions.
+ * Sends to all subscribers (or chosen players), auto-cleans expired subscriptions.
  */
 import { getStore } from '@netlify/blobs';
 import webpush from 'web-push';
@@ -11,8 +11,25 @@ export interface PushPayload {
   url?: string;
 }
 
-export async function sendPushToAll(
-  payload: PushPayload
+function subscriptionsStore() {
+  return getStore({
+    name: 'push-subscriptions',
+    siteID: process.env.SITE_ID || '',
+    token: process.env.NETLIFY_AUTH_TOKEN || '',
+  });
+}
+
+/** Player IDs with at least one push subscription (any device). */
+export async function subscribedPlayerIds(): Promise<Set<string>> {
+  const subscriptions: any[] =
+    (await subscriptionsStore().get('subscriptions', { type: 'json' })) || [];
+  return new Set(subscriptions.map((s) => s.playerId).filter(Boolean));
+}
+
+/** Send to every subscription that passes `filter`, then drop expired ones. */
+async function sendPush(
+  payload: PushPayload,
+  filter: (stored: any) => boolean
 ): Promise<{ sent: number; expired: number }> {
   webpush.setVapidDetails(
     process.env.VAPID_SUBJECT!,
@@ -20,16 +37,12 @@ export async function sendPushToAll(
     process.env.VAPID_PRIVATE_KEY!
   );
 
-  const store = getStore({
-    name: 'push-subscriptions',
-    siteID: process.env.SITE_ID || '',
-    token: process.env.NETLIFY_AUTH_TOKEN || '',
-  });
-
+  const store = subscriptionsStore();
   const subscriptions: any[] =
     (await store.get('subscriptions', { type: 'json' })) || [];
+  const targets = subscriptions.filter(filter);
 
-  if (subscriptions.length === 0) {
+  if (targets.length === 0) {
     return { sent: 0, expired: 0 };
   }
 
@@ -37,7 +50,7 @@ export async function sendPushToAll(
   let sent = 0;
 
   await Promise.allSettled(
-    subscriptions.map(async (stored) => {
+    targets.map(async (stored) => {
       try {
         await webpush.sendNotification(
           stored.subscription,
@@ -62,6 +75,22 @@ export async function sendPushToAll(
   }
 
   return { sent, expired: expiredEndpoints.length };
+}
+
+export async function sendPushToAll(
+  payload: PushPayload
+): Promise<{ sent: number; expired: number }> {
+  return sendPush(payload, () => true);
+}
+
+/** Send only to these players' devices (e.g. the umpires assigned to a game). */
+export async function sendPushToPlayers(
+  playerIds: string[],
+  payload: PushPayload
+): Promise<{ sent: number; expired: number }> {
+  const ids = new Set(playerIds);
+  if (ids.size === 0) return { sent: 0, expired: 0 };
+  return sendPush(payload, (stored) => ids.has(stored.playerId));
 }
 
 /**

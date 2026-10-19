@@ -15,11 +15,11 @@ const { item } = Astro.props;
 
 const kindIcon: Record<string, string> = {
     result: 'trophy', milestone: 'cricket-bat', debut: 'sparkles',
-    badge: 'star', upcoming: 'calendar', social: 'instagram',
+    badge: 'star', upcoming: 'calendar', umpiring: 'field-rings', social: 'instagram',
 };
 const kindLabel: Record<string, string> = {
     result: 'Result', milestone: 'Milestone', debut: 'Debut',
-    badge: 'New badge', upcoming: 'Fixture', social: 'Social',
+    badge: 'New badge', upcoming: 'Fixture', umpiring: 'Umpiring', social: 'Social',
 };
 const splitName = (name: string) => ({ firstName: name.split(' ')[0], lastName: name.split(' ').slice(1).join(' ') });
 const [y, m, d] = item.date.split('-').map(Number);

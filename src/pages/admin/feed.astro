@@ -59,7 +59,7 @@ if (!isAdminUser) return Astro.redirect('/');
     type Hidden = { id: string; title: string; date: string; hiddenAt: string; hiddenBy: string };
 
     const KIND_LABELS: Record<string, string> = {
-      result: 'Result', milestone: 'Milestone', debut: 'Debut', badge: 'New badge', social: 'Social', upcoming: 'Fixture',
+      result: 'Result', milestone: 'Milestone', debut: 'Debut', badge: 'New badge', social: 'Social', upcoming: 'Fixture', umpiring: 'Umpiring',
     };
     const listEl = document.getElementById('posts') as HTMLUListElement;
     const olderSection = document.getElementById('older') as HTMLElement;

@@ -13,6 +13,7 @@ const STORES = [
   'admin-users',
   'seasons',
   'fixtures',
+  'umpiring-duties',
   'players',
   'core-roster',
   'fixture-availability',

@@ -7,6 +7,7 @@ import type { Fixture, Season, ImportResult } from '../../src/types/player';
 import { randomUUID } from 'crypto';
 import Papa from 'papaparse';
 import { purgeClubFeed } from './_profile-stats';
+import { parseScheduleDate } from '../../src/utils/umpiring';
 
 /**
  * Bulk import fixtures from CSV
@@ -186,34 +187,8 @@ export const handler: Handler = async (
         return;
       }
 
-      // Parse date - handle format like "Sat, Nov 1" or "Sun, Nov 2"
-      // Extract month and day, use season year
-      let date = '';
-      try {
-        const seasonYear = new Date(season.startDate).getFullYear();
-        const match = dateStr.match(/([A-Za-z]+),\s*([A-Za-z]+)\s+(\d+)/);
-        if (match) {
-          const [, , month, day] = match;
-          const monthMap: { [key: string]: string } = {
-            'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04',
-            'May': '05', 'Jun': '06', 'Jul': '07', 'Aug': '08',
-            'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
-          };
-          const monthNum = monthMap[month];
-          if (monthNum) {
-            // If month is less than season start month, use next year
-            const seasonStartMonth = new Date(season.startDate).getMonth() + 1;
-            let year = seasonYear;
-            if (parseInt(monthNum) < seasonStartMonth) {
-              year = seasonYear + 1;
-            }
-            date = `${year}-${monthNum}-${day.padStart(2, '0')}`;
-          }
-        }
-      } catch (e) {
-        // Fallback: try parsing as-is
-        date = dateStr;
-      }
+      // Parse date - handle format like "Sat, Nov 1" (season year) or "Sat, Nov 1, 2025"
+      const date = parseScheduleDate(dateStr, season.startDate) || dateStr;
 
       // Validate date - keep as YYYY-MM-DD format to avoid timezone issues
       const fixtureDate = new Date(date + 'T00:00:00'); // Parse as local midnight

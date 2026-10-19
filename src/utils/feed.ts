@@ -5,14 +5,16 @@
  *    they happened in (deterministic, rebuilt on every stats recalculation)
  *  - diffBadgeEvents(): newly earned badges, found by comparing this
  *    recalculation's badges with the previous snapshot
- *  - buildFeed(): results (with Player of the Match), upcoming fixtures, stored player events and
- *    social posts -> one list, newest first
+ *  - buildFeed(): results (with Player of the Match), upcoming fixtures and umpiring duties,
+ *    stored player events and social posts -> one list, newest first
  */
 import { BADGE_RULES, deriveBadges } from './badges';
 import type { SeasonInput } from './badges';
 import type { Fixture, Player } from '../types/player';
 import type { Badge, FeedItem, PlayerProfileStats, StoredFeedEvent } from '../types/profile';
 import type { SocialFeedItem } from '../types/social';
+import type { UmpiringDuty } from '../types/umpiring';
+import { filledSlots } from './umpiring';
 
 export const FEED_WEEKS = 8;             // How far back the feed goes
 
@@ -218,6 +220,10 @@ export interface BuildFeedInput {
   /** Post ids an admin hid. Removed from the feed, or flagged when includeHidden (admin view). */
   hiddenIds?: Set<string>;
   includeHidden?: boolean;
+  /** Umpiring duties (games between other teams that one of ours officiates), for "Coming up". */
+  duties?: UmpiringDuty[];
+  /** Name umpires on duties. Signed-in members only: signed-out visitors just see the team. */
+  showUmpireNames?: boolean;
 }
 
 export const PLAYER_ACTIVITY_LIMIT = 12;
@@ -250,7 +256,7 @@ function withPlayer(item: FeedItem, players: Map<string, FeedPlayer>, playerId: 
   };
 }
 
-export function buildFeed({ fixtures, players, events, social, todayStr, playerId, hiddenIds, includeHidden }: BuildFeedInput): {
+export function buildFeed({ fixtures, players, events, social, todayStr, playerId, hiddenIds, includeHidden, duties, showUmpireNames }: BuildFeedInput): {
   upcoming: FeedItem[];
   items: FeedItem[];
 } {
@@ -324,7 +330,7 @@ export function buildFeed({ fixtures, players, events, social, todayStr, playerI
   }
 
   // Newest first; within a day, results, then player news, then social
-  const order: Record<string, number> = { result: 0, milestone: 1, debut: 1, badge: 2, social: 3, upcoming: 4 };
+  const order: Record<string, number> = { result: 0, milestone: 1, debut: 1, badge: 2, social: 3, upcoming: 4, umpiring: 4 };
   items.sort((a, b) => b.date.localeCompare(a.date) || order[a.kind] - order[b.kind]);
   const applyHidden = (list: FeedItem[]): FeedItem[] => {
     if (!hiddenIds?.size) return list;
@@ -335,7 +341,7 @@ export function buildFeed({ fixtures, players, events, social, todayStr, playerI
 
   if (playerId) return { upcoming: [], items: applyHidden(items).slice(0, PLAYER_ACTIVITY_LIMIT) };
 
-  const upcoming: FeedItem[] = sortedFixtures
+  const upcomingMatches: FeedItem[] = sortedFixtures
     .filter((f) => !f.result && dateOnly(f.date) >= todayStr && dateOnly(f.date) <= until)
     .map((f) => ({
       id: `upcoming-${f.id}`,
@@ -347,6 +353,27 @@ export function buildFeed({ fixtures, players, events, social, todayStr, playerI
       link: f.youtubeVideoUrl ? { href: f.youtubeVideoUrl, label: 'Live stream' } : undefined,
       tone: 'neutral' as const,
     }));
+
+  const upcomingDuties: FeedItem[] = (duties || [])
+    .filter((d) => !d.cancelled && d.date >= todayStr && d.date <= until)
+    .map((d) => {
+      const names = showUmpireNames
+        ? filledSlots(d).map((s) => (s.playerId ? players.get(s.playerId)?.name : 'External umpire')).filter(Boolean)
+        : [];
+      return {
+        id: `umpiring-${d.id}`,
+        kind: 'umpiring' as const,
+        date: d.date,
+        title: `${d.umpiringTeam} umpiring ${d.homeTeam} vs ${d.visitorTeam}`,
+        detail: [d.time, d.venue, names.length ? `Umpire${names.length > 1 ? 's' : ''}: ${names.join(', ')}` : '']
+          .filter(Boolean).join(' · '),
+        team: d.umpiringTeam,
+        tone: 'blue' as const,
+      };
+    });
+
+  // Our matches first on a shared date (stable sort keeps each list's order)
+  const upcoming = [...upcomingMatches, ...upcomingDuties].sort((a, b) => a.date.localeCompare(b.date));
 
   return { upcoming: applyHidden(upcoming), items: applyHidden(items) };
 }

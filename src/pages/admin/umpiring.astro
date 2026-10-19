@@ -1,0 +1,853 @@
+---
+export const prerender = false;
+
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { IMPORT_COLUMNS } from '../../utils/umpiring';
+
+const cookieHeader = Astro.request.headers.get('cookie');
+let authenticated = false;
+let username = '';
+let userRole = 'admin';
+let isAdminUser = false;
+
+if (cookieHeader) {
+  try {
+    const response = await fetch(
+      `${Astro.url.origin}/.netlify/functions/auth-check`,
+      { headers: { cookie: cookieHeader } }
+    );
+    const data = await response.json();
+    authenticated = data.authenticated;
+    username = data.user?.firstName || data.user?.username || '';
+    userRole = data.user?.role_auth || data.user?.role || 'admin';
+    isAdminUser = userRole === 'admin' || userRole === 'super_admin';
+  } catch {
+    authenticated = false;
+  }
+}
+
+if (!authenticated) return Astro.redirect('/admin/login');
+if (!isAdminUser) return Astro.redirect('/');
+---
+
+<AdminLayout title="Umpiring Duties - GSCC Admin" username={username} userRole={userRole} activePage="umpiring">
+  <div class="ump-page">
+    <div class="page-header">
+      <h1 class="page-title">Umpiring Duties</h1>
+      <p class="page-description">League games between other teams that one of our teams has to umpire. Assign club players (or an external umpire), then record who went and anything the club paid.</p>
+    </div>
+
+    <div class="toolbar-main">
+      <div class="selector-group">
+        <label for="season-select" class="selector-label">Season</label>
+        <select id="season-select" class="selector-input"><option value="">Loading…</option></select>
+      </div>
+      <div class="actions-group">
+        <button id="import-btn" class="btn-secondary" disabled>Import CSV</button>
+        <button id="export-btn" class="btn-secondary" disabled>Export CSV</button>
+        <button id="add-btn" class="btn-primary" disabled>Add Duty</button>
+      </div>
+    </div>
+
+    <div id="summary" class="summary" hidden></div>
+
+    <div class="filters" id="filters" hidden>
+      <div class="chips" role="group" aria-label="Filter duties">
+        <button type="button" class="chip" data-filter="upcoming" aria-pressed="true">Upcoming</button>
+        <button type="button" class="chip" data-filter="unassigned" aria-pressed="false">Unassigned</button>
+        <button type="button" class="chip" data-filter="outcome" aria-pressed="false">Needs outcome</button>
+        <button type="button" class="chip" data-filter="past" aria-pressed="false">Past</button>
+        <button type="button" class="chip" data-filter="all" aria-pressed="false">All</button>
+      </div>
+      <select id="team-filter" class="selector-input team-filter" aria-label="Filter by team">
+        <option value="">All teams</option>
+      </select>
+    </div>
+
+    <p id="status" class="status">Loading…</p>
+    <div id="list"></div>
+  </div>
+
+  <!-- Add / edit duty -->
+  <div id="duty-modal" class="modal" style="display: none;">
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h2 id="duty-modal-title" class="modal-title">Add Umpiring Duty</h2>
+        <button type="button" class="modal-close" data-close="duty-modal" aria-label="Close">✕</button>
+      </div>
+      <form id="duty-form" class="form">
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label" for="f-umpiringTeam">Our umpiring team*</label>
+            <select id="f-umpiringTeam" name="umpiringTeam" class="form-input" required></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="f-gameNumber">Game #*</label>
+            <input id="f-gameNumber" name="gameNumber" class="form-input" required placeholder="e.g. 141" />
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label" for="f-homeTeam">Home team*</label>
+            <input id="f-homeTeam" name="homeTeam" class="form-input" required placeholder="e.g. All Stars Lions & Cubs" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="f-visitorTeam">Visitor team*</label>
+            <input id="f-visitorTeam" name="visitorTeam" class="form-input" required placeholder="e.g. Tracy Shaheens" />
+          </div>
+        </div>
+        <div class="form-grid form-grid-3">
+          <div class="form-group">
+            <label class="form-label" for="f-date">Date*</label>
+            <input id="f-date" name="date" type="date" class="form-input" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="f-time">Start time*</label>
+            <input id="f-time" name="time" type="time" class="form-input" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="f-division">Division*</label>
+            <input id="f-division" name="division" class="form-input" required placeholder="e.g. WB-D2" />
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label" for="f-venue">Venue*</label>
+            <input id="f-venue" name="venue" class="form-input" required placeholder="e.g. Sea Breeze Park" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="f-week">Week</label>
+            <input id="f-week" name="week" class="form-input" placeholder="e.g. Week11" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="f-groundAddress">Ground address</label>
+          <input id="f-groundAddress" name="groundAddress" class="form-input" placeholder="e.g. 32600 Carmel Way, Union City" />
+        </div>
+
+        <div class="slots">
+          <fieldset class="slot" data-slot="umpire1">
+            <legend>Umpire 1</legend>
+            <div class="slot-mode">
+              <label><input type="radio" name="umpire1-mode" value="player" checked /> Club player</label>
+              <label><input type="radio" name="umpire1-mode" value="external" /> External umpire</label>
+            </div>
+            <div class="slot-player">
+              <select class="form-input slot-select" aria-label="Umpire 1 player"></select>
+              <p class="slot-hint"></p>
+            </div>
+            <div class="slot-external" hidden>
+              <input class="form-input ext-name" placeholder="Name" aria-label="Umpire 1 name" />
+              <input class="form-input ext-club" placeholder="Club (optional)" aria-label="Umpire 1 club" />
+              <input class="form-input ext-phone" placeholder="Phone (optional, admins only)" aria-label="Umpire 1 phone" />
+              <p class="slot-hint">External umpires don't get notifications. Contact them directly.</p>
+            </div>
+          </fieldset>
+          <fieldset class="slot" data-slot="umpire2">
+            <legend>Umpire 2 <span class="legend-note">T40 games</span></legend>
+            <div class="slot-mode">
+              <label><input type="radio" name="umpire2-mode" value="player" checked /> Club player</label>
+              <label><input type="radio" name="umpire2-mode" value="external" /> External umpire</label>
+            </div>
+            <div class="slot-player">
+              <select class="form-input slot-select" aria-label="Umpire 2 player"></select>
+              <p class="slot-hint"></p>
+            </div>
+            <div class="slot-external" hidden>
+              <input class="form-input ext-name" placeholder="Name" aria-label="Umpire 2 name" />
+              <input class="form-input ext-club" placeholder="Club (optional)" aria-label="Umpire 2 club" />
+              <input class="form-input ext-phone" placeholder="Phone (optional, admins only)" aria-label="Umpire 2 phone" />
+              <p class="slot-hint">External umpires don't get notifications. Contact them directly.</p>
+            </div>
+          </fieldset>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="f-notes">Notes (admins only)</label>
+          <input id="f-notes" name="notes" class="form-input" placeholder="Anything other admins should know" />
+        </div>
+        <label class="check-row"><input type="checkbox" id="f-cancelled" /> Game cancelled or rescheduled (hide from the schedule)</label>
+
+        <div id="duty-error" class="alert alert-error" hidden></div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" data-close="duty-modal">Cancel</button>
+          <button type="submit" id="duty-submit" class="btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Record outcome -->
+  <div id="outcome-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Record Outcome</h2>
+        <button type="button" class="modal-close" data-close="outcome-modal" aria-label="Close">✕</button>
+      </div>
+      <form id="outcome-form" class="form">
+        <div id="outcome-info" class="outcome-info"></div>
+        <div id="outcome-slots"></div>
+        <label class="check-row"><input type="checkbox" id="o-cancelled" /> Game was cancelled</label>
+        <div id="outcome-error" class="alert alert-error" hidden></div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" data-close="outcome-modal">Cancel</button>
+          <button type="submit" id="outcome-submit" class="btn-primary">Save Outcome</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Import -->
+  <div id="import-modal" class="modal" style="display: none;">
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h2 class="modal-title">Import Umpiring Duties</h2>
+        <button type="button" class="modal-close" data-close="import-modal" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="info-box">
+          <p><strong>Upload the league schedule CSV as-is.</strong> Same columns as the fixtures import:</p>
+          <code class="cols">{IMPORT_COLUMNS.join(',')}</code>
+          <ul>
+            <li>Only rows whose <strong>Umpiring Team</strong> matches one of this season's teams are imported. Every other row is skipped.</li>
+            <li>Re-importing an updated schedule updates dates, times and venues by <strong>Game#</strong> and keeps umpire assignments and outcomes.</li>
+            <li>Dates like "Sun, Nov 1" use the season's year.</li>
+          </ul>
+        </div>
+        <input type="file" id="csv-input" accept=".csv,text/csv" class="form-input" />
+        <div id="import-preview" class="import-preview" hidden></div>
+        <div id="import-error" class="alert alert-error" hidden></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" data-close="import-modal">Cancel</button>
+        <button type="button" id="import-confirm" class="btn-primary" disabled>Import</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    type Slot = {
+      playerId?: string; externalName?: string; externalClub?: string; externalPhone?: string;
+      attended?: boolean; clubPaid?: boolean; clubPaidAmount?: number; paymentNote?: string;
+    };
+    type Duty = {
+      id: string; seasonId: string; gameNumber: string; week?: string; date: string; time: string;
+      division: string; homeTeam: string; visitorTeam: string; venue: string; groundAddress?: string;
+      umpiringTeam: string; umpire1?: Slot; umpire2?: Slot; cancelled?: boolean; notes?: string;
+    };
+    type Summary = { total: number; upcoming: number; unassigned: number; umpired: number; nccaCovered: number; needsOutcome: number; clubPaidCount: number; clubPaidTotal: number };
+    type Season = { id: string; name: string; isActive: boolean; teams: Array<{ teamName: string }> };
+    type Player = { id: string; firstName: string; lastName: string; isActive: boolean; umpireStatus?: string };
+
+    const UMPIRE_LABELS: Record<string, string> = { certified: 'Certified', 'pre-panel': 'Pre-panel', panel: 'Panel' };
+    const SLOTS = ['umpire1', 'umpire2'] as const;
+    const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+    const toast = (window as any).toast;
+
+    let seasons: Season[] = [];
+    let season: Season | null = null;
+    let duties: Duty[] = [];
+    let summary: Summary | null = null;
+    let players: Player[] = [];
+    let pushIds = new Set<string>();
+    let busy: Record<string, Record<string, string>> = {};
+    let today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+    let editing: Duty | null = null;
+    let outcomeDuty: Duty | null = null;
+    let csvText = '';
+
+    const esc = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+    const playerById = () => new Map(players.map((p) => [p.id, p]));
+    const nameOf = (id?: string) => {
+      const p = id ? playerById().get(id) : undefined;
+      return p ? `${p.firstName} ${p.lastName}` : 'Unknown player';
+    };
+    const filled = (s?: Slot): s is Slot => !!s && (!!s.playerId || !!s.externalName);
+    const slotsOf = (d: Duty) => [d.umpire1, d.umpire2].filter(filled);
+    const slotName = (s: Slot) => (s.playerId ? nameOf(s.playerId) : `${s.externalName}${s.externalClub ? ` (${s.externalClub})` : ''}`);
+    const fmtDate = (d: string, opts: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' }) => {
+      const [y, m, day] = d.split('-').map(Number);
+      return new Date(Date.UTC(y, m - 1, day)).toLocaleDateString('en-US', { ...opts, timeZone: 'UTC' });
+    };
+    const to24 = (t: string) => {
+      const m = (t || '').match(/(\d+):(\d+)\s*(AM|PM)/i);
+      if (!m) return /^\d{2}:\d{2}$/.test(t) ? t : '';
+      let h = parseInt(m[1]) % 12;
+      if (m[3].toUpperCase() === 'PM') h += 12;
+      return `${String(h).padStart(2, '0')}:${m[2]}`;
+    };
+    const money = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
+
+    type State = 'cancelled' | 'unassigned' | 'assigned' | 'outcome' | 'umpired' | 'ncca';
+    function stateOf(d: Duty): State {
+      if (d.cancelled) return 'cancelled';
+      const slots = slotsOf(d);
+      if (d.date >= today) return slots.length ? 'assigned' : 'unassigned';
+      if (!slots.length || slots.some((s) => s.attended === undefined)) return 'outcome';
+      return slots.some((s) => s.attended) ? 'umpired' : 'ncca';
+    }
+    const STATE_LABEL: Record<State, string> = {
+      cancelled: 'Cancelled', unassigned: 'Unassigned', assigned: 'Assigned', outcome: 'Needs outcome', umpired: 'Umpired', ncca: 'NCCA covered',
+    };
+
+    // ------------------------------------------------------------------ loading
+
+    async function api(path: string, body?: unknown) {
+      const res = await fetch(`/.netlify/functions/${path}`, body === undefined
+        ? { credentials: 'same-origin' }
+        : { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+      return data;
+    }
+
+    async function init() {
+      try {
+        const [seasonList, playerList] = await Promise.all([api('seasons-list'), api('players-list?status=active')]);
+        seasons = seasonList;
+        players = playerList;
+        const select = $<HTMLSelectElement>('season-select');
+        if (!seasons.length) {
+          select.innerHTML = '<option value="">No seasons yet</option>';
+          $('status').textContent = 'Create a season first (Season Setup → Manage Seasons).';
+          return;
+        }
+        select.innerHTML = seasons.map((s) => `<option value="${esc(s.id)}">${esc(s.name)}${s.isActive ? ' (Active)' : ''}</option>`).join('');
+        select.value = (seasons.find((s) => s.isActive) || seasons[0]).id;
+        select.addEventListener('change', () => loadSeason(select.value));
+        await loadSeason(select.value);
+      } catch (err) {
+        $('status').textContent = err instanceof Error ? err.message : 'Failed to load';
+      }
+    }
+
+    async function loadSeason(id: string) {
+      season = seasons.find((s) => s.id === id) || null;
+      if (!season) return;
+      $('status').textContent = 'Loading duties…';
+      for (const b of ['import-btn', 'export-btn', 'add-btn']) $<HTMLButtonElement>(b).disabled = false;
+      $<HTMLSelectElement>('team-filter').innerHTML = '<option value="">All teams</option>' +
+        season.teams.map((t) => `<option value="${esc(t.teamName)}">${esc(t.teamName)}</option>`).join('');
+      await reload();
+    }
+
+    async function reload() {
+      if (!season) return;
+      try {
+        const data = await api(`umpiring-duties-list?seasonId=${encodeURIComponent(season.id)}`);
+        duties = data.duties;
+        summary = data.summary;
+        pushIds = new Set(data.pushPlayerIds);
+        busy = data.busy || {};
+        today = data.today || today;
+        render();
+      } catch (err) {
+        $('status').textContent = err instanceof Error ? err.message : 'Failed to load duties';
+      }
+    }
+
+    // ------------------------------------------------------------------ list
+
+    const chips = Array.from(document.querySelectorAll<HTMLButtonElement>('#filters .chip'));
+    chips.forEach((chip) => chip.addEventListener('click', () => {
+      chips.forEach((c) => c.setAttribute('aria-pressed', c === chip ? 'true' : 'false'));
+      render();
+    }));
+    $('team-filter').addEventListener('change', render);
+
+    function render() {
+      const s = summary;
+      const summaryEl = $('summary');
+      summaryEl.hidden = !s || !duties.length;
+      if (s) {
+        const stat = (value: string | number, label: string, tone = '') => `<div class="sum-stat ${tone}"><span class="sum-value">${value}</span><span class="sum-label">${label}</span></div>`;
+        summaryEl.innerHTML = [
+          stat(s.total, 'Duties'),
+          stat(s.upcoming, 'Upcoming'),
+          stat(s.unassigned, 'Unassigned', s.unassigned ? 'warn' : ''),
+          stat(s.umpired, 'Umpired', 'good'),
+          stat(s.nccaCovered, 'NCCA covered'),
+          stat(s.needsOutcome, 'Needs outcome', s.needsOutcome ? 'warn' : ''),
+          stat(money(s.clubPaidTotal), `Club paid${s.clubPaidCount ? ` (${s.clubPaidCount})` : ''}`),
+        ].join('');
+      }
+      $('filters').hidden = !duties.length;
+
+      const filter = chips.find((c) => c.getAttribute('aria-pressed') === 'true')?.dataset.filter || 'upcoming';
+      const team = $<HTMLSelectElement>('team-filter').value;
+      const shown = duties
+        .filter((d) => !team || d.umpiringTeam === team)
+        .filter((d) => {
+          const st = stateOf(d);
+          switch (filter) {
+            case 'upcoming': return d.date >= today;
+            case 'unassigned': return st === 'unassigned';
+            case 'outcome': return st === 'outcome';
+            case 'past': return d.date < today;
+            default: return true;
+          }
+        });
+      if (filter === 'past' || filter === 'outcome') shown.reverse();
+
+      const list = $('list');
+      if (!duties.length) {
+        $('status').textContent = '';
+        list.innerHTML = `<div class="empty"><p class="empty-title">No umpiring duties yet</p><p>Import the league schedule CSV or add duties one by one.</p></div>`;
+        return;
+      }
+      $('status').textContent = `${shown.length} of ${duties.length} duties`;
+
+      // Group by week (Monday start)
+      const groups = new Map<string, Duty[]>();
+      for (const d of shown) {
+        const [y, m, day] = d.date.split('-').map(Number);
+        const dt = new Date(Date.UTC(y, m - 1, day));
+        dt.setUTCDate(dt.getUTCDate() - ((dt.getUTCDay() + 6) % 7));
+        const key = d.week ? `${d.week}|${dt.toISOString().slice(0, 10)}` : `|${dt.toISOString().slice(0, 10)}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push(d);
+      }
+      list.innerHTML = [...groups.entries()].map(([key, items]) => {
+        const [week, monday] = key.split('|');
+        return `<section class="week">
+          <h2 class="week-title">${week ? `${esc(week)} · ` : ''}Week of ${fmtDate(monday, { month: 'short', day: 'numeric' })}</h2>
+          <ul class="duties">${items.map(row).join('')}</ul>
+        </section>`;
+      }).join('') || '<p class="empty">Nothing matches this filter.</p>';
+    }
+
+    function row(d: Duty): string {
+      const st = stateOf(d);
+      const slots = slotsOf(d);
+      const umpires = slots.length
+        ? slots.map((s) => {
+            const icon = s.attended === true ? '✅ ' : s.attended === false ? '🔁 ' : '';
+            const paid = s.clubPaid ? ` · ${money(s.clubPaidAmount || 0)}` : '';
+            const noPush = s.playerId && !pushIds.has(s.playerId) && d.date >= today ? ' <span title="No push notifications enabled">🔕</span>' : '';
+            const ext = s.externalName ? ' <span class="ext-tag">External</span>' : '';
+            return `<span class="ump-chip">${icon}${esc(slotName(s))}${ext}${esc(paid)}${noPush}</span>`;
+          }).join('')
+        : '<span class="ump-chip ump-chip--empty">No umpire assigned</span>';
+      const isPast = d.date < today;
+      return `<li class="duty duty--${st}">
+        <div class="duty-date"><span>${fmtDate(d.date, { weekday: 'short' })}</span><strong>${fmtDate(d.date, { day: 'numeric' })}</strong><span>${fmtDate(d.date, { month: 'short' })}</span></div>
+        <div class="duty-body">
+          <div class="duty-top">
+            <span class="team-tag">${esc(d.umpiringTeam)}</span>
+            <span class="state state--${st}">${STATE_LABEL[st]}</span>
+          </div>
+          <p class="duty-title">${esc(d.homeTeam)} <span class="vs">vs</span> ${esc(d.visitorTeam)}</p>
+          <p class="duty-meta">${esc(d.time)} · ${esc(d.venue)} · ${esc(d.division)} · Game #${esc(d.gameNumber)}</p>
+          <div class="ump-chips">${umpires}</div>
+          ${d.notes ? `<p class="duty-notes">${esc(d.notes)}</p>` : ''}
+        </div>
+        <div class="duty-actions">
+          ${isPast && !d.cancelled ? `<button type="button" class="btn-primary btn-sm" data-action="outcome" data-id="${esc(d.id)}">Outcome</button>` : ''}
+          <button type="button" class="btn-secondary btn-sm" data-action="edit" data-id="${esc(d.id)}">${isPast ? 'Edit' : 'Assign / Edit'}</button>
+          <button type="button" class="btn-danger-outline btn-sm" data-action="delete" data-id="${esc(d.id)}">Delete</button>
+        </div>
+      </li>`;
+    }
+
+    $('list').addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-action]');
+      if (!btn) return;
+      const duty = duties.find((d) => d.id === btn.dataset.id);
+      if (!duty) return;
+      if (btn.dataset.action === 'edit') openDutyModal(duty);
+      else if (btn.dataset.action === 'outcome') openOutcomeModal(duty);
+      else if (btn.dataset.action === 'delete') deleteDuty(duty);
+    });
+
+    // ------------------------------------------------------------------ modals
+
+    const openModal = (id: string) => { $(id).style.display = 'flex'; };
+    const closeModal = (id: string) => { $(id).style.display = 'none'; };
+    document.querySelectorAll<HTMLElement>('[data-close]').forEach((el) =>
+      el.addEventListener('click', () => closeModal(el.dataset.close!)));
+    const showError = (id: string, msg: string) => { const el = $(id); el.textContent = msg; el.hidden = !msg; };
+
+    const slotEl = (slot: string) => document.querySelector<HTMLElement>(`#duty-form .slot[data-slot="${slot}"]`)!;
+
+    function playerOptions(selected?: string): string {
+      // Umpires first (any club player can be assigned)
+      const rank = (p: Player) => (p.umpireStatus === 'panel' ? 0 : p.umpireStatus === 'pre-panel' ? 1 : p.umpireStatus === 'certified' ? 2 : 3);
+      const sorted = [...players].sort((a, b) => rank(a) - rank(b) || `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`));
+      // Keep a previously assigned player who's no longer active
+      if (selected && !sorted.some((p) => p.id === selected)) sorted.push({ id: selected, firstName: 'Inactive', lastName: 'player', isActive: false });
+      const opt = (p: Player) => `<option value="${esc(p.id)}"${p.id === selected ? ' selected' : ''}>${esc(`${p.firstName} ${p.lastName}`)}${p.umpireStatus ? ` · ${UMPIRE_LABELS[p.umpireStatus] || p.umpireStatus}` : ''}${pushIds.has(p.id) ? '' : ' 🔕'}</option>`;
+      const umpires = sorted.filter((p) => p.umpireStatus);
+      const others = sorted.filter((p) => !p.umpireStatus);
+      return '<option value="">— Not assigned —</option>' +
+        (umpires.length ? `<optgroup label="Umpires">${umpires.map(opt).join('')}</optgroup>` : '') +
+        `<optgroup label="${umpires.length ? 'Other players' : 'Players'}">${others.map(opt).join('')}</optgroup>`;
+    }
+
+    function setSlotMode(slot: string, mode: 'player' | 'external') {
+      const el = slotEl(slot);
+      el.querySelector<HTMLInputElement>(`input[value="${mode}"]`)!.checked = true;
+      el.querySelector<HTMLElement>('.slot-player')!.hidden = mode !== 'player';
+      el.querySelector<HTMLElement>('.slot-external')!.hidden = mode !== 'external';
+    }
+
+    function updateSlotHint(slot: string) {
+      const el = slotEl(slot);
+      const id = el.querySelector<HTMLSelectElement>('.slot-select')!.value;
+      const date = $<HTMLInputElement>('f-date').value;
+      const hint = el.querySelector<HTMLElement>('.slot-player .slot-hint')!;
+      const notes: string[] = [];
+      if (id && busy[date]?.[id]) notes.push(`⚠️ ${busy[date][id]} that day`);
+      if (id && !pushIds.has(id)) notes.push('🔕 No push notifications enabled. Tell them directly.');
+      hint.textContent = notes.join(' · ');
+      hint.classList.toggle('warn', notes.length > 0);
+    }
+
+    for (const slot of SLOTS) {
+      const el = slotEl(slot);
+      el.querySelectorAll<HTMLInputElement>('input[type="radio"]').forEach((r) =>
+        r.addEventListener('change', () => setSlotMode(slot, r.value as 'player' | 'external')));
+      el.querySelector('.slot-select')!.addEventListener('change', () => updateSlotHint(slot));
+    }
+    $('f-date').addEventListener('change', () => SLOTS.forEach(updateSlotHint));
+
+    function openDutyModal(duty: Duty | null) {
+      if (!season) return;
+      editing = duty;
+      $('duty-modal-title').textContent = duty ? `Edit Duty · Game #${duty.gameNumber}` : 'Add Umpiring Duty';
+      showError('duty-error', '');
+      const teamSelect = $<HTMLSelectElement>('f-umpiringTeam');
+      teamSelect.innerHTML = season.teams.map((t) => `<option value="${esc(t.teamName)}">${esc(t.teamName)}</option>`).join('');
+      const set = (id: string, v: string) => { $<HTMLInputElement>(id).value = v; };
+      teamSelect.value = duty?.umpiringTeam || season.teams[0]?.teamName || '';
+      set('f-gameNumber', duty?.gameNumber || '');
+      set('f-homeTeam', duty?.homeTeam || '');
+      set('f-visitorTeam', duty?.visitorTeam || '');
+      set('f-date', duty?.date || '');
+      set('f-time', duty ? to24(duty.time) : '');
+      set('f-division', duty?.division || '');
+      set('f-venue', duty?.venue || '');
+      set('f-week', duty?.week || '');
+      set('f-groundAddress', duty?.groundAddress || '');
+      set('f-notes', duty?.notes || '');
+      $<HTMLInputElement>('f-cancelled').checked = !!duty?.cancelled;
+      for (const slot of SLOTS) {
+        const s = duty?.[slot];
+        const el = slotEl(slot);
+        el.querySelector<HTMLSelectElement>('.slot-select')!.innerHTML = playerOptions(s?.playerId);
+        el.querySelector<HTMLInputElement>('.ext-name')!.value = s?.externalName || '';
+        el.querySelector<HTMLInputElement>('.ext-club')!.value = s?.externalClub || '';
+        el.querySelector<HTMLInputElement>('.ext-phone')!.value = s?.externalPhone || '';
+        setSlotMode(slot, s?.externalName ? 'external' : 'player');
+        updateSlotHint(slot);
+      }
+      openModal('duty-modal');
+    }
+
+    /** The slot as edited in the form, keeping its outcome/payment when it's the same person. */
+    function slotFromForm(slot: 'umpire1' | 'umpire2', previous?: Slot): Slot | undefined {
+      const el = slotEl(slot);
+      const mode = el.querySelector<HTMLInputElement>('input[type="radio"]:checked')!.value;
+      let next: Slot | undefined;
+      if (mode === 'player') {
+        const playerId = el.querySelector<HTMLSelectElement>('.slot-select')!.value;
+        if (playerId) next = { playerId };
+      } else {
+        const externalName = el.querySelector<HTMLInputElement>('.ext-name')!.value.trim();
+        if (externalName) {
+          next = {
+            externalName,
+            externalClub: el.querySelector<HTMLInputElement>('.ext-club')!.value.trim() || undefined,
+            externalPhone: el.querySelector<HTMLInputElement>('.ext-phone')!.value.trim() || undefined,
+          };
+        }
+      }
+      if (!next || !previous) return next;
+      const samePerson = next.playerId ? next.playerId === previous.playerId : next.externalName === previous.externalName;
+      return samePerson
+        ? { ...next, attended: previous.attended, clubPaid: previous.clubPaid, clubPaidAmount: previous.clubPaidAmount, paymentNote: previous.paymentNote }
+        : next;
+    }
+
+    $('duty-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!season) return;
+      const v = (id: string) => $<HTMLInputElement>(id).value.trim();
+      const body = {
+        seasonId: season.id,
+        id: editing?.id,
+        umpiringTeam: v('f-umpiringTeam'),
+        gameNumber: v('f-gameNumber'),
+        homeTeam: v('f-homeTeam'),
+        visitorTeam: v('f-visitorTeam'),
+        date: v('f-date'),
+        time: v('f-time'),
+        division: v('f-division'),
+        venue: v('f-venue'),
+        week: v('f-week'),
+        groundAddress: v('f-groundAddress'),
+        notes: v('f-notes'),
+        cancelled: $<HTMLInputElement>('f-cancelled').checked,
+        umpire1: slotFromForm('umpire1', editing?.umpire1),
+        umpire2: slotFromForm('umpire2', editing?.umpire2),
+      };
+      const submit = $<HTMLButtonElement>('duty-submit');
+      submit.disabled = true;
+      try {
+        const data = await api(editing ? 'umpiring-duties-update' : 'umpiring-duties-create', body);
+        closeModal('duty-modal');
+        toast?.success(data.notified ? `Saved · notified ${data.notified} device${data.notified === 1 ? '' : 's'}` : 'Saved');
+        await reload();
+      } catch (err) {
+        showError('duty-error', err instanceof Error ? err.message : 'Failed to save');
+      } finally {
+        submit.disabled = false;
+      }
+    });
+
+    function openOutcomeModal(duty: Duty) {
+      outcomeDuty = duty;
+      showError('outcome-error', '');
+      $('outcome-info').innerHTML = `<strong>${esc(duty.homeTeam)} vs ${esc(duty.visitorTeam)}</strong><br>
+        ${fmtDate(duty.date, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })} · ${esc(duty.time)} · ${esc(duty.venue)}<br>
+        <span class="muted">${esc(duty.umpiringTeam)} · Game #${esc(duty.gameNumber)}</span>`;
+      const container = $('outcome-slots');
+      const assigned = SLOTS.filter((k) => filled(duty[k]));
+      container.innerHTML = assigned.length
+        ? assigned.map((k, i) => {
+            const s = duty[k]!;
+            return `<fieldset class="slot" data-slot="${k}">
+              <legend>Umpire ${i + 1}: ${esc(slotName(s))}${s.externalName ? ' <span class="ext-tag">External</span>' : ''}</legend>
+              <div class="slot-mode">
+                <label><input type="radio" name="${k}-went" value="yes"${s.attended === true ? ' checked' : ''} /> ✅ Went</label>
+                <label><input type="radio" name="${k}-went" value="no"${s.attended === false ? ' checked' : ''} /> 🔁 NCCA covered</label>
+              </div>
+              <label class="check-row"><input type="checkbox" class="paid"${s.clubPaid ? ' checked' : ''} /> The club paid this umpire</label>
+              <div class="paid-fields"${s.clubPaid ? '' : ' hidden'}>
+                <input type="number" class="form-input amount" min="1" step="0.01" placeholder="Amount ($)" value="${s.clubPaidAmount ?? ''}" aria-label="Amount paid" />
+                <input class="form-input note" placeholder="Note (optional), e.g. Venmo" value="${esc(s.paymentNote || '')}" aria-label="Payment note" />
+              </div>
+            </fieldset>`;
+          }).join('')
+        : '<p class="muted">No umpire was assigned. Assign one with Edit first, or mark the game cancelled.</p>';
+      container.querySelectorAll<HTMLInputElement>('.paid').forEach((cb) => cb.addEventListener('change', () => {
+        cb.closest('.slot')!.querySelector<HTMLElement>('.paid-fields')!.hidden = !cb.checked;
+      }));
+      $<HTMLInputElement>('o-cancelled').checked = !!duty.cancelled;
+      openModal('outcome-modal');
+    }
+
+    $('outcome-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const duty = outcomeDuty;
+      if (!duty || !season) return;
+      const next: Duty = { ...duty, cancelled: $<HTMLInputElement>('o-cancelled').checked };
+      for (const el of Array.from($('outcome-slots').querySelectorAll<HTMLElement>('.slot'))) {
+        const k = el.dataset.slot as 'umpire1' | 'umpire2';
+        const went = el.querySelector<HTMLInputElement>('input[type="radio"]:checked')?.value;
+        const paid = el.querySelector<HTMLInputElement>('.paid')!.checked;
+        next[k] = {
+          ...duty[k],
+          attended: went === 'yes' ? true : went === 'no' ? false : undefined,
+          clubPaid: paid || undefined,
+          clubPaidAmount: paid ? parseFloat(el.querySelector<HTMLInputElement>('.amount')!.value) : undefined,
+          paymentNote: paid ? el.querySelector<HTMLInputElement>('.note')!.value.trim() || undefined : undefined,
+        };
+      }
+      const submit = $<HTMLButtonElement>('outcome-submit');
+      submit.disabled = true;
+      try {
+        await api('umpiring-duties-update', { ...next, seasonId: season.id });
+        closeModal('outcome-modal');
+        toast?.success('Outcome saved');
+        await reload();
+      } catch (err) {
+        showError('outcome-error', err instanceof Error ? err.message : 'Failed to save');
+      } finally {
+        submit.disabled = false;
+      }
+    });
+
+    async function deleteDuty(duty: Duty) {
+      if (!season) return;
+      if (!confirm(`Delete the umpiring duty for Game #${duty.gameNumber} (${duty.homeTeam} vs ${duty.visitorTeam})?`)) return;
+      try {
+        await api('umpiring-duties-delete', { seasonId: season.id, ids: [duty.id] });
+        toast?.success('Duty deleted');
+        await reload();
+      } catch (err) {
+        toast?.error(err instanceof Error ? err.message : 'Failed to delete');
+      }
+    }
+
+    // ------------------------------------------------------------------ import / export
+
+    $('add-btn').addEventListener('click', () => openDutyModal(null));
+    $('import-btn').addEventListener('click', () => {
+      csvText = '';
+      $<HTMLInputElement>('csv-input').value = '';
+      $('import-preview').hidden = true;
+      showError('import-error', '');
+      $<HTMLButtonElement>('import-confirm').disabled = true;
+      openModal('import-modal');
+    });
+
+    function previewHtml(r: any, done: boolean): string {
+      const skipped = r.skippedTeams?.length
+        ? `<details><summary>${r.skipped} row${r.skipped === 1 ? '' : 's'} skipped (Umpiring Team isn't one of ours)</summary><ul>${r.skippedTeams.map((t: any) => `<li>${esc(t.team)}: ${t.rows}</li>`).join('')}</ul></details>`
+        : '';
+      const errors = r.errors?.length
+        ? `<div class="alert alert-error"><strong>${r.errors.length} row${r.errors.length === 1 ? '' : 's'} with problems (not imported):</strong><ul>${r.errors.slice(0, 20).map((e: any) => `<li>Row ${e.row}: ${esc(e.message)}</li>`).join('')}</ul></div>`
+        : '';
+      return `<p class="preview-counts">${done ? 'Imported' : 'Ready to import'}: <strong>${r.created}</strong> new · <strong>${r.updated}</strong> updated · ${r.unchanged} unchanged</p>${skipped}${errors}`;
+    }
+
+    $('csv-input').addEventListener('change', async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      showError('import-error', '');
+      $('import-preview').hidden = true;
+      $<HTMLButtonElement>('import-confirm').disabled = true;
+      if (!file || !season) return;
+      try {
+        csvText = await file.text();
+        const r = await api('umpiring-duties-import', { seasonId: season.id, csvData: csvText, dryRun: true });
+        $('import-preview').innerHTML = previewHtml(r, false);
+        $('import-preview').hidden = false;
+        $<HTMLButtonElement>('import-confirm').disabled = r.created + r.updated === 0;
+      } catch (err) {
+        showError('import-error', err instanceof Error ? err.message : 'Could not read the file');
+      }
+    });
+
+    $('import-confirm').addEventListener('click', async () => {
+      if (!season || !csvText) return;
+      const btn = $<HTMLButtonElement>('import-confirm');
+      btn.disabled = true;
+      try {
+        const r = await api('umpiring-duties-import', { seasonId: season.id, csvData: csvText });
+        $('import-preview').innerHTML = previewHtml(r, true);
+        toast?.success(`Imported ${r.created} new, ${r.updated} updated`);
+        await reload();
+      } catch (err) {
+        showError('import-error', err instanceof Error ? err.message : 'Import failed');
+        btn.disabled = false;
+      }
+    });
+
+    $('export-btn').addEventListener('click', () => {
+      if (!season) return;
+      const cell = (v: unknown) => {
+        const s = String(v ?? '');
+        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+      const slotCols = (s?: Slot) => filled(s)
+        ? [slotName(s), s.externalName ? 'Yes' : 'No', s.attended === true ? 'Went' : s.attended === false ? 'NCCA covered' : '', s.clubPaid ? 'Yes' : '', s.clubPaid ? s.clubPaidAmount : '', s.paymentNote || '']
+        : ['', '', '', '', '', ''];
+      const header = ['Game#', 'Week#', 'Date', 'Division', 'Start Time', 'Home Team', 'Visitor Team', 'Venue Name', 'Ground Address', 'Umpiring Team', 'Status',
+        ...['1', '2'].flatMap((n) => [`Umpire ${n}`, `U${n} External`, `U${n} Outcome`, `U${n} Club Paid`, `U${n} Amount`, `U${n} Payment Note`]), 'Notes'];
+      const rows = duties.map((d) => [d.gameNumber, d.week, d.date, d.division, d.time, d.homeTeam, d.visitorTeam, d.venue, d.groundAddress, d.umpiringTeam,
+        STATE_LABEL[stateOf(d)], ...slotCols(d.umpire1), ...slotCols(d.umpire2), d.notes]);
+      const csv = [header, ...rows].map((r) => r.map(cell).join(',')).join('\n');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+      a.download = `umpiring-duties-${season.name.replace(/[^\w-]+/g, '-')}.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+
+    init();
+  </script>
+
+  <style>
+    .ump-page { max-width: 1100px; margin: 0 auto; }
+    .toolbar-main {
+      display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap;
+      margin-bottom: 1.25rem; padding: 1.25rem 1.5rem; background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+    .selector-group { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 0.4rem; }
+    .selector-label { font-weight: 600; color: #374151; font-size: 0.875rem; }
+    .selector-input { padding: 0.65rem 0.9rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.875rem; background: #fff; }
+    .actions-group { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+
+    .summary {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-bottom: 1.25rem;
+    }
+    .summary :global(.sum-stat) { background: #fff; border-radius: 10px; padding: 10px 14px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); display: flex; flex-direction: column; }
+    .summary :global(.sum-value) { font-size: 1.35rem; font-weight: 800; color: #111827; font-variant-numeric: tabular-nums; }
+    .summary :global(.sum-label) { font-size: 12px; color: #6b7280; font-weight: 600; }
+    .summary :global(.sum-stat.warn .sum-value) { color: #b45309; }
+    .summary :global(.sum-stat.good .sum-value) { color: #1d6b3a; }
+
+    .filters { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+    .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .chip { padding: 6px 14px; border-radius: 9999px; border: 1px solid #e5e0d6; background: #fff; font-size: 13px; font-weight: 600; color: #4b5563; cursor: pointer; }
+    .chip[aria-pressed='true'] { background: #8C1D18; border-color: #8C1D18; color: #fff; }
+    .team-filter { min-width: 180px; }
+    .status { font-size: 13px; color: #6b7280; margin: 0 0 10px; }
+
+    #list :global(.week) { margin-bottom: 1.25rem; }
+    #list :global(.week-title) { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #8a6a15; margin: 0 0 8px; }
+    #list :global(.duties) { list-style: none; margin: 0; padding: 0; background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); overflow: hidden; }
+    #list :global(.duty) { display: flex; gap: 14px; padding: 14px 16px; border-top: 1px solid #f3f3f3; align-items: flex-start; }
+    #list :global(.duty:first-child) { border-top: 0; }
+    #list :global(.duty--cancelled) { background: #fafafa; opacity: 0.65; }
+    #list :global(.duty-date) {
+      width: 52px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; line-height: 1.15;
+      padding: 6px 0; border-radius: 8px; background: #eef4fb; color: #1e4f86; font-size: 10px; font-weight: 700; text-transform: uppercase;
+    }
+    #list :global(.duty-date strong) { font-size: 18px; font-weight: 800; }
+    #list :global(.duty-body) { flex: 1; min-width: 0; }
+    #list :global(.duty-top) { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 2px; }
+    #list :global(.team-tag) { font-size: 12px; font-weight: 700; color: #374151; background: #f3f4f6; border-radius: 9999px; padding: 1px 10px; }
+    #list :global(.state) { font-size: 11px; font-weight: 700; border-radius: 9999px; padding: 1px 8px; }
+    #list :global(.state--unassigned), #list :global(.state--outcome) { background: #fef3c7; color: #92400e; }
+    #list :global(.state--assigned) { background: #eef4fb; color: #1e4f86; }
+    #list :global(.state--umpired) { background: #dcfce7; color: #166534; }
+    #list :global(.state--ncca) { background: #f3e8ff; color: #6b21a8; }
+    #list :global(.state--cancelled) { background: #f3f4f6; color: #6b7280; }
+    #list :global(.duty-title) { font-size: 15px; font-weight: 700; color: #111827; margin: 2px 0; }
+    #list :global(.vs) { font-weight: 500; color: #6b7280; }
+    #list :global(.duty-meta) { font-size: 12px; color: #6b7280; margin: 0 0 6px; overflow-wrap: anywhere; }
+    #list :global(.duty-notes) { font-size: 12px; color: #4b5563; margin: 6px 0 0; font-style: italic; }
+    #list :global(.ump-chips) { display: flex; gap: 6px; flex-wrap: wrap; }
+    #list :global(.ump-chip) { font-size: 12px; font-weight: 600; background: #f5f8fc; border: 1px solid #dbe6f3; color: #1f2937; border-radius: 9999px; padding: 2px 10px; }
+    #list :global(.ump-chip--empty) { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+    #list :global(.duty-actions) { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+    #list :global(.empty) { background: #fff; border-radius: 12px; padding: 2rem; text-align: center; color: #6b7280; }
+    #list :global(.empty-title) { font-weight: 700; color: #111827; margin-bottom: 4px; }
+    :global(.ext-tag) { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #6b21a8; background: #f3e8ff; border-radius: 4px; padding: 0 4px; }
+
+    .form-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .slots { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0.5rem 0 1rem; }
+    :global(.slot) { border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px 12px 12px; margin: 0 0 10px; display: flex; flex-direction: column; gap: 8px; }
+    :global(.slot legend) { font-weight: 700; font-size: 14px; padding: 0 4px; color: #111827; }
+    .legend-note { font-weight: 500; font-size: 12px; color: #6b7280; }
+    :global(.slot-mode) { display: flex; gap: 14px; font-size: 13px; flex-wrap: wrap; }
+    :global(.slot-mode label) { display: flex; gap: 5px; align-items: center; cursor: pointer; }
+    .slot-external { display: flex; flex-direction: column; gap: 6px; }
+    .slot-external[hidden], .slot-player[hidden] { display: none; }
+    .slot-hint { font-size: 12px; color: #6b7280; margin: 4px 0 0; }
+    .slot-hint:empty { display: none; }
+    :global(.slot-hint.warn) { color: #92400e; }
+    .check-row, :global(.check-row) { display: flex; gap: 8px; align-items: center; font-size: 13px; color: #374151; margin-bottom: 0.75rem; cursor: pointer; }
+    :global(.paid-fields) { display: grid; grid-template-columns: 140px 1fr; gap: 8px; }
+    :global(.paid-fields[hidden]) { display: none; }
+    .outcome-info { background: #f9fafb; padding: 0.9rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 14px; line-height: 1.5; }
+    :global(.muted) { color: #6b7280; font-size: 13px; }
+    .alert[hidden] { display: none; }
+
+    .modal-large { max-width: 800px; }
+    .modal-body { padding: 1.25rem 1.5rem 0; }
+    .info-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 0.9rem 1rem; margin-bottom: 1rem; font-size: 13px; color: #1e3a8a; }
+    .info-box ul { margin: 0.5rem 0 0 1rem; list-style: disc; }
+    .cols { display: block; background: #fff; border: 1px solid #dbeafe; border-radius: 6px; padding: 6px 8px; margin-top: 6px; font-size: 11px; overflow-x: auto; white-space: nowrap; }
+    .import-preview { margin-top: 1rem; font-size: 14px; }
+    .import-preview :global(details) { margin: 0.5rem 0; color: #4b5563; }
+    .import-preview :global(ul) { margin: 0.25rem 0 0 1.25rem; list-style: disc; }
+
+    @media (max-width: 720px) {
+      .slots, .form-grid-3 { grid-template-columns: 1fr; }
+      #list :global(.duty) { flex-wrap: wrap; }
+      #list :global(.duty-actions) { flex-direction: row; width: 100%; justify-content: flex-end; }
+    }
+  </style>
+</AdminLayout>

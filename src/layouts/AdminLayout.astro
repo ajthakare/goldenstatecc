@@ -13,7 +13,7 @@ interface Props {
   title: string;
   username: string;
   userRole?: 'super_admin' | 'admin';
-  activePage: 'inquiries' | 'users' | 'seasons' | 'fixtures' | 'players' | 'roster' | 'availability' | 'statistics' | 'logs' | 'practices' | 'notifications' | 'winter-checkin' | 'summer-feedback' | 'feed';
+  activePage: 'inquiries' | 'users' | 'seasons' | 'fixtures' | 'umpiring' | 'players' | 'roster' | 'availability' | 'statistics' | 'logs' | 'practices' | 'notifications' | 'winter-checkin' | 'summer-feedback' | 'feed';
 }
 
 const { title, username, userRole = 'admin', activePage } = Astro.props;
@@ -146,6 +146,15 @@ const hideWinterCheckInNav = isWinterCheckInAdminRestricted(adminSession?.email)
                   <line x1="3" y1="10" x2="17" y2="10"/>
                 </svg>
                 <span>Manage Fixtures</span>
+              </a>
+
+              <a href="/admin/umpiring" class:list={['nav-item nav-item-sub', { active: activePage === 'umpiring' }]}>
+                <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="10" cy="5" r="2.5"/>
+                  <path d="M6 18v-5l-2-3 3-2h6l3 2-2 3v5"/>
+                  <line x1="10" y1="8" x2="10" y2="18"/>
+                </svg>
+                <span>Umpiring Duties</span>
               </a>
 
               <a href="/admin/players" class:list={['nav-item nav-item-sub', { active: activePage === 'players' }]}>

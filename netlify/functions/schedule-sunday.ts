@@ -1,13 +1,17 @@
 /**
  * Sunday 8 PM Pacific scheduled job (runs Mon 03:00 UTC).
  *
- * Sends one combined notification covering practice votes and game votes.
+ * Sends one combined notification covering practice votes, game votes and
+ * how many umpiring duties the club has this week, plus a personal reminder
+ * to each club player assigned to umpire this week.
  * Practice sessions are created separately on Saturday at 3 PM.
  */
 import { schedule } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
 import { getPacificNow, parseLocalDate } from './_utils';
-import { sendPushToAll, toDateString } from './_push-utils';
+import { sendPushToAll, sendPushToPlayers, toDateString } from './_push-utils';
+import { DUTY_STORE, clubUmpireIds, dutiesKey, dutyPushBody, sundayVoteMessage } from '../../src/utils/umpiring';
+import type { UmpiringDuty } from '../../src/types/umpiring';
 
 export const handler = schedule('0 3 * * 1', async () => {
   console.log('[schedule-sunday] Starting Sunday 8 PM notification job');
@@ -81,28 +85,41 @@ export const handler = schedule('0 3 * * 1', async () => {
       return d >= today && d <= sevenDaysLater;
     });
 
+    // Umpiring duties this week (games between other teams that we officiate)
+    const dutiesStore = getStore({
+      name: DUTY_STORE,
+      siteID: process.env.SITE_ID || '',
+      token: process.env.NETLIFY_AUTH_TOKEN || '',
+    });
+    const allDuties: UmpiringDuty[] =
+      (await dutiesStore.get(dutiesKey(activeSeason.id), { type: 'json' })) || [];
+    const todayStr = toDateString(today);
+    const weekEndStr = toDateString(sevenDaysLater);
+    const weekDuties = allDuties.filter(
+      (d) => !d.cancelled && d.date >= todayStr && d.date <= weekEndStr
+    );
+
     const hasPractice = hasWedPractice || hasFriPractice;
     const hasFixtures = upcomingFixtures.length > 0;
 
-    if (!hasPractice && !hasFixtures) {
+    const message = sundayVoteMessage(hasPractice, hasFixtures, weekDuties.length);
+    if (!message) {
       console.log('[schedule-sunday] Nothing to notify about. Skipping.');
       return { statusCode: 200 };
     }
 
-    let body: string;
-    if (hasPractice && hasFixtures) {
-      body = 'Vote for practice sessions and fixtures for this week. Polls are open.';
-    } else if (hasPractice) {
-      body = 'Vote for practice sessions for this week. Polls are open.';
-    } else {
-      body = 'Vote for fixtures for this week. Polls are open.';
-    }
+    const result = await sendPushToAll(message);
 
-    const result = await sendPushToAll({
-      title: 'Vote for This Week',
-      body,
-      url: hasPractice ? '/mypractice' : '/myfixtures',
-    });
+    // Personal reminder for each assigned club umpire (one per duty)
+    for (const duty of weekDuties) {
+      const ids = clubUmpireIds(duty);
+      if (!ids.length) continue;
+      try {
+        await sendPushToPlayers(ids, { title: 'Umpiring duty', body: dutyPushBody(duty), url: '/fixtures' });
+      } catch (err) {
+        console.warn(`[schedule-sunday] Umpiring reminder failed for #${duty.gameNumber}:`, err);
+      }
+    }
 
     console.log(`[schedule-sunday] Notification sent to ${result.sent} players.`);
     return { statusCode: 200 };
