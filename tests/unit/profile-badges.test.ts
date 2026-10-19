@@ -92,6 +92,12 @@ describe('computeProfileStats', () => {
     expect(stats.b.potm).toBe(0);
   });
 
+  it('ignores duties on fixtures that have not been played yet', () => {
+    // f5 is in the future: a duty assigned there must not count
+    const s = computeProfileStats([alice], [season({ availability: [avail('f5', [['a', true, true, ['Scoring', 'Ice']]])] })], TODAY);
+    expect(s.a?.duties ?? 0).toBe(0);
+  });
+
   it('counts duties per type, including on fixtures of any team', () => {
     expect(stats.a.duties).toBe(2);
     expect(stats.a.dutiesByType).toEqual({ Scoring: 1, Ice: 1 });

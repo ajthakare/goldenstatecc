@@ -7,7 +7,8 @@
  *  - deriveBadges(): player + activity numbers -> badges (run on every read,
  *    so the thresholds below can be tuned without recalculating anything)
  */
-import { UMPIRE_STATUS_LABELS } from '../types/player';
+import { UMPIRE_STATUSES, UMPIRE_STATUS_LABELS } from '../types/player';
+import type { UmpireStatus } from '../types/player';
 import type {
   Player,
   Season,
@@ -49,6 +50,12 @@ export const DUTY_BADGES: Record<string, string> = {
   'Ground Cleaning': 'Clean-up Crew',
   'Warm Up': 'Warm-up Lead',
 };
+
+/** True for a new or higher umpire certification (not a correction downwards). */
+export function isUmpireUpgrade(from: UmpireStatus | undefined, to: UmpireStatus | undefined): boolean {
+  const rank = (s?: UmpireStatus) => (s ? UMPIRE_STATUSES.indexOf(s) : -1);
+  return rank(to) > rank(from);
+}
 
 /** Highest duty tier reached for a count (0 = not earned yet). */
 export function dutyTier(count: number): number {
@@ -166,11 +173,12 @@ export function computeProfileStats(
       for (const pa of record.playerAvailability || []) {
         if (!playerIds.has(pa.playerId)) continue;
         const a = acc(pa.playerId);
+        if (!isPast(fixture.date)) continue;
+        // Duties count once the match has been played (assignments can still change)
         for (const duty of pa.duties || []) {
           a.duties++;
           a.dutiesByType[duty] = (a.dutiesByType[duty] || 0) + 1;
         }
-        if (!isPast(fixture.date)) continue;
         if (pa.wasSelected) {
           a.matchesPlayed++;
           a.playedTeams.add(fixture.team);
@@ -392,6 +400,8 @@ export function deriveBadges(
       detail: `Signed up for ${pr.minRate}%+ of ${kind} practices · ${seasonList(practiceSeasons)}`,
       icon: 'target',
       tone: 'gray',
+      // New season = news; also qualifying at field practice in the same season isn't
+      key: `practice-regular|${practiceSeasons.map((s) => s.seasonId).sort().join(',')}`,
     });
   }
 

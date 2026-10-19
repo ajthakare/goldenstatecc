@@ -6,6 +6,7 @@ import { PLAYER_ROLES, UMPIRE_STATUSES, UMPIRE_STATUS_LABELS } from '../../src/t
 import { addAuditLog, buildFieldDiff } from '../../src/utils/auditLog';
 import { spawn } from 'child_process';
 import { appendFeedEvents, todayString } from './_profile-stats';
+import { isUmpireUpgrade } from '../../src/utils/badges';
 
 /**
  * Update player details
@@ -289,7 +290,7 @@ export const handler: Handler = async (
     }
 
     // Announce a new or upgraded umpire certification in the club feed
-    if (updatedPlayer.umpireStatus && updatedPlayer.umpireStatus !== existingPlayer.umpireStatus) {
+    if (updatedPlayer.umpireStatus && isUmpireUpgrade(existingPlayer.umpireStatus, updatedPlayer.umpireStatus)) {
       const label = UMPIRE_STATUS_LABELS[updatedPlayer.umpireStatus];
       try {
         await appendFeedEvents([{

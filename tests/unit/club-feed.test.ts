@@ -13,6 +13,7 @@ import {
   ordinal,
 } from '../../src/utils/feed';
 import type { FeedPlayer } from '../../src/utils/feed';
+import { isUmpireUpgrade } from '../../src/utils/badges';
 import type { SeasonInput } from '../../src/utils/badges';
 import type { Fixture, FixtureAvailability, Player } from '../../src/types/player';
 import type { PlayerProfileStats, StoredFeedEvent } from '../../src/types/profile';
@@ -182,5 +183,37 @@ describe('buildFeed', () => {
     });
     expect(mine.items.map((i) => i.id)).toEqual(['result-w2', 'result-w1', 'milestone-star-10', 'result-oldwin']);
     expect(mine.upcoming).toEqual([]);
+  });
+});
+
+describe('review fixes', () => {
+  const statsWith = (over: Partial<PlayerProfileStats>): Record<string, PlayerProfileStats> => ({
+    a: { playerId: 'a', matchesPlayed: 0, potm: 0, duties: 0, seasons: [], ...over },
+  });
+
+  it('does not announce badges of a player who is new to the baseline', () => {
+    const before = badgeSnapshot([], {}); // player 'a' wasn't listed last time
+    const events = diffBadgeEvents(before, [player('a')], statsWith({ dutiesByType: { Scoring: 12 } }), TODAY);
+    expect(events).toEqual([]);
+  });
+
+  it('does not re-announce Practice Regular when field practice also qualifies in the same season', () => {
+    const season = (net: [number, number], field: [number, number]) => ({
+      seasonId: 's1', seasonName: 'Summer 2026', startDate: '', isActive: true, teams: [], alsoPlayedFor: [],
+      captainOf: [], viceCaptainOf: [], matchesPlayed: 0, teamFixtures: 0, timesAvailable: 0, availabilityRate: 0,
+      practicesHeld: 0, practicesCommitted: 0, duties: 0, potm: 0,
+      practiceByType: { net: { held: net[0], committed: net[1] }, field: { held: field[0], committed: field[1] } },
+    });
+    const netOnly = statsWith({ seasons: [season([5, 5], [5, 0])] });
+    const both = statsWith({ seasons: [season([5, 5], [5, 5])] });
+    const before = badgeSnapshot([player('a')], netOnly);
+    expect(diffBadgeEvents(before, [player('a')], both, TODAY)).toEqual([]);
+  });
+
+  it('treats only a new or higher umpire certification as news', () => {
+    expect(isUmpireUpgrade(undefined, 'certified')).toBe(true);
+    expect(isUmpireUpgrade('certified', 'panel')).toBe(true);
+    expect(isUmpireUpgrade('panel', 'certified')).toBe(false);
+    expect(isUmpireUpgrade('pre-panel', 'pre-panel')).toBe(false);
   });
 });

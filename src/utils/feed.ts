@@ -137,7 +137,10 @@ export function diffBadgeEvents(
   if (!previous) return []; // First run: record a baseline, don't announce everyone's badges
   const events: StoredFeedEvent[] = [];
   for (const p of players) {
-    const before = new Set(previous[p.id] || []);
+    // Not in the previous baseline (newly registered, approved or reactivated):
+    // their existing badges aren't news. Recorded in the next snapshot instead.
+    if (!(p.id in previous)) continue;
+    const before = new Set(previous[p.id]);
     for (const b of deriveBadges(p, stats[p.id])) {
       if (DIFF_EXCLUDED.has(b.id)) continue;
       const key = badgeKey(b);

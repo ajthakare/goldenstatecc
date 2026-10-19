@@ -1,6 +1,7 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
 import { validateAdminSession, isMember } from '../../src/middleware/auth';
+import { isListedMember } from './_profile-stats';
 import type { FixtureAvailability, Player } from '../../src/types/player';
 
 /**
@@ -76,6 +77,8 @@ export const handler: Handler = async (
 
     // Create a map of playerId to current player name
     const playerNameMap = new Map<string, string>();
+    // Only members listed on /players have a profile to link to
+    const listedIds = new Set((allPlayers || []).filter(isListedMember).map((pl) => pl.id));
     if (allPlayers) {
       allPlayers.forEach(player => {
         playerNameMap.set(player.id, `${player.firstName} ${player.lastName}`);
@@ -87,7 +90,7 @@ export const handler: Handler = async (
     const availablePlayers = availabilityData.playerAvailability
       .filter(p => p.wasAvailable === true)
       .map(p => ({
-        id: p.playerId,
+        id: listedIds.has(p.playerId) ? p.playerId : undefined,
         name: playerNameMap.get(p.playerId) || p.playerName, // Use current name or fallback to cached
         status: 'available' as const,
       }))
