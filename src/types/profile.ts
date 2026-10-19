@@ -27,6 +27,7 @@ export interface SeasonProfileStats {
   duties: number;                // Match duties done this season
   dutiesByType?: Record<string, number>; // Same, per duty (e.g. "Scoring": 3)
   potm: number;                  // Player of the Match awards this season
+  gamesUmpired?: number;         // Umpiring duties done for the club this season (confirmed by an admin)
 }
 
 export type PracticeType = 'net' | 'field';
@@ -41,6 +42,7 @@ export interface PlayerProfileStats {
   potm: number;
   duties: number;
   dutiesByType?: Record<string, number>; // Career count per duty
+  gamesUmpired?: number;         // Career umpiring duties done
   seasons: SeasonProfileStats[]; // Newest first
 }
 
@@ -57,6 +59,7 @@ export type BadgeId =
   | 'matches'
   | 'ever-present'
   | 'duty'
+  | 'umpired'
   | 'practice-regular';
 
 export interface Badge {
@@ -108,7 +111,7 @@ export interface DirectoryCard {
 // Club feed (/feed)
 // ============================================================================
 
-export type FeedKind = 'result' | 'milestone' | 'debut' | 'badge' | 'upcoming' | 'social';
+export type FeedKind = 'result' | 'milestone' | 'debut' | 'badge' | 'upcoming' | 'umpiring' | 'social';
 
 export interface FeedItem {
   id: string;                    // Stable: same event -> same id across rebuilds

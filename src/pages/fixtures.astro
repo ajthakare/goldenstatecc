@@ -5,6 +5,8 @@ import Layout from '../layouts/Layout.astro';
 import Section from '../components/Section.astro';
 import PageHeader from '../components/PageHeader.astro';
 import Icon from '../components/Icon.astro';
+import UmpiringDutyCard from '../components/UmpiringDutyCard.astro';
+import type { PublicUmpiringDuty } from '../types/umpiring';
 import { validateAdminSession, isMember } from '../middleware/auth';
 
 // Check authentication status
@@ -40,6 +42,22 @@ if (activeSeason) {
     }
 }
 
+// Umpiring duties: games between other teams that one of ours officiates.
+// Forward the cookie so signed-in members also get the umpires' names.
+let dutiesData: PublicUmpiringDuty[] = [];
+if (activeSeason) {
+    try {
+        const dutiesResponse = await fetch(`${Astro.url.origin}/.netlify/functions/umpiring-schedule-get?seasonId=${activeSeason.id}`, {
+            headers: { cookie: cookieHeader || '' },
+        });
+        if (dutiesResponse.ok) {
+            dutiesData = await dutiesResponse.json();
+        }
+    } catch (error) {
+        console.error('Error fetching umpiring duties:', error);
+    }
+}
+
 // Process fixtures
 interface Fixture {
     gameNumber: string;
@@ -62,6 +80,21 @@ interface Fixture {
     playerOfMatchName?: string;
     youtubeVideoUrl?: string;
     scoringAppUrl?: string;
+    kind?: 'match';
+}
+
+type DutyItem = PublicUmpiringDuty & { kind: 'umpiring'; displayDate: string; monthYear: string; sortDate: Date };
+type ScheduleItem = Fixture | DutyItem;
+
+// "9:00 AM" -> [9, 0]
+function parseTime(time: string): [number, number] {
+    const m = (time || '').match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (!m) return [0, 0];
+    let h = parseInt(m[1]);
+    const meridiem = m[3].toUpperCase();
+    if (meridiem === 'PM' && h !== 12) h += 12;
+    if (meridiem === 'AM' && h === 12) h = 0;
+    return [h, parseInt(m[2])];
 }
 
 const fixtures: Fixture[] = fixturesData
@@ -133,8 +166,32 @@ today.setHours(0, 0, 0, 0); // Reset to start of day
 const upcomingFixtures = fixtures.filter(f => f.sortDate >= today);
 const pastFixtures = fixtures.filter(f => f.sortDate < today).reverse();
 
+const duties: DutyItem[] = dutiesData
+    .map((d) => {
+        const [year, month, day] = d.date.split('-').map(Number);
+        const sortDate = new Date(year, month - 1, day, ...parseTime(d.time));
+        return {
+            ...d,
+            kind: 'umpiring' as const,
+            sortDate,
+            monthYear: sortDate.toLocaleString('default', { month: 'long', year: 'numeric' }),
+            displayDate: sortDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
+        };
+    })
+    .sort((a, b) => a.sortDate.getTime() - b.sortDate.getTime());
+const isDuty = (item: ScheduleItem): item is DutyItem => item.kind === 'umpiring';
+const dayStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const upcomingDuties = duties.filter(d => dayStart(d.sortDate) >= today);
+const pastDuties = duties.filter(d => dayStart(d.sortDate) < today).reverse();
+
+// Matches and umpiring duties together, in date order
+const upcomingItems: ScheduleItem[] = [...upcomingFixtures, ...upcomingDuties]
+    .sort((a, b) => a.sortDate.getTime() - b.sortDate.getTime());
+const pastItems: ScheduleItem[] = [...pastFixtures, ...pastDuties]
+    .sort((a, b) => b.sortDate.getTime() - a.sortDate.getTime());
+
 // Get all matches on the upcoming weekend (next Sat/Sun)
-function getUpcomingWeekendMatches(matches: Fixture[]): Fixture[] {
+function getUpcomingWeekendMatches<T extends { sortDate: Date }>(matches: T[]): T[] {
     if (matches.length === 0) return [];
 
     const now = new Date();
@@ -176,9 +233,11 @@ function getUpcomingWeekendMatches(matches: Fixture[]): Fixture[] {
 }
 
 const upcomingWeekendMatches = getUpcomingWeekendMatches(upcomingFixtures);
+const upcomingWeekendDuties = getUpcomingWeekendMatches(upcomingDuties);
+const weekendCount = upcomingWeekendMatches.length + upcomingWeekendDuties.length;
 
 // Group upcoming fixtures by month
-const upcomingByMonth = upcomingFixtures.reduce((acc: Record<string, Fixture[]>, fixture: Fixture) => {
+const upcomingByMonth = upcomingItems.reduce((acc: Record<string, ScheduleItem[]>, fixture: ScheduleItem) => {
     if (!acc[fixture.monthYear]) {
         acc[fixture.monthYear] = [];
     }
@@ -187,7 +246,7 @@ const upcomingByMonth = upcomingFixtures.reduce((acc: Record<string, Fixture[]>,
 }, {});
 
 // Group past fixtures by month
-const pastByMonth = pastFixtures.reduce((acc: Record<string, Fixture[]>, fixture: Fixture) => {
+const pastByMonth = pastItems.reduce((acc: Record<string, ScheduleItem[]>, fixture: ScheduleItem) => {
     if (!acc[fixture.monthYear]) {
         acc[fixture.monthYear] = [];
     }
@@ -234,26 +293,33 @@ function getResultBadge(result: string): { text: string; color: string } {
 
 
     {/* Upcoming Weekend Matches */}
-    {upcomingWeekendMatches.length > 0 ? (
+    {weekendCount > 0 ? (
         <Section>
             <div class="accent-box mb-8">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
                     <div class="flex items-center gap-3 flex-wrap">
                         <h2 class="section-heading heading-margin-none">
-                            {upcomingWeekendMatches.length === 1 ? 'Upcoming Weekend Match' : 'Upcoming Weekend Matches'}
+                            {upcomingWeekendMatches.length === 0 ? 'Upcoming Weekend' : upcomingWeekendMatches.length === 1 ? 'Upcoming Weekend Match' : 'Upcoming Weekend Matches'}
                         </h2>
-                        <span class="badge badge-gold">
-                            {upcomingWeekendMatches.length} {upcomingWeekendMatches.length === 1 ? 'match' : 'matches'}
-                        </span>
+                        {upcomingWeekendMatches.length > 0 && (
+                            <span class="badge badge-gold">
+                                {upcomingWeekendMatches.length} {upcomingWeekendMatches.length === 1 ? 'match' : 'matches'}
+                            </span>
+                        )}
+                        {upcomingWeekendDuties.length > 0 && (
+                            <span class="badge badge-neutral">
+                                {upcomingWeekendDuties.length} umpiring
+                            </span>
+                        )}
                     </div>
-                    {isAuthenticatedMember && (
+                    {isAuthenticatedMember && upcomingWeekendMatches.length > 0 && (
                         <a href="/myfixtures" class="btn whitespace-nowrap">
                             <Icon name="check-circle" size={18} />
                             <span>Mark your availability</span>
                         </a>
                     )}
                 </div>
-                <div class={`grid gap-6 ${upcomingWeekendMatches.length === 1 ? 'md:grid-cols-1' : upcomingWeekendMatches.length === 2 ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
+                <div class={`grid gap-6 ${weekendCount === 1 ? 'md:grid-cols-1' : weekendCount === 2 ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
                     {upcomingWeekendMatches.map(match => (
                         <div class="fixture-card p-5" data-team={match.ourTeam}>
                             <div class="flex items-center justify-between gap-2 mb-3">
@@ -306,6 +372,9 @@ function getResultBadge(result: string): { text: string; color: string } {
                             )}
                         </div>
                     ))}
+                    {upcomingWeekendDuties.map(duty => (
+                        <UmpiringDutyCard duty={duty} isPast={false} compact />
+                    ))}
                 </div>
             </div>
         </Section>
@@ -336,6 +405,11 @@ function getResultBadge(result: string): { text: string; color: string } {
                     {teamName} ({fixtures.filter(f => f.ourTeam === teamName).length})
                 </button>
             ))}
+            {duties.length > 0 && (
+                <button class="filter-btn px-4 py-2 font-semibold text-sm" data-team="__umpiring">
+                    Umpiring ({duties.length})
+                </button>
+            )}
         </div>
     </div>
 
@@ -365,7 +439,7 @@ function getResultBadge(result: string): { text: string; color: string } {
     </div>
 
     {/* Upcoming Fixtures Section - Collapsible */}
-    {upcomingFixtures.length > 0 && (
+    {upcomingItems.length > 0 && (
         <div class="mb-12">
             <button id="upcoming-fixtures-toggle" class="section-toggle mb-6">
                 <div class="flex items-center gap-3">
@@ -373,6 +447,11 @@ function getResultBadge(result: string): { text: string; color: string } {
                     <span class="badge badge-success">
                         <span id="upcoming-count">{upcomingFixtures.length}</span> matches
                     </span>
+                    {upcomingDuties.length > 0 && (
+                        <span class="badge badge-neutral">
+                            <span id="upcoming-duty-count">{upcomingDuties.length}</span> umpiring
+                        </span>
+                    )}
                 </div>
                 <Icon name="chevron-down" size={24} id="upcoming-fixtures-icon" class="transition-transform rotate-180" />
             </button>
@@ -387,7 +466,9 @@ function getResultBadge(result: string): { text: string; color: string } {
                         </div>
 
                         <div class="grid md:grid-cols-2 gap-6">
-                        {monthFixtures.map((fixture) => (
+                        {monthFixtures.map((fixture) => isDuty(fixture) ? (
+                            <UmpiringDutyCard duty={fixture} isPast={false} />
+                        ) : (
                             <div
                                 class="fixture-card p-6"
                                 data-team={fixture.ourTeam}
@@ -479,7 +560,7 @@ function getResultBadge(result: string): { text: string; color: string } {
     )}
 
     {/* Past Fixtures Section - Collapsible */}
-    {pastFixtures.length > 0 && (
+    {pastItems.length > 0 && (
         <div class="mb-12">
             <button id="past-fixtures-toggle" class="section-toggle mb-6">
                 <div class="flex items-center gap-3">
@@ -487,6 +568,11 @@ function getResultBadge(result: string): { text: string; color: string } {
                     <span class="badge badge-neutral">
                         <span id="past-count">{pastFixtures.length}</span> matches
                     </span>
+                    {pastDuties.length > 0 && (
+                        <span class="badge badge-neutral">
+                            <span id="past-duty-count">{pastDuties.length}</span> umpiring
+                        </span>
+                    )}
                 </div>
                 <Icon name="chevron-down" size={24} id="past-fixtures-icon" class="transition-transform" />
             </button>
@@ -501,6 +587,7 @@ function getResultBadge(result: string): { text: string; color: string } {
 
                             <div class="grid md:grid-cols-2 gap-6">
                             {monthFixtures.map((fixture) => {
+                                if (isDuty(fixture)) return <UmpiringDutyCard duty={fixture} isPast={true} />;
                                 const resultBadge = fixture.result ? getResultBadge(fixture.result) : null;
                                 return (
                                 <div
@@ -605,7 +692,7 @@ function getResultBadge(result: string): { text: string; color: string } {
     )}
 
     {/* No Fixtures Message */}
-    {fixtures.length === 0 && (
+    {fixtures.length === 0 && duties.length === 0 && (
         <Section>
             <div class="text-center py-12">
                 <h2 class="section-heading heading-margin-sm">No fixtures available</h2>
@@ -721,22 +808,36 @@ function getResultBadge(result: string): { text: string; color: string } {
                 let awayCount = 0;
                 let upcomingCount = 0;
                 let pastCount = 0;
+                let upcomingDutyCount = 0;
+                let pastDutyCount = 0;
 
                 fixtureCards.forEach(card => {
                     const cardTeam = card.getAttribute('data-team');
+                    const isDuty = card.getAttribute('data-kind') === 'umpiring';
                     const isHome = card.getAttribute('data-is-home') === 'true';
                     const isPast = card.getAttribute('data-is-past') === 'true';
 
-                    if (selectedTeam === 'all' || cardTeam === selectedTeam) {
-                        card.classList.remove('hidden');
-                        visibleCount++;
-                        if (isHome) homeCount++;
-                        else awayCount++;
-                        if (isPast) pastCount++;
-                        else upcomingCount++;
-                    } else {
+                    // A team shows its matches and its umpiring duties; "Umpiring" shows duties only
+                    const visible = selectedTeam === 'all'
+                        || (selectedTeam === '__umpiring' ? isDuty : cardTeam === selectedTeam);
+
+                    if (!visible) {
                         card.classList.add('hidden');
+                        return;
                     }
+                    card.classList.remove('hidden');
+                    // Weekend cards repeat ones in the lists below; count those once
+                    if (card.closest('.accent-box')) return;
+                    if (isDuty) {
+                        if (isPast) pastDutyCount++;
+                        else upcomingDutyCount++;
+                        return;
+                    }
+                    visibleCount++;
+                    if (isHome) homeCount++;
+                    else awayCount++;
+                    if (isPast) pastCount++;
+                    else upcomingCount++;
                 });
 
                 // Update stats
@@ -749,6 +850,10 @@ function getResultBadge(result: string): { text: string; color: string } {
                 const pastCountEl = document.getElementById('past-count');
                 if (upcomingCountEl) upcomingCountEl.textContent = upcomingCount;
                 if (pastCountEl) pastCountEl.textContent = pastCount;
+                const upcomingDutyEl = document.getElementById('upcoming-duty-count');
+                const pastDutyEl = document.getElementById('past-duty-count');
+                if (upcomingDutyEl) upcomingDutyEl.textContent = upcomingDutyCount;
+                if (pastDutyEl) pastDutyEl.textContent = pastDutyCount;
 
                 // Hide empty month sections
                 const monthSections = document.querySelectorAll('.month-section');

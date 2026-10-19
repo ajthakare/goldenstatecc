@@ -9,6 +9,7 @@
  */
 import { UMPIRE_STATUSES, UMPIRE_STATUS_LABELS } from '../types/player';
 import type { UmpireStatus } from '../types/player';
+import type { UmpiringDuty } from '../types/umpiring';
 import type {
   Player,
   Season,
@@ -37,6 +38,8 @@ export const BADGE_RULES = {
   practiceRegular: { minRate: 60, minPractices: 4 },
   // One badge per match-day duty. Tiers: 3, 5, then every 5 (10, 15, 20, 25…)
   dutyTiers: { first: 3, second: 5, step: 5 },
+  // League games umpired for the club. Tiers: 1, 3, 5, then every 5 (10, 15…)
+  umpiringTiers: { first: 1, second: 3, third: 5, step: 5 },
 };
 
 /** Badge name for each match duty (keys match MATCH_DUTIES in admin/availability). */
@@ -65,6 +68,15 @@ export function dutyTier(count: number): number {
   return Math.floor(count / step) * step;
 }
 
+/** Highest umpiring tier reached for a count of games umpired (0 = not earned yet). */
+export function umpiringTier(count: number): number {
+  const { first, second, third, step } = BADGE_RULES.umpiringTiers;
+  if (count < first) return 0;
+  if (count < second) return first;
+  if (count < third) return second;
+  return Math.floor(count / step) * step;
+}
+
 // ============================================================================
 // Stats computation
 // ============================================================================
@@ -75,6 +87,7 @@ export interface SeasonInput {
   availability: FixtureAvailability[];
   coreRoster: CoreRosterAssignment[];
   practices: PracticeSession[];
+  umpiringDuties?: UmpiringDuty[];   // Games between other teams that we officiated
 }
 
 function pct(n: number, d: number): number {
@@ -103,7 +116,7 @@ export function computeProfileStats(
 
   const ensure = (id: string): PlayerProfileStats => {
     if (!result[id]) {
-      result[id] = { playerId: id, matchesPlayed: 0, potm: 0, duties: 0, seasons: [] };
+      result[id] = { playerId: id, matchesPlayed: 0, potm: 0, duties: 0, gamesUmpired: 0, seasons: [] };
     }
     return result[id];
   };
@@ -112,7 +125,7 @@ export function computeProfileStats(
     (b.season.startDate || '').localeCompare(a.season.startDate || '')
   );
 
-  for (const { season, fixtures, availability, coreRoster, practices } of orderedSeasons) {
+  for (const { season, fixtures, availability, coreRoster, practices, umpiringDuties } of orderedSeasons) {
     const fixtureById = new Map(fixtures.map((f) => [f.id, f]));
     const isPast = (date: string) => dateOnly(date) < todayStr;
 
@@ -127,6 +140,7 @@ export function computeProfileStats(
       duties: number;
       dutiesByType: Record<string, number>;
       potm: number;
+      gamesUmpired: number;
       practice: Record<PracticeType, PracticeCount>;
     };
     const accs = new Map<string, Acc>();
@@ -143,6 +157,7 @@ export function computeProfileStats(
           duties: 0,
           dutiesByType: {},
           potm: 0,
+          gamesUmpired: 0,
           practice: { net: { held: 0, committed: 0 }, field: { held: 0, committed: 0 } },
         };
         accs.set(id, a);
@@ -194,6 +209,16 @@ export function computeProfileStats(
       }
     }
 
+    // Umpiring duties: counted once the game is played and an admin confirms they went
+    for (const d of umpiringDuties || []) {
+      if (d.cancelled || !isPast(d.date)) continue;
+      for (const slot of [d.umpire1, d.umpire2]) {
+        if (slot?.playerId && slot.attended === true && playerIds.has(slot.playerId)) {
+          acc(slot.playerId).gamesUmpired++;
+        }
+      }
+    }
+
     // A player's own teams: their core-roster teams, or (with no core team) the
     // teams they played for. Filling in for another side doesn't make it theirs,
     // and they aren't expected to mark availability for its fixtures.
@@ -231,7 +256,7 @@ export function computeProfileStats(
       const timesAvailable = teamFixtures.filter((f) => a.availableFixtureIds.has(f.id)).length;
 
       const hasActivity =
-        teams.size > 0 || a.matchesPlayed > 0 || a.duties > 0 || a.potm > 0 ||
+        teams.size > 0 || a.matchesPlayed > 0 || a.duties > 0 || a.potm > 0 || a.gamesUmpired > 0 ||
         practiceTotal(a, 'committed') > 0 || a.captainOf.size > 0 || a.viceCaptainOf.size > 0;
       if (!hasActivity) continue;
 
@@ -254,6 +279,7 @@ export function computeProfileStats(
         duties: a.duties,
         dutiesByType: a.dutiesByType,
         potm: a.potm,
+        gamesUmpired: a.gamesUmpired,
       };
 
       const p = ensure(id);
@@ -261,6 +287,7 @@ export function computeProfileStats(
       p.matchesPlayed += a.matchesPlayed;
       p.potm += a.potm;
       p.duties += a.duties;
+      p.gamesUmpired = (p.gamesUmpired || 0) + a.gamesUmpired;
       p.dutiesByType = p.dutiesByType || {};
       for (const [duty, n] of Object.entries(a.dutiesByType)) {
         p.dutiesByType[duty] = (p.dutiesByType[duty] || 0) + n;
@@ -381,6 +408,19 @@ export function deriveBadges(
       icon: 'handshake',
       tone: 'green',
       key: `duty|${duty}|${tier}`,
+    });
+  }
+
+  const umpired = stats.gamesUmpired || 0;
+  const umpTier = umpiringTier(umpired);
+  if (umpTier > 0) {
+    badges.push({
+      id: 'umpired',
+      label: umpTier === 1 ? 'Match Official' : `Match Official ${umpTier}+`,
+      detail: `Umpired ${umpired} league game${umpired === 1 ? '' : 's'} for the club`,
+      icon: 'field-rings',
+      tone: 'blue',
+      key: `umpired|${umpTier}`,
     });
   }
 

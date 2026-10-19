@@ -5,6 +5,8 @@ import { addDays, buildFeed, clubFeedCacheHeaders, FEED_WEEKS, UPCOMING_DAYS } f
 import type { FeedPlayer } from '../../src/utils/feed';
 import type { Fixture, Season } from '../../src/types/player';
 import type { SocialFeedData } from '../../src/types/social';
+import type { UmpiringDuty } from '../../src/types/umpiring';
+import { DUTY_STORE, dutiesKey } from '../../src/utils/umpiring';
 import {
   avatarUrl,
   isListedMember,
@@ -17,7 +19,8 @@ import {
 
 /**
  * Club feed for /feed: results, Player of the Match, milestones, new badges,
- * upcoming fixtures and Instagram/YouTube posts from the last few weeks.
+ * upcoming fixtures and umpiring duties, and Instagram/YouTube posts from the
+ * last few weeks. Umpires are only named for signed-in members.
  * GET /.netlify/functions/club-feed-get[?playerId=<id>][&includeHidden=1]
  *   With playerId: that player's own posts (POTMs, milestones, badges) from any
  *   date, for "Recent activity" on /players/[id].
@@ -69,6 +72,11 @@ export const handler: Handler = async (event: HandlerEvent) => {
         readJSON<Fixture[]>('fixtures', `fixtures-${s.id}`, strong).catch(() => null)
       )
     );
+    // Umpiring duties only show in "Coming up", so only the active season's
+    const activeSeason = playerId ? undefined : relevant.find((s) => s.isActive);
+    const duties = activeSeason
+      ? await readJSON<UmpiringDuty[]>(DUTY_STORE, dutiesKey(activeSeason.id), strong).catch(() => null)
+      : null;
 
     const feedPlayers = new Map<string, FeedPlayer>(
       players.map((p) => [
@@ -88,6 +96,8 @@ export const handler: Handler = async (event: HandlerEvent) => {
       playerId,
       hiddenIds: new Set(hidden.map((h) => h.id)),
       includeHidden,
+      duties: duties || [],
+      showUmpireNames: signedIn,
     });
 
     return {

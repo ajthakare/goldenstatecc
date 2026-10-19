@@ -69,13 +69,14 @@ for (const item of items) {
                 <h2 class="feed-week">Coming up</h2>
                 <ul class="up-list">
                     {upcoming.map((u) => (
-                        <li class="up-item">
+                        <li class={`up-item${u.kind === 'umpiring' ? ' up-item--umpiring' : ''}`}>
                             <span class="up-date">
                                 <span class="up-dow">{fmt(u.date, { weekday: 'short' })}</span>
                                 <span class="up-day">{fmt(u.date, { day: 'numeric' })}</span>
                                 <span class="up-mon">{fmt(u.date, { month: 'short' })}</span>
                             </span>
                             <span class="up-body">
+                                {u.kind === 'umpiring' && <span class="up-tag">Umpiring duty</span>}
                                 <span class="up-title">{u.title}</span>
                                 {u.detail && <span class="up-detail">{u.detail}</span>}
                             </span>
@@ -146,6 +147,15 @@ for (const item of items) {
         .up-title { font-weight: 600; color: #111827; font-size: 14px; }
         .up-detail { font-size: 12px; color: #6b7280; }
         .up-link { font-size: 12px; font-weight: 600; color: #8C1D18; }
+        .up-item--umpiring .up-date { background: #eef4fb; color: #1e4f86; }
+        .up-tag {
+            align-self: flex-start;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #1e4f86;
+        }
         .feed-empty { color: #6b7280; font-size: 14px; margin-top: 24px; }
         .alert { padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-top: 24px; }
         .alert-error { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }

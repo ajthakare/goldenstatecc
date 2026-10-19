@@ -1,0 +1,95 @@
+---
+/**
+ * UmpiringDutyCard — a game between two other teams that one of ours
+ * officiates, on the public schedule (/fixtures). `umpires` is only present
+ * for signed-in members; signed-out visitors just see the umpiring team.
+ */
+import Icon from './Icon.astro';
+import type { PublicUmpiringDuty } from '../types/umpiring';
+
+interface Props {
+    duty: PublicUmpiringDuty & { displayDate: string };
+    isPast: boolean;
+    compact?: boolean;
+}
+
+const { duty, isPast, compact = false } = Astro.props;
+const umpires = duty.umpires;
+const mapsUrl = duty.groundAddress
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(duty.groundAddress)}`
+    : null;
+---
+<div
+    class={`fixture-card umpiring-card ${compact ? 'p-5' : 'p-6'}`}
+    data-team={duty.umpiringTeam}
+    data-kind="umpiring"
+    data-is-past={isPast ? 'true' : 'false'}
+>
+    <div class="flex items-start justify-between gap-2 mb-3">
+        <span class="umpiring-pill"><Icon name="field-rings" size={13} /> Umpiring</span>
+        <span class="badge badge-neutral badge-team">{duty.umpiringTeam}</span>
+    </div>
+
+    <div class={`${compact ? 'text-lg' : 'text-xl'} font-bold text-heading mb-2`}>
+        {duty.homeTeam} <span class="text-muted font-semibold text-base">vs</span> {duty.visitorTeam}
+    </div>
+    <div class="flex flex-wrap items-center gap-3 text-sm text-muted mb-3">
+        <span class="flex items-center gap-1.5"><Icon name="calendar" size={14} /><span class="font-semibold">{duty.displayDate}</span></span>
+        <span>{duty.time}</span>
+        <span class="px-2 py-0.5 bg-gray-100 rounded text-xs font-medium">{duty.division}</span>
+    </div>
+
+    <div class="rounded-lg p-3" style="background:var(--color-surface-sunken);border:1px solid var(--color-hairline);">
+        <div class="font-semibold text-heading text-sm mb-1 flex items-center gap-2">
+            <Icon name="map-pin" size={14} />
+            <span>{duty.venue}</span>
+        </div>
+        {duty.groundAddress && (
+            mapsUrl
+                ? <a href={mapsUrl} target="_blank" rel="noopener noreferrer" class="text-xs text-muted pl-6 underline-offset-2 hover:underline">{duty.groundAddress}</a>
+                : <div class="text-xs text-muted pl-6">{duty.groundAddress}</div>
+        )}
+    </div>
+
+    {umpires && (
+        <div class="umpiring-names mt-3 text-sm">
+            <Icon name="users" size={14} />
+            {umpires.length > 0
+                ? <span><span class="font-semibold">{umpires.length > 1 ? 'Umpires' : 'Umpire'}:</span> {umpires.join(', ')}</span>
+                : <span class="text-muted">Umpire: to be assigned</span>}
+        </div>
+    )}
+
+    <div class="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
+        <span>Game #{duty.gameNumber}{duty.week && <> • {duty.week}</>}</span>
+    </div>
+</div>
+
+<style>
+    /* Same layer as the theme's .fixture-card !important borders, so this one can win */
+    @layer components {
+        .fixture-card.umpiring-card[data-kind="umpiring"] { border-left-color: #1e4f86 !important; }
+    }
+    .umpiring-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 0.25rem 0.65rem;
+        border-radius: 9999px;
+        background: #eef4fb;
+        color: #1e4f86;
+        font-size: 0.7rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+    .umpiring-names {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        background: #f5f8fc;
+        color: #1f2937;
+    }
+</style>
