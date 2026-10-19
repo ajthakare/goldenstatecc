@@ -4,7 +4,7 @@
  *  - recalculateProfileStats(): loads every season's fixtures, availability,
  *    core roster and practices, runs computeProfileStats() and saves the
  *    result to `player-profiles/profile-stats`. Called weekly by
- *    schedule-profile-stats.ts and whenever an admin recalculates statistics.
+ *    schedule-statistics.ts and whenever an admin recalculates statistics.
  *  - toPublicProfile() / toDirectoryCard(): the ONLY way player data should
  *    leave the server for other members (profiles and /players are members-only).
  *    They whitelist fields and apply the member's privacy settings.
@@ -72,7 +72,7 @@ export async function readJSON<T>(storeName: string, key: string, opts: { strong
 }
 
 /** Run async work over items, at most `limit` at a time. */
-async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const out: R[] = new Array(items.length);
   let next = 0;
   const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
@@ -90,7 +90,7 @@ export function todayString(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-async function loadSeasonInput(season: Season): Promise<SeasonInput> {
+async function loadSeasonInput(season: Season, opts: { practices: boolean }): Promise<SeasonInput> {
   const fixturesStore = blobStore('fixtures');
   const availabilityStore = blobStore('fixture-availability');
   const coreRosterStore = blobStore('core-roster');
@@ -100,7 +100,9 @@ async function loadSeasonInput(season: Season): Promise<SeasonInput> {
     fixturesStore.get(`fixtures-${season.id}`, { type: 'json' }) as Promise<Fixture[] | null>,
     coreRosterStore.get(`core-roster-${season.id}`, { type: 'json' }) as Promise<CoreRosterAssignment[] | null>,
     availabilityStore.get(`availability-index-${season.id}`, { type: 'json' }) as Promise<Array<{ fixtureId: string }> | null>,
-    practicesStore.get(`practice-index-${season.id}`, { type: 'json' }) as Promise<string[] | null>,
+    opts.practices
+      ? practicesStore.get(`practice-index-${season.id}`, { type: 'json' }) as Promise<string[] | null>
+      : null,
   ]);
 
   const availability = await mapLimit(availabilityIndex || [], 8, (item) =>
@@ -121,14 +123,33 @@ async function loadSeasonInput(season: Season): Promise<SeasonInput> {
   };
 }
 
-export async function recalculateProfileStats(): Promise<ProfileStatsData> {
-  const players = ((await blobStore('players').get('players-all', { type: 'json' })) as Player[] | null) || [];
-  const seasons = ((await blobStore('seasons').get('seasons-list', { type: 'json' })) as Season[] | null) || [];
-
-  // Seasons one after another keeps us well under Blobs rate limits
+/**
+ * Load each season's fixtures, availability, core roster and (optionally)
+ * practices. Seasons one after another keeps us well under Blobs rate limits.
+ */
+export async function loadSeasonInputs(
+  seasons: Season[],
+  opts: { practices?: boolean } = {}
+): Promise<SeasonInput[]> {
   const inputs: SeasonInput[] = [];
   for (const season of seasons) {
-    inputs.push(await loadSeasonInput(season));
+    inputs.push(await loadSeasonInput(season, { practices: opts.practices ?? true }));
+  }
+  return inputs;
+}
+
+/** Pass `preloaded` (all players, every season with practices) to skip loading. */
+export async function recalculateProfileStats(
+  preloaded?: { players: Player[]; inputs: SeasonInput[] }
+): Promise<ProfileStatsData> {
+  let players: Player[];
+  let inputs: SeasonInput[];
+  if (preloaded) {
+    ({ players, inputs } = preloaded);
+  } else {
+    players = ((await blobStore('players').get('players-all', { type: 'json' })) as Player[] | null) || [];
+    const seasons = ((await blobStore('seasons').get('seasons-list', { type: 'json' })) as Season[] | null) || [];
+    inputs = await loadSeasonInputs(seasons);
   }
 
   const today = todayString();
