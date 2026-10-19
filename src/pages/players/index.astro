@@ -113,8 +113,8 @@ const chips = [
                                         <span class="ib ib--gray ib-more" hidden></span>
                                     </span>
                                     <span class="pcard-stats">
-                                        <span><strong>{p.seasonMatches}</strong> matches</span>
-                                        <span><strong>{p.seasonPotm}</strong> POTM</span>
+                                        <span><strong>{p.matchesPlayed}</strong> matches</span>
+                                        <span><strong>{p.potm}</strong> POTM</span>
                                     </span>
                                 </div>
                             </a>
@@ -122,7 +122,6 @@ const chips = [
                     ))}
                 </ul>
                 <p id="pl-empty" class="count" style="display: none;">No players match.</p>
-                <p class="note">Matches and Player of the Match are for this season.</p>
             </>
         )}
     </div>
@@ -314,7 +313,6 @@ const chips = [
             color: #6b7280;
         }
         .pcard-stats strong { color: #8C1D18; font-size: 15px; font-weight: 800; margin-right: 2px; }
-        .note { font-size: 12px; color: #9ca3af; margin: 16px 0 0; }
         .alert { padding: 12px 16px; border-radius: 8px; font-size: 14px; }
         .alert-error { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
 

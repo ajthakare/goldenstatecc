@@ -266,7 +266,6 @@ export function toPublicProfile(
 }
 
 export function toDirectoryCard(p: Player, stats: PlayerProfileStats | null | undefined): DirectoryCard {
-  const season = activeSeason(stats);
   return {
     id: p.id,
     firstName: p.firstName,
@@ -275,8 +274,8 @@ export function toDirectoryCard(p: Player, stats: PlayerProfileStats | null | un
     photoUrl: avatarUrl(p),
     photoSmallUrl: avatarUrl(p, 'small'),
     umpireStatus: p.umpireStatus,
-    seasonMatches: season?.matchesPlayed || 0,
-    seasonPotm: season?.potm || 0,
+    matchesPlayed: stats?.matchesPlayed || 0,
+    potm: stats?.potm || 0,
     badges: deriveBadges(p, stats),
   };
 }
