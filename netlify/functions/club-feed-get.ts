@@ -6,11 +6,11 @@ import type { Fixture, Season } from '../../src/types/player';
 import type { SocialFeedData } from '../../src/types/social';
 import {
   avatarUrl,
-  blobStore,
   isListedMember,
   loadFeedEvents,
   loadHiddenPosts,
   loadPlayers,
+  readJSON,
   todayString,
 } from './_profile-stats';
 
@@ -43,12 +43,15 @@ export const handler: Handler = async (event: HandlerEvent) => {
 
     const includeHidden = event.queryStringParameters?.includeHidden === '1' && !!session && isAdmin(session);
 
+    // Strong reads: this response may be cached right after a purge, so it has
+    // to reflect the write that triggered the purge (see readJSON)
+    const strong = { strong: true };
     const [players, events, hidden, seasons, social] = await Promise.all([
-      loadPlayers(),
-      loadFeedEvents(),
-      loadHiddenPosts(),
-      blobStore('seasons').get('seasons-list', { type: 'json' }) as Promise<Season[] | null>,
-      (blobStore('social-feed').get('feed', { type: 'json' }) as Promise<SocialFeedData | null>).catch(() => null),
+      loadPlayers(strong),
+      loadFeedEvents(strong),
+      loadHiddenPosts(strong),
+      readJSON<Season[]>('seasons', 'seasons-list', strong),
+      readJSON<SocialFeedData>('social-feed', 'feed', strong).catch(() => null),
     ]);
 
     // A player's own activity (profile page) is members-only, like the profile itself
@@ -62,7 +65,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
     );
     const fixtureLists = await Promise.all(
       relevant.map((s) =>
-        (blobStore('fixtures').get(`fixtures-${s.id}`, { type: 'json' }) as Promise<Fixture[] | null>).catch(() => null)
+        readJSON<Fixture[]>('fixtures', `fixtures-${s.id}`, strong).catch(() => null)
       )
     );
 

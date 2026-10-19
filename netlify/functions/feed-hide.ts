@@ -29,7 +29,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
       return {
         statusCode: 200,
         headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store' },
-        body: JSON.stringify({ hiddenPosts: await loadHiddenPosts() }),
+        body: JSON.stringify({ hiddenPosts: await loadHiddenPosts({ strong: true }) }),
       };
     }
 
@@ -43,7 +43,8 @@ export const handler: Handler = async (event: HandlerEvent) => {
     }
 
     const actor = session.email || session.username || session.userId;
-    const posts = await loadHiddenPosts();
+    // Strong read: two admins hiding posts in quick succession mustn't lose one
+    const posts = await loadHiddenPosts({ strong: true });
     const existing = posts.find((p) => p.id === id);
     const postTitle = String(title || existing?.title || id).slice(0, 300);
 

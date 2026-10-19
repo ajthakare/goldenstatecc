@@ -33,7 +33,7 @@ if (!isAdminUser) return Astro.redirect('/');
   <div class="feed-admin">
     <div class="page-header">
       <h1 class="page-title">Club Feed</h1>
-      <p class="page-description">Hide posts you don't want on the public Club Feed. Hidden posts disappear for everyone straight away; unhide to bring them back.</p>
+      <p class="page-description">Hide posts you don't want on the Club Feed, including "Coming up" fixtures. Hidden posts disappear for everyone straight away; unhide to bring them back.</p>
     </div>
 
     <div class="toolbar">
@@ -130,7 +130,7 @@ if (!isAdminUser) return Astro.redirect('/');
 
       statusEl.textContent = filter === 'hidden'
         ? `${hidden.length} hidden post${hidden.length === 1 ? '' : 's'}`
-        : `${posts.length} posts in the last 8 weeks · ${hidden.length} hidden`;
+        : `${posts.length} posts (coming up + last 8 weeks) · ${hidden.length} hidden`;
     }
 
     async function toggle(id: string, hide: boolean, title: string, date: string, button: HTMLButtonElement) {
@@ -160,7 +160,9 @@ if (!isAdminUser) return Astro.redirect('/');
           fetch('/.netlify/functions/feed-hide', { credentials: 'same-origin' }),
         ]);
         if (!feedRes.ok || !hiddenRes.ok) throw new Error('Failed to load posts');
-        posts = (await feedRes.json()).items || [];
+        // "Coming up" fixtures are hideable too, so list them first
+        const feed = await feedRes.json();
+        posts = [...(feed.upcoming || []), ...(feed.items || [])];
         hidden = (await hiddenRes.json()).hiddenPosts || [];
         render();
       } catch (err) {

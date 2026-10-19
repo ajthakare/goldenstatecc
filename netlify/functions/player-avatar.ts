@@ -21,10 +21,18 @@ export const handler: Handler = async (event: HandlerEvent) => {
     if (!id) return { statusCode: 400, body: 'Player ID is required' };
 
     const store = blobStore('player-avatars');
-    const result =
-      (event.queryStringParameters?.size === 'small'
-        ? await store.getWithMetadata(`avatar-small-${id}`, { type: 'arrayBuffer' })
-        : null) || (await store.getWithMetadata(`avatar-${id}`, { type: 'arrayBuffer' }));
+
+    // The small copy is uploaded just before the full photo, so it must be older
+    // than the current version (`v` = photoUpdatedAt). If it's newer, the full
+    // upload failed after it: serve the full photo so both sizes match.
+    let result = null;
+    if (event.queryStringParameters?.size === 'small') {
+      const small = await store.getWithMetadata(`avatar-small-${id}`, { type: 'arrayBuffer' });
+      const smallAt = Date.parse(String(small?.metadata?.uploadedAt || ''));
+      const version = Date.parse(event.queryStringParameters?.v || '');
+      if (small && !(smallAt > version)) result = small;
+    }
+    result = result || (await store.getWithMetadata(`avatar-${id}`, { type: 'arrayBuffer' }));
     if (!result) return { statusCode: 404, body: 'No photo' };
 
     return {

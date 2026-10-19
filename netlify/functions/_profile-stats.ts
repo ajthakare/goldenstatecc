@@ -50,6 +50,27 @@ export function blobStore(name: string) {
   });
 }
 
+/**
+ * Read a JSON blob, optionally with strong consistency.
+ *
+ * On Netlify, Blobs reads are served from the edge and can lag a write by up to
+ * about a minute. The Club Feed is purged from the CDN right after a write, so
+ * it must rebuild from the latest data, not a stale edge copy, or the stale copy
+ * gets cached again. `strong` reads go to the uncached origin; if this
+ * environment can't do that (no uncached edge URL), fall back to a normal read.
+ */
+export async function readJSON<T>(storeName: string, key: string, opts: { strong?: boolean } = {}): Promise<T | null> {
+  const store = blobStore(storeName);
+  if (opts.strong) {
+    try {
+      return (await store.get(key, { type: 'json', consistency: 'strong' })) as T | null;
+    } catch (error) {
+      if (!(error instanceof Error && error.name === 'BlobsConsistencyError')) throw error;
+    }
+  }
+  return (await store.get(key, { type: 'json' })) as T | null;
+}
+
 /** Run async work over items, at most `limit` at a time. */
 async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const out: R[] = new Array(items.length);
@@ -143,9 +164,9 @@ export async function appendFeedEvents(events: StoredFeedEvent[]): Promise<void>
   await purgeClubFeed();
 }
 
-export async function loadHiddenPosts(): Promise<HiddenFeedPost[]> {
+export async function loadHiddenPosts(opts: { strong?: boolean } = {}): Promise<HiddenFeedPost[]> {
   try {
-    return ((await blobStore('player-profiles').get(FEED_HIDDEN_KEY, { type: 'json' })) as HiddenFeedPost[] | null) || [];
+    return (await readJSON<HiddenFeedPost[]>('player-profiles', FEED_HIDDEN_KEY, opts)) || [];
   } catch (error) {
     console.error('Failed to load hidden feed posts:', error);
     return [];
@@ -170,11 +191,10 @@ export async function purgeClubFeed(): Promise<void> {
   }
 }
 
-export async function loadFeedEvents(): Promise<StoredFeedEvent[]> {
-  const store = blobStore('player-profiles');
+export async function loadFeedEvents(opts: { strong?: boolean } = {}): Promise<StoredFeedEvent[]> {
   const [milestones, events] = await Promise.all([
-    store.get(FEED_MILESTONES_KEY, { type: 'json' }) as Promise<StoredFeedEvent[] | null>,
-    store.get(FEED_EVENTS_KEY, { type: 'json' }) as Promise<StoredFeedEvent[] | null>,
+    readJSON<StoredFeedEvent[]>('player-profiles', FEED_MILESTONES_KEY, opts),
+    readJSON<StoredFeedEvent[]>('player-profiles', FEED_EVENTS_KEY, opts),
   ]);
   return [...(milestones || []), ...(events || [])];
 }
@@ -188,8 +208,8 @@ export async function loadProfileStats(): Promise<ProfileStatsData | null> {
   }
 }
 
-export async function loadPlayers(): Promise<Player[]> {
-  return ((await blobStore('players').get('players-all', { type: 'json' })) as Player[] | null) || [];
+export async function loadPlayers(opts: { strong?: boolean } = {}): Promise<Player[]> {
+  return (await readJSON<Player[]>('players', 'players-all', opts)) || [];
 }
 
 /**
