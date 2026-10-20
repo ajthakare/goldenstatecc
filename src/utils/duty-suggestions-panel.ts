@@ -20,12 +20,11 @@ const escape = (s: string) =>
 export function createDutySuggester(els: {
   button: HTMLButtonElement;
   panel: HTMLElement;
-  basis: HTMLElement;
   body: HTMLElement;
   close: HTMLElement;
   getContext: () => SuggesterContext | null;
 }) {
-  const { button, panel, basis, body, close, getContext } = els;
+  const { button, panel, body, close, getContext } = els;
   let history: DutyHistory | null = null;
   let historyFor = '';
   let loading = false;   // a history request is in flight; keep the button disabled
@@ -40,11 +39,6 @@ export function createDutySuggester(els: {
       excludeIds: ctx.captainIds,
       seed: ctx.fixtureId,
     });
-    const games = history.gamesCounted;
-    const missing = games - history.gamesWithDuties;
-    basis.textContent =
-      `· ${games} earlier game${games === 1 ? '' : 's'} this season` +
-      (missing > 0 ? ` (${missing} with no duties recorded)` : '');
     body.innerHTML = suggestions
       .map((s) =>
         `<div class="duty-suggestions-line"><strong>${escape(s.duty)}:</strong> ${

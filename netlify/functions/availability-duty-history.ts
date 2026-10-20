@@ -15,8 +15,8 @@ const json = (statusCode: number, data: unknown) => ({
  * Rotating-duty history for the "Suggest Duties" panel on the availability editor
  * GET /api/availability-duty-history?seasonId=xxx&fixtureId=yyy
  * Requires: Valid admin session
- * Returns: DutyHistory for the fixture's team, from this season's games up to
- *          the fixture's date (the fixture itself excluded)
+ * Returns: DutyHistory from this season's games (all teams) up to the
+ *          fixture's date (the fixture itself excluded)
  */
 export const handler: Handler = async (event: HandlerEvent) => {
   try {
@@ -39,7 +39,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
 
     const uptoDate = String(current.date).slice(0, 10);
     const earlier = fixtures.filter(
-      (f) => f.team === current.team && f.id !== fixtureId && String(f.date).slice(0, 10) <= uptoDate,
+      (f) => f.id !== fixtureId && String(f.date).slice(0, 10) <= uptoDate,
     );
 
     const store = blobStore('fixture-availability');
@@ -49,7 +49,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
       )
     ).filter((r): r is FixtureAvailability => !!r);
 
-    return json(200, countDutyHistory(records, { team: current.team, uptoDate, excludeFixtureId: fixtureId }));
+    return json(200, countDutyHistory(records, { uptoDate, excludeFixtureId: fixtureId }));
   } catch (error) {
     console.error('Error loading duty history:', error);
     return json(500, { error: 'Failed to load duty history' });

@@ -1,6 +1,6 @@
 /**
  * Unit Tests: "Suggest Duties" on the availability editor
- * (src/utils/duty-suggestions.ts): counting past rotating duties per team, and
+ * (src/utils/duty-suggestions.ts): counting past rotating duties across the season, and
  * ranking this match's selected players for each duty.
  */
 
@@ -31,15 +31,15 @@ describe('countDutyHistory', () => {
     rec('g5', '2026-05-24', 'Bulls', [['c', true, ['Scoring']]]),
     rec('g6', '2026-05-04', 'Bulls', [['d', false, ['Scoring']], ['e', true, []]]),
   ];
-  const h = countDutyHistory(records, { team: 'Bulls', uptoDate: '2026-05-17', excludeFixtureId: 'g4' });
+  const h = countDutyHistory(records, { uptoDate: '2026-05-17', excludeFixtureId: 'g4' });
 
-  it('counts only this team, up to the date, excluding the current fixture', () => {
+  it('counts every team this season, up to the date, excluding the current fixture', () => {
     expect(h.players.a.counts).toEqual({ 'Water Assignment': 2 });
     expect(h.players.a.last['Water Assignment']).toBe('2026-05-10');
-    expect(h.players.b.counts).toEqual({ Scoring: 1 }); // Tigers water + current g4 ignored
+    // Tigers water (same day as a Bulls game) counts; current g4 doesn't
+    expect(h.players.b.counts).toEqual({ Scoring: 1, 'Water Assignment': 1 });
+    expect(h.players.b.last['Water Assignment']).toBe('2026-05-10');
     expect(h.players.c.counts).toEqual({ 'Ground Set-up': 1 }); // g5 is after the fixture
-    expect(h.gamesCounted).toBe(3); // g1, g2, g6
-    expect(h.gamesWithDuties).toBe(2);
   });
 
   it('ignores non-rotating duties and players who were not selected', () => {
@@ -51,7 +51,7 @@ describe('countDutyHistory', () => {
 describe('suggestDuties', () => {
   const xi = (ids: string[], duties: Record<string, string[]> = {}): MatchPlayer[] =>
     ids.map((id) => ({ playerId: id, playerName: `Player ${id.toUpperCase()}`, duties: duties[id] || [] }));
-  const history = (players: DutyHistory['players']): DutyHistory => ({ gamesCounted: 5, gamesWithDuties: 5, players });
+  const history = (players: DutyHistory['players']): DutyHistory => ({ players });
 
   it('puts the fewest times done first, then longest since last done', () => {
     const [water] = suggestDuties({
