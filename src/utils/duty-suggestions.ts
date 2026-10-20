@@ -1,6 +1,6 @@
 /**
  * "Suggest Duties" on the availability editor: who should take the rotating
- * match duties this game, based on who has done them for this team this season.
+ * match duties this game, based on who has done them this season (any team).
  *
  *  - countDutyHistory(): availability records -> per-player counts (server side)
  *  - suggestDuties(): history + this match's XI -> up to 3 names per duty (client side)
@@ -16,41 +16,35 @@ export interface PlayerDutyHistory {
 }
 
 export interface DutyHistory {
-  gamesCounted: number;           // this team's earlier games with an availability record
-  gamesWithDuties: number;        // ...of which had any rotating duty recorded
   players: Record<string, PlayerDutyHistory>;
 }
 
 const day = (date: string) => String(date || '').slice(0, 10);
 
 /**
- * Count rotating duties per player across one team's earlier games. Only games
- * on or before `uptoDate` count (never the current fixture itself), and only
- * duties held by players who were selected for that game.
+ * Count rotating duties per player across the season's earlier games, for all
+ * teams. Only games on or before `uptoDate` count (never the current fixture
+ * itself), and only duties held by players who were selected for that game.
  */
 export function countDutyHistory(
   records: FixtureAvailability[],
-  opts: { team: string; uptoDate: string; excludeFixtureId: string; duties?: readonly string[] },
+  opts: { uptoDate: string; excludeFixtureId: string; duties?: readonly string[] },
 ): DutyHistory {
   const duties = new Set(opts.duties || ROTATING_DUTIES);
   const upto = day(opts.uptoDate);
-  const history: DutyHistory = { gamesCounted: 0, gamesWithDuties: 0, players: {} };
+  const history: DutyHistory = { players: {} };
 
   for (const rec of records) {
-    if (rec.team !== opts.team || rec.fixtureId === opts.excludeFixtureId || day(rec.date) > upto) continue;
-    history.gamesCounted++;
-    let any = false;
+    if (rec.fixtureId === opts.excludeFixtureId || day(rec.date) > upto) continue;
     for (const p of rec.playerAvailability || []) {
       if (!p.wasSelected) continue;
       for (const duty of p.duties || []) {
         if (!duties.has(duty)) continue;
-        any = true;
         const h = (history.players[p.playerId] ||= { counts: {}, last: {} });
         h.counts[duty] = (h.counts[duty] || 0) + 1;
         if (!h.last[duty] || day(rec.date) > h.last[duty]) h.last[duty] = day(rec.date);
       }
     }
-    if (any) history.gamesWithDuties++;
   }
   return history;
 }

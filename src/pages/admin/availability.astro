@@ -178,10 +178,7 @@ if (!isAdminUser) {
 
       <!-- Suggested duties (3 lines; opened from the header button) -->
       <div id="duty-suggestions" class="duty-suggestions" style="display: none;">
-        <div class="duty-suggestions-head">
-          <span>Suggest Duties <span id="duty-suggestions-basis" class="duty-suggestions-basis"></span></span>
-          <button id="duty-suggestions-close" class="duty-suggestions-close" aria-label="Close suggestions">&times;</button>
-        </div>
+        <button id="duty-suggestions-close" class="duty-suggestions-close" aria-label="Close suggestions">&times;</button>
         <div id="duty-suggestions-body"></div>
       </div>
 
@@ -850,6 +847,7 @@ if (!isAdminUser) {
   .suggest-duties-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
   .duty-suggestions {
+    position: relative;
     margin-bottom: 1rem;
     padding: 0.5rem 0.75rem;
     background: #f9fafb;
@@ -859,9 +857,8 @@ if (!isAdminUser) {
     line-height: 1.5;
     color: #374151;
   }
-  .duty-suggestions-head { display: flex; justify-content: space-between; align-items: center; font-weight: 600; color: #111827; }
-  .duty-suggestions-basis { font-weight: 400; color: #6b7280; }
-  .duty-suggestions-close { background: none; border: none; font-size: 1.25rem; line-height: 1; cursor: pointer; color: #6b7280; padding: 0 0.25rem; }
+  .duty-suggestions-close { position: absolute; top: 0.375rem; right: 0.5rem; background: none; border: none; font-size: 1.25rem; line-height: 1; cursor: pointer; color: #6b7280; padding: 0 0.25rem; }
+  .duty-suggestions-line { padding-right: 1.5rem; }
   .duty-suggestions-line strong { font-weight: 600; color: #111827; }
 
   /* Stats and actions - fixed, not scrollable */
@@ -1861,7 +1858,6 @@ if (!isAdminUser) {
   const dutySuggester = createDutySuggester({
     button: document.getElementById('suggest-duties-btn'),
     panel: document.getElementById('duty-suggestions'),
-    basis: document.getElementById('duty-suggestions-basis'),
     body: document.getElementById('duty-suggestions-body'),
     close: document.getElementById('duty-suggestions-close'),
     getContext: () => currentAvailability && currentFixture ? {
