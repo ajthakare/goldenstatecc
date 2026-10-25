@@ -8,7 +8,8 @@ import { parseLocalDate, getPacificToday } from './_utils';
  * List upcoming fixtures for authenticated member (next 7 days only)
  * GET /.netlify/functions/member-fixtures-list
  * Requires: Member session
- * Returns: Array of fixtures for player's teams with availability info
+ * Returns: Array of fixtures for all teams with availability info;
+ *          canVote is true only for the player's own roster teams
  */
 export const handler: Handler = async (
   event: HandlerEvent,
@@ -68,19 +69,12 @@ export const handler: Handler = async (
       fixturesStore.get(`fixtures-${seasonId}`, { type: 'json' }) as Promise<Fixture[] | null>,
     ]);
 
-    // Find player's team assignments (any roster member - core or reserve)
+    // Find player's team assignments (any roster member - core or reserve).
+    // These decide which fixtures the player can vote on; other teams'
+    // fixtures are still listed, view-only.
     const playerTeams = coreRoster
       ? coreRoster.filter(r => r.playerId === playerId).map(r => r.teamName)
       : [];
-
-    if (playerTeams.length === 0) {
-      // Player not assigned to any team
-      return {
-        statusCode: 200,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify([]),
-      };
-    }
 
     if (!allFixtures || allFixtures.length === 0) {
       return {
@@ -90,15 +84,12 @@ export const handler: Handler = async (
       };
     }
 
-    // Filter fixtures:
-    // 1. For player's teams
-    // 2. Within next 7 days OR admin has opened voting early
+    // Filter fixtures (all teams): within next 7 days OR admin has opened voting early
     const upcomingFixtures = allFixtures.filter(fixture => {
       const fixtureDate = parseLocalDate(fixture.date);
       fixtureDate.setHours(0, 0, 0, 0);
 
       return (
-        playerTeams.includes(fixture.team) &&
         fixtureDate >= today &&
         (fixtureDate <= sevenDaysFromNow || fixture.availabilityOpen === true)
       );
@@ -151,8 +142,8 @@ export const handler: Handler = async (
           );
         }
 
-        // Can update if fixture is within next 7 days (which it is by our filter)
-        const canUpdate = true;
+        // Only roster members of the fixture's team can vote (enforced again in member-availability-update)
+        const canVote = playerTeams.includes(fixture.team);
 
         return {
           id: fixture.id,
@@ -168,7 +159,7 @@ export const handler: Handler = async (
           availabilityOpen: fixture.availabilityOpen ?? false,
           myAvailability,
           submittedAt,
-          canUpdate,
+          canVote,
           availabilityCounts,
         };
       })

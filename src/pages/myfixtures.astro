@@ -264,7 +264,14 @@ if (!session || !isMember(session)) {
             ` : ''}
           </div>
 
-          <!-- Availability Section -->
+          <!-- Availability Section (view-only for teams the player isn't rostered on) -->
+          ${!fixture.canVote ? `
+          <div class="border-t-2 border-gray-200 pt-4">
+            <div class="view-only-message">
+              👀 You're not on this team's roster, so you can't mark availability for this match.
+            </div>
+          </div>
+          ` : `
           <div class="border-t-2 border-gray-200 pt-4">
             <div class="flex items-center justify-between mb-3">
               <h4 class="text-sm font-bold text-gray-700 uppercase">Your Availability</h4>
@@ -317,6 +324,7 @@ if (!session || !isMember(session)) {
               <p class="last-updated">Last updated: ${new Date(fixture.submittedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</p>
             ` : ''}
           </div>
+          `}
 
           <!-- Team Stats -->
           <div class="border-t border-gray-200 pt-3 mt-4">
@@ -770,6 +778,16 @@ if (!session || !isMember(session)) {
       border-radius: 8px;
       font-size: 13px;
       margin-bottom: 12px;
+      line-height: 1.5;
+    }
+
+    .view-only-message {
+      background: #F3F4F6;
+      border: 1px solid #D1D5DB;
+      color: #4B5563;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 13px;
       line-height: 1.5;
     }
 
