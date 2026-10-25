@@ -208,10 +208,6 @@ export async function loadHiddenPosts(opts: { strong?: boolean } = {}): Promise<
   }
 }
 
-export async function saveHiddenPosts(posts: HiddenFeedPost[]): Promise<void> {
-  await blobStore('player-profiles').setJSON(FEED_HIDDEN_KEY, posts);
-}
-
 /**
  * Clear the CDN copy of the public Club Feed so signed-out visitors see a change
  * straight away. Called after the stored feed changes (_club-feed.ts). Never
