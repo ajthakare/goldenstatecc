@@ -17,7 +17,7 @@ if (!session || !isMember(session)) {
 ---
 
 <Layout title="My Fixtures - Golden State Cricket Club">
-  <PageHeader kicker="Your season" title="My Upcoming Fixtures" subtitle="Mark your availability for upcoming matches" />
+  <PageHeader kicker="Your season" title="My Upcoming Fixtures" subtitle="Mark your availability for your matches and see who's playing across the club" />
 
   <div class="max-w-5xl mx-auto px-4 py-8">
 
@@ -56,8 +56,8 @@ if (!session || !isMember(session)) {
       <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
       </svg>
-      <p class="empty-text">No matches open for availability</p>
-      <p class="empty-subtext mb-6">There are no upcoming fixtures open for availability voting right now</p>
+      <p class="empty-text">No upcoming matches</p>
+      <p class="empty-subtext mb-6">There are no club fixtures in the next 7 days</p>
       <a href="/fixtures" class="btn btn-lg">
         View Full Fixture Schedule
       </a>
@@ -178,7 +178,17 @@ if (!session || !isMember(session)) {
 
       fixturesGrid.innerHTML = '';
 
-      fixtures.forEach((fixture) => {
+      // Fixtures arrive votable-first; label the two groups once other teams' matches are listed
+      const showGroups = fixtures.some(f => !f.canVote);
+
+      fixtures.forEach((fixture, i) => {
+        if (showGroups && (i === 0 || fixture.canVote !== fixtures[i - 1].canVote)) {
+          const heading = document.createElement('h2');
+          heading.className = 'fixtures-group-heading';
+          heading.textContent = fixture.canVote ? 'Your matches' : 'Other teams';
+          fixturesGrid.appendChild(heading);
+        }
+
         const card = document.createElement('div');
         card.className = 'fixture-card';
 
@@ -264,7 +274,14 @@ if (!session || !isMember(session)) {
             ` : ''}
           </div>
 
-          <!-- Availability Section -->
+          <!-- Availability Section (view-only for teams the player isn't rostered on) -->
+          ${!fixture.canVote ? `
+          <div class="border-t-2 border-gray-200 pt-4">
+            <div class="view-only-message">
+              👀 You're not on this team's roster, so you can't mark availability for this match.
+            </div>
+          </div>
+          ` : `
           <div class="border-t-2 border-gray-200 pt-4">
             <div class="flex items-center justify-between mb-3">
               <h4 class="text-sm font-bold text-gray-700 uppercase">Your Availability</h4>
@@ -317,6 +334,7 @@ if (!session || !isMember(session)) {
               <p class="last-updated">Last updated: ${new Date(fixture.submittedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</p>
             ` : ''}
           </div>
+          `}
 
           <!-- Team Stats -->
           <div class="border-t border-gray-200 pt-3 mt-4">
@@ -602,6 +620,14 @@ if (!session || !isMember(session)) {
       gap: 24px;
     }
 
+    .fixtures-group-heading {
+      grid-column: 1 / -1;
+      font-size: 18px;
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: -8px;
+    }
+
     @media (min-width: 768px) {
       .fixtures-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -770,6 +796,16 @@ if (!session || !isMember(session)) {
       border-radius: 8px;
       font-size: 13px;
       margin-bottom: 12px;
+      line-height: 1.5;
+    }
+
+    .view-only-message {
+      background: #F3F4F6;
+      border: 1px solid #D1D5DB;
+      color: #4B5563;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 13px;
       line-height: 1.5;
     }
 
