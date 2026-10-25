@@ -2,7 +2,6 @@ import { Handler, HandlerEvent } from '@netlify/functions';
 import { validateAdminSession } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
 import { addAuditLog } from '../../src/utils/auditLog';
-import { purgeClubFeed } from './_profile-stats';
 import { json, loadDuties, saveDuties } from './_umpiring';
 
 /**
@@ -30,7 +29,6 @@ export const handler: Handler = async (event: HandlerEvent) => {
     if (!removed.length) return json(404, { error: 'Umpiring duty not found' });
 
     await saveDuties(seasonId, duties.filter((d) => !remove.has(d.id)));
-    await purgeClubFeed();
 
     try {
       await addAuditLog(

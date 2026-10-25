@@ -26,7 +26,6 @@ import type {
   SocialFeedData,
   InstagramTokenRecord,
 } from '../../src/types/social';
-import { purgeClubFeed } from './_profile-stats';
 
 const MAX_ITEMS = 30; // newest posts kept in the feed; /gallery rotates through all of them
 const INSTAGRAM_REFRESH_MARGIN_DAYS = 10; // refresh once within this many days of expiry
@@ -230,7 +229,6 @@ export const handler = schedule('0 */6 * * *', async () => {
   };
 
   await store.setJSON('feed', feed);
-  await purgeClubFeed(); // Club Feed shows results, POTM, upcoming fixtures and social posts
   console.log(
     `[sync-social-feed] Done. ${instagramItems.length} Instagram + ${youtubeItems.length} YouTube = ${merged.length} items stored.`
   );

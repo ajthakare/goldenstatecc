@@ -4,7 +4,6 @@ import { validateAdminSession } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
 import type { Fixture } from '../../src/types/player';
 import { addAuditLog, buildFieldDiff } from '../../src/utils/auditLog';
-import { purgeClubFeed } from './_profile-stats';
 
 /**
  * Update a fixture
@@ -120,7 +119,6 @@ export const handler: Handler = async (
 
     // Save to Blobs
     await fixturesStore.setJSON(`fixtures-${seasonId}`, fixtures);
-    await purgeClubFeed(); // Club Feed shows results, POTM, upcoming fixtures and social posts
 
     // Add audit log (non-blocking)
     const { changedFields, changes, summary } = buildFieldDiff(

@@ -126,7 +126,7 @@ export interface FeedItem {
   thumbnailUrl?: string;         // Social posts
   link?: { href: string; label: string };
   tone: 'win' | 'loss' | 'neutral' | 'gold' | 'blue' | 'green';
-  hidden?: boolean;              // Admin view only: an admin hid this post from the feed
+  hidden?: boolean;              // An admin hid this post (admin view and the stored feed only)
   potm?: {                       // Results only: Player of the Match, shown under the result
     playerName: string;
     playerId?: string;           // Only for members listed on /players

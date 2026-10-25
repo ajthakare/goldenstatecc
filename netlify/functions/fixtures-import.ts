@@ -6,7 +6,6 @@ import { addAuditLog } from '../../src/utils/auditLog';
 import type { Fixture, Season, ImportResult } from '../../src/types/player';
 import { randomUUID } from 'crypto';
 import Papa from 'papaparse';
-import { purgeClubFeed } from './_profile-stats';
 import { parseScheduleDate } from '../../src/utils/umpiring';
 
 /**
@@ -237,7 +236,6 @@ export const handler: Handler = async (
     // Save fixtures if any were created
     if (importResult.created > 0) {
       await fixturesStore.setJSON(`fixtures-${seasonId}`, fixtures);
-      await purgeClubFeed(); // Club Feed shows results, POTM, upcoming fixtures and social posts
 
       await addAuditLog(
         session.username,

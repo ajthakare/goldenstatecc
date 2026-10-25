@@ -2,7 +2,7 @@ import { Handler, HandlerEvent } from '@netlify/functions';
 import { validateAdminSession } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
 import { addAuditLog } from '../../src/utils/auditLog';
-import { loadPlayers, purgeClubFeed } from './_profile-stats';
+import { loadPlayers } from './_profile-stats';
 import { json, loadDuties, loadSeason, notifyNewAssignments, saveDuties } from './_umpiring';
 import { clubUmpireIds, dutyFieldsFromBody } from '../../src/utils/umpiring';
 import type { UmpiringDuty } from '../../src/types/umpiring';
@@ -59,7 +59,6 @@ export const handler: Handler = async (event: HandlerEvent) => {
     };
     duties[index] = after;
     await saveDuties(season.id, duties);
-    await purgeClubFeed(); // "Coming up" lists umpiring duties
 
     const notified = await notifyNewAssignments(before, after);
     try {

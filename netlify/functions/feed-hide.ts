@@ -2,7 +2,8 @@ import { Handler, HandlerEvent } from '@netlify/functions';
 import { validateAdminSession } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
 import { addAuditLog } from '../../src/utils/auditLog';
-import { loadHiddenPosts, purgeClubFeed, saveHiddenPosts } from './_profile-stats';
+import { loadHiddenPosts, saveHiddenPosts } from './_profile-stats';
+import { setStoredFeedHidden } from './_club-feed';
 
 /**
  * Hide or unhide a Club Feed post
@@ -11,8 +12,9 @@ import { loadHiddenPosts, purgeClubFeed, saveHiddenPosts } from './_profile-stat
  * Body: { id: string, hidden: boolean, title?: string, date?: string }
  * Requires: admin or super_admin
  *
- * Any post can be hidden (result, milestone, badge, social): the feed is rebuilt
- * from data on every request, so a hidden-id list is what keeps it out.
+ * Any post can be hidden (result, milestone, badge, social). The hidden-id list
+ * keeps it out of every rebuild, and the stored feed /feed reads is updated
+ * straight away rather than at the next 6-hourly rebuild.
  */
 export const handler: Handler = async (event: HandlerEvent) => {
   try {
@@ -67,7 +69,6 @@ export const handler: Handler = async (event: HandlerEvent) => {
 
     if (next !== posts) {
       await saveHiddenPosts(next);
-      await purgeClubFeed();
       await addAuditLog(
         actor,
         hidden ? 'FEED_POST_HIDDEN' : 'FEED_POST_UNHIDDEN',
@@ -76,6 +77,9 @@ export const handler: Handler = async (event: HandlerEvent) => {
         { entityType: 'feed-post' }
       ).catch((err) => console.error('Audit log failed:', err));
     }
+
+    // Even when the list didn't change: a retry after a failed update must still fix the stored feed
+    await setStoredFeedHidden(new Set(next.map((p) => p.id)));
 
     return {
       statusCode: 200,

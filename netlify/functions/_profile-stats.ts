@@ -190,7 +190,6 @@ export async function recalculateProfileStats(
     console.error('Failed to update club feed events:', error);
   }
 
-  await purgeClubFeed();
   return data;
 }
 
@@ -198,7 +197,6 @@ export async function appendFeedEvents(events: StoredFeedEvent[]): Promise<void>
   const store = blobStore('player-profiles');
   const existing = ((await store.get(FEED_EVENTS_KEY, { type: 'json' })) as StoredFeedEvent[] | null) || [];
   await store.setJSON(FEED_EVENTS_KEY, mergeEvents(existing, events));
-  await purgeClubFeed();
 }
 
 export async function loadHiddenPosts(opts: { strong?: boolean } = {}): Promise<HiddenFeedPost[]> {
@@ -216,7 +214,7 @@ export async function saveHiddenPosts(posts: HiddenFeedPost[]): Promise<void> {
 
 /**
  * Clear the CDN copy of the public Club Feed so signed-out visitors see a change
- * straight away. Call after anything that changes what the feed shows. Never
+ * straight away. Called after the stored feed changes (_club-feed.ts). Never
  * throws: a failed purge only means up to 10 minutes of staleness (and it's a
  * no-op in local dev, where there's no CDN).
  */
@@ -226,14 +224,6 @@ export async function purgeClubFeed(): Promise<void> {
   } catch (error) {
     console.warn('Club Feed cache purge skipped:', error instanceof Error ? error.message : error);
   }
-}
-
-export async function loadFeedEvents(opts: { strong?: boolean } = {}): Promise<StoredFeedEvent[]> {
-  const [milestones, events] = await Promise.all([
-    readJSON<StoredFeedEvent[]>('player-profiles', FEED_MILESTONES_KEY, opts),
-    readJSON<StoredFeedEvent[]>('player-profiles', FEED_EVENTS_KEY, opts),
-  ]);
-  return [...(milestones || []), ...(events || [])];
 }
 
 export async function loadProfileStats(): Promise<ProfileStatsData | null> {

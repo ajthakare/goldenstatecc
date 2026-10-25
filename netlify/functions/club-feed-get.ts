@@ -1,26 +1,16 @@
 import { Handler, HandlerEvent } from '@netlify/functions';
 import { validateAdminSession, isMember } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
-import { addDays, buildFeed, clubFeedCacheHeaders, FEED_WEEKS, UPCOMING_DAYS } from '../../src/utils/feed';
-import type { FeedPlayer } from '../../src/utils/feed';
-import type { Fixture, Season } from '../../src/types/player';
-import type { SocialFeedData } from '../../src/types/social';
-import type { UmpiringDuty } from '../../src/types/umpiring';
-import { DUTY_STORE, dutiesKey } from '../../src/utils/umpiring';
-import {
-  avatarUrl,
-  isListedMember,
-  loadFeedEvents,
-  loadHiddenPosts,
-  loadPlayers,
-  readJSON,
-  todayString,
-} from './_profile-stats';
+import { buildFeed, clubFeedCacheHeaders } from '../../src/utils/feed';
+import { feedPlayers, loadFeedSources } from './_club-feed';
+import { todayString } from './_profile-stats';
 
 /**
- * Club feed for /feed: results, Player of the Match, milestones, new badges,
+ * Club feed built live: results, Player of the Match, milestones, new badges,
  * upcoming fixtures and umpiring duties, and Instagram/YouTube posts from the
  * last few weeks. Umpires are only named for signed-in members.
+ * Used by Admin → Club Feed and profile "Recent activity". The public /feed
+ * page reads the stored copy instead (see _club-feed.ts).
  * GET /.netlify/functions/club-feed-get[?playerId=<id>][&includeHidden=1]
  *   With playerId: that player's own posts (POTMs, milestones, badges) from any
  *   date, for "Recent activity" on /players/[id].
@@ -42,61 +32,25 @@ export const handler: Handler = async (event: HandlerEvent) => {
 
     const playerId = event.queryStringParameters?.playerId || undefined;
     const today = todayString();
-    const from = addDays(today, -FEED_WEEKS * 7);
-    const until = addDays(today, UPCOMING_DAYS);
 
     const includeHidden = event.queryStringParameters?.includeHidden === '1' && !!session && (await isCurrentAdmin(session));
-
-    // Strong reads: this response may be cached right after a purge, so it has
-    // to reflect the write that triggered the purge (see readJSON)
-    const strong = { strong: true };
-    const [players, events, hidden, seasons, social] = await Promise.all([
-      loadPlayers(strong),
-      loadFeedEvents(strong),
-      loadHiddenPosts(strong),
-      readJSON<Season[]>('seasons', 'seasons-list', strong),
-      readJSON<SocialFeedData>('social-feed', 'feed', strong).catch(() => null),
-    ]);
 
     // A player's own activity (profile page) is members-only, like the profile itself
     if (playerId && !signedIn) {
       return { statusCode: 401, body: JSON.stringify({ error: 'Authentication required' }) };
     }
 
-    // Only seasons overlapping the feed window (a player's activity covers every season)
-    const relevant = (seasons || []).filter(
-      (s) => playerId || s.isActive || ((s.endDate || '').slice(0, 10) >= from && (s.startDate || '').slice(0, 10) <= until)
-    );
-    const fixtureLists = await Promise.all(
-      relevant.map((s) =>
-        readJSON<Fixture[]>('fixtures', `fixtures-${s.id}`, strong).catch(() => null)
-      )
-    );
-    // Umpiring duties only show in "Coming up", so only the active season's
-    const activeSeason = playerId ? undefined : relevant.find((s) => s.isActive);
-    const duties = activeSeason
-      ? await readJSON<UmpiringDuty[]>(DUTY_STORE, dutiesKey(activeSeason.id), strong).catch(() => null)
-      : null;
-
-    const feedPlayers = new Map<string, FeedPlayer>(
-      players.map((p) => [
-        p.id,
-        signedIn
-          ? { id: p.id, name: `${p.firstName} ${p.lastName}`, photoUrl: avatarUrl(p, 'small'), listed: isListedMember(p) }
-          : { id: p.id, name: `${p.firstName} ${p.lastName}`, listed: false },
-      ])
-    );
-
+    const sources = await loadFeedSources({ today, playerId, strict: false });
     const feed = buildFeed({
-      fixtures: fixtureLists.flatMap((f) => f || []),
-      players: feedPlayers,
-      events,
-      social: social?.items || [],
+      fixtures: sources.fixtures,
+      players: feedPlayers(sources.players, signedIn),
+      events: sources.events,
+      social: sources.social,
       todayStr: today,
       playerId,
-      hiddenIds: new Set(hidden.map((h) => h.id)),
+      hiddenIds: new Set(sources.hidden.map((h) => h.id)),
       includeHidden,
-      duties: duties || [],
+      duties: sources.duties,
       showUmpireNames: signedIn,
     });
 

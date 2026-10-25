@@ -31,7 +31,6 @@ let isAuthenticated = false;
 let role = null;
 let isAdmin = false;
 let isMember = false;
-let firstName = '';
 
 if (cookieHeader) {
     session = validateAdminSession(cookieHeader);
@@ -40,21 +39,6 @@ if (cookieHeader) {
         role = session.role;
         isAdmin = role === 'super_admin' || role === 'admin';
         isMember = ['super_admin', 'admin', 'member'].includes(role);
-
-        // Fetch user's first name
-        try {
-            const response = await fetch(`${Astro.url.origin}/.netlify/functions/auth-check`, {
-                headers: {
-                    'Cookie': cookieHeader
-                }
-            });
-            if (response.ok) {
-                const data = await response.json();
-                firstName = data.user?.firstName || '';
-            }
-        } catch (error) {
-            console.error('Error fetching user data:', error);
-        }
     }
 }
 
@@ -81,11 +65,8 @@ const currentPath = Astro.url.pathname;
                 <div class="flex items-center gap-2 shrink-0">
                     {isAuthenticated ? (
                         <>
-                            {firstName && (
-                                <span class="hidden lg:block text-sm font-medium text-white/70">
-                                    Hi, {firstName}
-                                </span>
-                            )}
+                            {/* "Hi, <name>": filled in after the page loads (see the script below) */}
+                            <span data-greeting hidden class="hidden lg:block text-sm font-medium text-white/70"></span>
                             <a href="/logout" class="nav-icon-btn hidden lg:flex" aria-label="Log out">
                                 <Icon name="log-out" size={18} />
                             </a>
@@ -176,9 +157,9 @@ const currentPath = Astro.url.pathname;
     {/* Mobile Navigation Menu */}
     <div id="mobile-menu" class="mobile-menu">
         <ul class="flex flex-col gap-1 p-6">
-            {isAuthenticated && firstName && (
-                <li class="mb-2 pb-3 border-b border-white/15">
-                    <span class="block px-5 py-2 text-base font-semibold text-white/80">Hi, {firstName}</span>
+            {isAuthenticated && (
+                <li data-greeting hidden class="mb-2 pb-3 border-b border-white/15">
+                    <span class="block px-5 py-2 text-base font-semibold text-white/80"></span>
                 </li>
             )}
 
@@ -429,4 +410,22 @@ const currentPath = Astro.url.pathname;
             }
         });
     });
+
+    // "Hi, <name>" for signed-in visitors. Loaded after the page shows so no page
+    // waits on it; the installed app has its own greeting (PWATopBar).
+    const greetings = document.querySelectorAll<HTMLElement>('[data-greeting]');
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
+    if (greetings.length && !standalone) {
+        fetch('/.netlify/functions/auth-check')
+            .then((r) => r.json())
+            .then((data) => {
+                const firstName = data.authenticated && data.user?.firstName;
+                if (!firstName) return;
+                greetings.forEach((el) => {
+                    (el.querySelector('span') || el).textContent = `Hi, ${firstName}`;
+                    el.hidden = false;
+                });
+            })
+            .catch(() => {/* the greeting is optional */});
+    }
 </script>
