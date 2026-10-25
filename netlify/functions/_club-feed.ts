@@ -11,9 +11,9 @@
  *  - setStoredFeedHidden(): feed-hide updates the stored copy directly, so a
  *    hidden post disappears straight away instead of at the next rebuild.
  *
- * Both writers save with a compare-and-swap on the blob's ETag (see
- * updateStoredFeed), so a hide and a rebuild that overlap can't overwrite
- * each other's change.
+ * Both writers, and the hidden list, save with a compare-and-swap on the
+ * blob's ETag (updateJSON in _blobs.ts), so overlapping hides and rebuilds
+ * can't overwrite each other's change.
  */
 import {
   addDays,
@@ -40,6 +40,7 @@ import {
   readJSON,
   todayString,
 } from './_profile-stats';
+import { updateJSON } from './_blobs';
 
 export const STORED_FEED_KEY = 'club-feed';  // In the `player-profiles` store
 
@@ -156,46 +157,17 @@ export async function readStoredFeed(opts: { strong?: boolean } = {}): Promise<S
   return readJSON<StoredClubFeed>('player-profiles', STORED_FEED_KEY, opts);
 }
 
-/** The stored feed with its ETag, read from the origin so the ETag is current. */
-async function readStoredWithEtag(): Promise<{ feed: StoredClubFeed | null; etag?: string }> {
-  const store = blobStore('player-profiles');
-  let result;
-  try {
-    result = await store.getWithMetadata(STORED_FEED_KEY, { type: 'json', consistency: 'strong' });
-  } catch (error) {
-    if (!(error instanceof Error && error.name === 'BlobsConsistencyError')) throw error;
-    result = await store.getWithMetadata(STORED_FEED_KEY, { type: 'json' });
-  }
-  return { feed: (result?.data as StoredClubFeed | undefined) ?? null, etag: result?.etag };
-}
-
 /**
- * Save `next(current)` only if the stored feed hasn't changed since it was read
- * (compare-and-swap on the ETag). If another writer got in first, re-read and
- * call next() again on its copy. next() returns null when there's nothing to save.
- * Returns whether anything was saved.
+ * Save `next(current)` with a compare-and-swap (see updateJSON in _blobs.ts):
+ * if another writer saved first, next() runs again on its copy. next()
+ * returns null when there's nothing to save. Returns whether anything was saved.
  */
 async function updateStoredFeed(
   next: (current: StoredClubFeed | null) => Promise<StoredClubFeed | null>
 ): Promise<boolean> {
-  const store = blobStore('player-profiles');
-  for (let attempt = 1; attempt <= 5; attempt++) {
-    const { feed, etag } = await readStoredWithEtag();
-    const updated = await next(feed);
-    if (!updated) return false;
-    // A stored copy without an ETag (the local Blobs server sends none): save
-    // unconditionally rather than fail every attempt
-    if (feed && !etag) console.warn('Club feed: no ETag on the stored feed; saving without the overlap check');
-    const conditions = etag ? { onlyIfMatch: etag } : feed ? {} : { onlyIfNew: true };
-    // set(), not setJSON(): @netlify/blobs 10.5's setJSON drops onlyIfMatch/onlyIfNew
-    // (writes unconditionally and still reports modified: true)
-    const { modified } = await store.set(STORED_FEED_KEY, JSON.stringify(updated), conditions);
-    if (modified) {
-      await purgeClubFeed();
-      return true;
-    }
-  }
-  throw new Error('The stored Club Feed kept changing during the save; gave up after 5 attempts');
+  const saved = await updateJSON<StoredClubFeed>(blobStore('player-profiles'), STORED_FEED_KEY, next);
+  if (saved) await purgeClubFeed();
+  return !!saved;
 }
 
 async function readHiddenIds(): Promise<Set<string>> {
@@ -228,11 +200,32 @@ export async function rebuildStoredFeed(): Promise<{ saved: boolean; items: numb
   return { saved, items: built.members.items.length };
 }
 
-/** Apply the admins' hidden list to the stored feed (feed-hide). No-op if nothing is stored yet. */
-export async function setStoredFeedHidden(hiddenIds: Set<string>): Promise<void> {
+/**
+ * Change the admins' hidden list (feed-hide) with a compare-and-swap, so two
+ * admins hiding posts at once both count. Returns the list before and after.
+ */
+export async function updateHiddenPosts(
+  change: (posts: HiddenFeedPost[]) => HiddenFeedPost[]
+): Promise<{ before: HiddenFeedPost[]; after: HiddenFeedPost[] }> {
+  let before: HiddenFeedPost[] = [];
+  let after: HiddenFeedPost[] = [];
+  await updateJSON<HiddenFeedPost[]>(blobStore('player-profiles'), FEED_HIDDEN_KEY, (current) => {
+    before = current || [];
+    after = change(before);
+    return after === before ? null : after;
+  });
+  return { before, after };
+}
+
+/**
+ * Apply the admins' hidden list to the stored feed (feed-hide). Reads the
+ * latest list inside the save, so a slower hide can't apply an older list over
+ * another admin's newer one. No-op if nothing is stored yet.
+ */
+export async function setStoredFeedHidden(): Promise<void> {
   await updateStoredFeed(async (current) => {
     if (!current) return null;
-    const feed = withHiddenFlags(current, hiddenIds);
+    const feed = withHiddenFlags(current, await readHiddenIds());
     return sameFeedContent(current, feed) ? null : feed;
   });
 }

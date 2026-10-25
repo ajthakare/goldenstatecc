@@ -2,8 +2,8 @@ import { Handler, HandlerEvent } from '@netlify/functions';
 import { validateAdminSession } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
 import { addAuditLog } from '../../src/utils/auditLog';
-import { loadHiddenPosts, saveHiddenPosts } from './_profile-stats';
-import { setStoredFeedHidden } from './_club-feed';
+import { loadHiddenPosts } from './_profile-stats';
+import { setStoredFeedHidden, updateHiddenPosts } from './_club-feed';
 
 /**
  * Hide or unhide a Club Feed post
@@ -46,29 +46,28 @@ export const handler: Handler = async (event: HandlerEvent) => {
     }
 
     const actor = session.email || session.username || session.userId;
-    // Strong read: two admins hiding posts in quick succession mustn't lose one
-    const posts = await loadHiddenPosts({ strong: true });
-    const existing = posts.find((p) => p.id === id);
-    const postTitle = String(title || existing?.title || id).slice(0, 300);
+    // Compare-and-swap: two admins hiding posts at the same moment both count
+    let postTitle = String(title || id).slice(0, 300);
+    const { before, after: next } = await updateHiddenPosts((posts) => {
+      const existing = posts.find((p) => p.id === id);
+      postTitle = String(title || existing?.title || id).slice(0, 300);
+      if (hidden && !existing) {
+        return [
+          {
+            id,
+            title: postTitle,
+            date: String(date || '').slice(0, 10),
+            hiddenAt: new Date().toISOString(),
+            hiddenBy: actor,
+          },
+          ...posts,
+        ];
+      }
+      if (!hidden && existing) return posts.filter((p) => p.id !== id);
+      return posts;
+    });
 
-    let next = posts;
-    if (hidden && !existing) {
-      next = [
-        {
-          id,
-          title: postTitle,
-          date: String(date || '').slice(0, 10),
-          hiddenAt: new Date().toISOString(),
-          hiddenBy: actor,
-        },
-        ...posts,
-      ];
-    } else if (!hidden && existing) {
-      next = posts.filter((p) => p.id !== id);
-    }
-
-    if (next !== posts) {
-      await saveHiddenPosts(next);
+    if (next !== before) {
       await addAuditLog(
         actor,
         hidden ? 'FEED_POST_HIDDEN' : 'FEED_POST_UNHIDDEN',
@@ -79,7 +78,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
     }
 
     // Even when the list didn't change: a retry after a failed update must still fix the stored feed
-    await setStoredFeedHidden(new Set(next.map((p) => p.id)));
+    await setStoredFeedHidden();
 
     return {
       statusCode: 200,

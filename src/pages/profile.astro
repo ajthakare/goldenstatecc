@@ -366,6 +366,8 @@ const countryCodes = [
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Failed to save');
+        // The header's "Hi, <name>" is cached for the visit; the name may have changed
+        try { sessionStorage.removeItem('gscc-first-name'); } catch { /* storage blocked */ }
         showMessage(prefix, 'success', successText || data.message || 'Saved!');
         if (reload) setTimeout(() => window.location.reload(), 1000);
         return true;

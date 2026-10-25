@@ -14,7 +14,8 @@ let interleave: (() => void) | null = null;
 vi.mock('@netlify/blobs', () => ({
   getStore: () => ({
     getWithMetadata: async () => (data ? { data: structuredClone(data), etag: `v${version}` } : null),
-    setJSON: async (_key: string, value: any[], opts: { onlyIfMatch?: string; onlyIfNew?: boolean } = {}) => {
+    // Conditional saves must go through set() (setJSONIf in _blobs.ts)
+    async set(_key: string, value: string, opts: { onlyIfMatch?: string; onlyIfNew?: boolean } = {}) {
       if (interleave) {
         const run = interleave;
         interleave = null;
@@ -22,10 +23,14 @@ vi.mock('@netlify/blobs', () => ({
       }
       if (opts.onlyIfMatch && opts.onlyIfMatch !== `v${version}`) return { modified: false };
       if (opts.onlyIfNew && data) return { modified: false };
-      data = structuredClone(value);
+      data = JSON.parse(value);
       version++;
       writes++;
       return { modified: true, etag: `v${version}` };
+    },
+    // Like @netlify/blobs 10.5: ignores onlyIfMatch/onlyIfNew
+    async setJSON(key: string, value: any[]) {
+      return this.set(key, JSON.stringify(value));
     },
   }),
 }));

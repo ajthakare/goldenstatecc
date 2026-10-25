@@ -62,7 +62,15 @@ vi.mock('@netlify/functions', () => ({
 vi.mock('../../netlify/functions/_utils', () => ({ getPacificToday: () => new Date(2026, 5, 10) }));
 
 const { viewStoredFeed, withHiddenFlags, sameFeedContent } = await import('../../src/utils/feed');
-const { rebuildStoredFeed, setStoredFeedHidden, buildLiveFeed, loadFeedSources } = await import('../../netlify/functions/_club-feed');
+const { rebuildStoredFeed, setStoredFeedHidden, updateHiddenPosts, buildLiveFeed, loadFeedSources } = await import('../../netlify/functions/_club-feed');
+
+// What feed-hide does: change the hidden list, then apply it to the stored feed
+const hide = async (id: string, hidden = true) => {
+  await updateHiddenPosts((posts) => (hidden
+    ? [{ id, title: '', date: '', hiddenAt: '', hiddenBy: 'test' }, ...posts.filter((p) => p.id !== id)]
+    : posts.filter((p) => p.id !== id)));
+  await setStoredFeedHidden();
+};
 
 const TODAY = '2026-06-10';
 
@@ -190,12 +198,12 @@ describe('rebuildStoredFeed', () => {
   it('feed-hide updates the stored copy straight away', async () => {
     await rebuildStoredFeed();
     purges.length = 0;
-    await setStoredFeedHidden(new Set(['result-f1']));
+    await hide('result-f1');
     let feed = blobs.get('player-profiles/club-feed') as StoredClubFeed;
     expect(viewStoredFeed(feed, false, TODAY).items.map((i) => i.id)).toEqual(['result-f2']);
     expect(purges).toEqual([['club-feed']]);
 
-    await setStoredFeedHidden(new Set());          // Unhide
+    await hide('result-f1', false);
     feed = blobs.get('player-profiles/club-feed') as StoredClubFeed;
     expect(viewStoredFeed(feed, false, TODAY).items.map((i) => i.id)).toEqual(['result-f1', 'result-f2']);
   });
@@ -208,8 +216,7 @@ describe('rebuildStoredFeed', () => {
     ]);
     // An admin hides result-f1 just before the rebuild's save lands
     beforeWrite.set('player-profiles/club-feed', async () => {
-      blobs.set('player-profiles/feed-hidden', [{ id: 'result-f1', title: '', date: '', hiddenAt: '', hiddenBy: '' }]);
-      await setStoredFeedHidden(new Set(['result-f1']));
+      await hide('result-f1');
     });
     await rebuildStoredFeed();
     const feed = blobs.get('player-profiles/club-feed') as StoredClubFeed;
@@ -224,16 +231,35 @@ describe('rebuildStoredFeed', () => {
     ]);
     // The rebuild saves while the hide is between reading and saving
     beforeWrite.set('player-profiles/club-feed', async () => { await rebuildStoredFeed(); });
-    blobs.set('player-profiles/feed-hidden', [{ id: 'result-f2', title: '', date: '', hiddenAt: '', hiddenBy: '' }]);
-    await setStoredFeedHidden(new Set(['result-f2']));
+    await hide('result-f2');
     const feed = blobs.get('player-profiles/club-feed') as StoredClubFeed;
     expect(viewStoredFeed(feed, true, TODAY).items.map((i) => i.id)).toEqual(['result-f4', 'result-f1']);
+  });
+
+  it('two admins hiding posts at once both count', async () => {
+    await rebuildStoredFeed();
+    // A second admin's hide lands just before the first admin's list save
+    beforeWrite.set('player-profiles/feed-hidden', async () => { await hide('result-f2'); });
+    await hide('result-f1');
+    expect((blobs.get('player-profiles/feed-hidden') as { id: string }[]).map((h) => h.id).sort()).toEqual(['result-f1', 'result-f2']);
+    const feed = blobs.get('player-profiles/club-feed') as StoredClubFeed;
+    expect(viewStoredFeed(feed, true, TODAY).items).toEqual([]);
+  });
+
+  it("a slower hide doesn't apply an older hidden list over a newer one", async () => {
+    await rebuildStoredFeed();
+    await updateHiddenPosts((posts) => [{ id: 'result-f1', title: '', date: '', hiddenAt: '', hiddenBy: 'a' }, ...posts]);
+    // Admin B hides result-f2 completely while admin A's stored-feed save is in flight
+    beforeWrite.set('player-profiles/club-feed', async () => { await hide('result-f2'); });
+    await setStoredFeedHidden();
+    const feed = blobs.get('player-profiles/club-feed') as StoredClubFeed;
+    expect(viewStoredFeed(feed, true, TODAY).items).toEqual([]);
   });
 
   it('still saves when reads come back without an ETag', async () => {
     await rebuildStoredFeed();
     sendEtags = false;
-    await setStoredFeedHidden(new Set(['result-f1']));
+    await hide('result-f1');
     const feed = blobs.get('player-profiles/club-feed') as StoredClubFeed;
     expect(viewStoredFeed(feed, true, TODAY).items.map((i) => i.id)).toEqual(['result-f2']);
   });

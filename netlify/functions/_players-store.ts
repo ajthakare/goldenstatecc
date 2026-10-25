@@ -11,7 +11,8 @@
  *   await writePlayers(players);
  *
  * writePlayers() saves only if nobody else saved since the read (Blobs
- * `onlyIfMatch` on the etag). If someone did, it re-reads the latest list and
+ * `onlyIfMatch` on the etag, via setJSONIf: setJSON ignores it, see _blobs.ts).
+ * If someone did, it re-reads the latest list and
  * re-applies only what THIS request did: players it added or removed, and for
  * players it edited, just the fields it changed. So a login (lastLogin) racing
  * a demotion (role_auth) keeps both; only the same field edited at the same
@@ -22,11 +23,12 @@
  */
 import { getStore } from '@netlify/blobs';
 import type { Player } from '../../src/types/player';
+import { setJSONIf } from './_blobs';
 
 const KEY = 'players-all';
 const MAX_ATTEMPTS = 5;
 
-type Snapshot = { etag?: string; byId: Map<string, string> };
+type Snapshot = { etag?: string; exists: boolean; byId: Map<string, string> };
 let pending: Snapshot | null = null;
 
 function store() {
@@ -38,7 +40,7 @@ function store() {
 }
 
 /** Latest players + etag, read with strong consistency where available. */
-async function readLatest(): Promise<{ players: Player[]; etag?: string }> {
+async function readLatest(): Promise<{ players: Player[]; etag?: string; exists: boolean }> {
   const s = store();
   let result;
   try {
@@ -47,12 +49,12 @@ async function readLatest(): Promise<{ players: Player[]; etag?: string }> {
     if (!(error instanceof Error && error.name === 'BlobsConsistencyError')) throw error;
     result = await s.getWithMetadata(KEY, { type: 'json' });
   }
-  return { players: ((result?.data as Player[] | null) || []), etag: result?.etag };
+  return { players: ((result?.data as Player[] | null) || []), etag: result?.etag, exists: !!result };
 }
 
 export async function readPlayersForUpdate(): Promise<Player[]> {
-  const { players, etag } = await readLatest();
-  pending = { etag, byId: new Map(players.map((p) => [p.id, JSON.stringify(p)])) };
+  const { players, etag, exists } = await readLatest();
+  pending = { etag, exists, byId: new Map(players.map((p) => [p.id, JSON.stringify(p)])) };
   return players;
 }
 
@@ -99,17 +101,20 @@ export async function writePlayers(players: Player[]): Promise<void> {
   };
 
   let toWrite = players;
-  let etag = base.etag;
+  let { etag, exists } = base;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    const result = etag
-      ? await s.setJSON(KEY, toWrite, { onlyIfMatch: etag })
-      : await s.setJSON(KEY, toWrite, { onlyIfNew: true });
+    // A stored list without an etag (the local Blobs server sends none): plain write
+    if (exists && !etag) {
+      await s.setJSON(KEY, toWrite);
+      return;
+    }
+    const result = await setJSONIf(s, KEY, toWrite, etag ? { onlyIfMatch: etag } : { onlyIfNew: true });
     if (result?.modified !== false) return;
 
     // Someone else saved in between: re-apply only our changes on top of theirs.
     // A player deleted meanwhile stays deleted (edits to it are dropped).
     const latest = await readLatest();
-    etag = latest.etag;
+    ({ etag, exists } = latest);
     const latestIds = new Set(latest.players.map((p) => p.id));
     toWrite = latest.players.filter((p) => !removed.has(p.id)).map(applyFields);
     for (const [id, p] of added) {

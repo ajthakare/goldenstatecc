@@ -412,8 +412,12 @@ const currentPath = Astro.url.pathname;
     });
 
     // "Hi, <name>" for signed-in visitors. Loaded after the page shows so no page
-    // waits on it, and remembered for the visit (cleared on the login page) so
-    // it's one auth-check call per visit. The installed app has its own (PWATopBar).
+    // waits on it, and remembered for the visit (cleared on logout, the login
+    // pages and a profile save) so it's one auth-check call per visit.
+    // The installed app has its own (PWATopBar).
+    document.querySelectorAll('a[href^="/logout"]').forEach((link) => link.addEventListener('click', () => {
+        try { sessionStorage.removeItem('gscc-first-name'); } catch { /* storage blocked */ }
+    }));
     const greetings = document.querySelectorAll<HTMLElement>('[data-greeting]');
     const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
     const showGreeting = (firstName: string) => greetings.forEach((el) => {
