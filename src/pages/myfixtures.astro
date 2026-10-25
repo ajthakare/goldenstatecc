@@ -17,7 +17,7 @@ if (!session || !isMember(session)) {
 ---
 
 <Layout title="My Fixtures - Golden State Cricket Club">
-  <PageHeader kicker="Your season" title="My Upcoming Fixtures" subtitle="Mark your availability for upcoming matches" />
+  <PageHeader kicker="Your season" title="My Upcoming Fixtures" subtitle="Mark your availability for your matches and see who's playing across the club" />
 
   <div class="max-w-5xl mx-auto px-4 py-8">
 
@@ -56,8 +56,8 @@ if (!session || !isMember(session)) {
       <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
       </svg>
-      <p class="empty-text">No matches open for availability</p>
-      <p class="empty-subtext mb-6">There are no upcoming fixtures open for availability voting right now</p>
+      <p class="empty-text">No upcoming matches</p>
+      <p class="empty-subtext mb-6">There are no club fixtures in the next 7 days</p>
       <a href="/fixtures" class="btn btn-lg">
         View Full Fixture Schedule
       </a>
@@ -178,7 +178,17 @@ if (!session || !isMember(session)) {
 
       fixturesGrid.innerHTML = '';
 
-      fixtures.forEach((fixture) => {
+      // Fixtures arrive votable-first; label the two groups once other teams' matches are listed
+      const showGroups = fixtures.some(f => !f.canVote);
+
+      fixtures.forEach((fixture, i) => {
+        if (showGroups && (i === 0 || fixture.canVote !== fixtures[i - 1].canVote)) {
+          const heading = document.createElement('h2');
+          heading.className = 'fixtures-group-heading';
+          heading.textContent = fixture.canVote ? 'Your matches' : 'Other teams';
+          fixturesGrid.appendChild(heading);
+        }
+
         const card = document.createElement('div');
         card.className = 'fixture-card';
 
@@ -608,6 +618,14 @@ if (!session || !isMember(session)) {
       display: grid;
       grid-template-columns: 1fr;
       gap: 24px;
+    }
+
+    .fixtures-group-heading {
+      grid-column: 1 / -1;
+      font-size: 18px;
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: -8px;
     }
 
     @media (min-width: 768px) {

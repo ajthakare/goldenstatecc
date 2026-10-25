@@ -84,19 +84,24 @@ export const handler: Handler = async (
       };
     }
 
-    // Filter fixtures (all teams): within next 7 days OR admin has opened voting early
+    // Filter fixtures (all teams): within next 7 days. Voting opened early by an
+    // admin only extends the window for the player's own teams.
     const upcomingFixtures = allFixtures.filter(fixture => {
       const fixtureDate = parseLocalDate(fixture.date);
       fixtureDate.setHours(0, 0, 0, 0);
 
       return (
         fixtureDate >= today &&
-        (fixtureDate <= sevenDaysFromNow || fixture.availabilityOpen === true)
+        (fixtureDate <= sevenDaysFromNow ||
+          (fixture.availabilityOpen === true && playerTeams.includes(fixture.team)))
       );
     });
 
-    // Sort by date
-    upcomingFixtures.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    // Player's own (votable) fixtures first, then by date
+    upcomingFixtures.sort((a, b) =>
+      Number(playerTeams.includes(b.team)) - Number(playerTeams.includes(a.team)) ||
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
 
     // Get availability records for these fixtures
     const availabilityStore = getStore({
