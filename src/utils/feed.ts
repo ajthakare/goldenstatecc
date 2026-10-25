@@ -224,6 +224,8 @@ export interface BuildFeedInput {
   duties?: UmpiringDuty[];
   /** Name umpires on duties. Signed-in members only: signed-out visitors just see the team. */
   showUmpireNames?: boolean;
+  /** "Coming up" window in days (default UPCOMING_DAYS). The stored feed builds one day extra. */
+  upcomingDays?: number;
 }
 
 export const PLAYER_ACTIVITY_LIMIT = 12;
@@ -256,12 +258,9 @@ function withPlayer(item: FeedItem, players: Map<string, FeedPlayer>, playerId: 
   };
 }
 
-export function buildFeed({ fixtures, players, events, social, todayStr, playerId, hiddenIds, includeHidden, duties, showUmpireNames }: BuildFeedInput): {
-  upcoming: FeedItem[];
-  items: FeedItem[];
-} {
+export function buildFeed({ fixtures, players, events, social, todayStr, playerId, hiddenIds, includeHidden, duties, showUmpireNames, upcomingDays = UPCOMING_DAYS }: BuildFeedInput): ClubFeed {
   const from = playerId ? '0000-00-00' : addDays(todayStr, -FEED_WEEKS * 7);
-  const until = addDays(todayStr, UPCOMING_DAYS);
+  const until = addDays(todayStr, upcomingDays);
   const inWindow = (d: string) => d >= from && d <= todayStr;
   const items: FeedItem[] = [];
 
@@ -376,4 +375,51 @@ export function buildFeed({ fixtures, players, events, social, todayStr, playerI
   const upcoming = [...upcomingMatches, ...upcomingDuties].sort((a, b) => a.date.localeCompare(b.date));
 
   return { upcoming: applyHidden(upcoming), items: applyHidden(items) };
+}
+
+// ============================================================================
+// Stored feed (rebuilt every 6 hours by schedule-club-feed.ts, read by /feed)
+// ============================================================================
+
+export interface ClubFeed {
+  upcoming: FeedItem[];
+  items: FeedItem[];
+}
+
+/**
+ * The Club Feed as saved by the scheduled rebuild: one copy per audience, with
+ * every post kept and the ones admins hid flagged `hidden: true`. /feed only
+ * picks a copy and filters it (viewStoredFeed); it never builds anything.
+ */
+export interface StoredClubFeed {
+  builtAt: string;               // ISO timestamp
+  members: ClubFeed;             // Signed-in members: profile links, photos, umpire names
+  public: ClubFeed;              // Signed-out visitors
+}
+
+/** Flag exactly the posts in hiddenIds as hidden (and clear the flag on the rest). */
+export function withHiddenFlags(stored: StoredClubFeed, hiddenIds: Set<string>): StoredClubFeed {
+  const flag = (list: FeedItem[]) => list.map(({ hidden: _, ...item }) => (hiddenIds.has(item.id) ? { ...item, hidden: true } : item));
+  const copy = (feed: ClubFeed): ClubFeed => ({ upcoming: flag(feed.upcoming), items: flag(feed.items) });
+  return { ...stored, members: copy(stored.members), public: copy(stored.public) };
+}
+
+/**
+ * What /feed shows from the stored feed: the viewer's copy without hidden posts,
+ * trimmed to today's windows (the stored copy can be up to 6 hours old, so a
+ * day may have turned since it was built).
+ */
+export function viewStoredFeed(stored: StoredClubFeed, signedIn: boolean, todayStr: string): ClubFeed {
+  const feed = signedIn ? stored.members : stored.public;
+  const from = addDays(todayStr, -FEED_WEEKS * 7);
+  const until = addDays(todayStr, UPCOMING_DAYS);
+  return {
+    upcoming: feed.upcoming.filter((i) => !i.hidden && i.date >= todayStr && i.date <= until),
+    items: feed.items.filter((i) => !i.hidden && i.date >= from && i.date <= todayStr),
+  };
+}
+
+/** True when two stored feeds show the same posts (ignores when they were built). */
+export function sameFeedContent(a: StoredClubFeed, b: StoredClubFeed): boolean {
+  return JSON.stringify([a.members, a.public]) === JSON.stringify([b.members, b.public]);
 }

@@ -5,7 +5,6 @@ import { isCurrentAdmin } from './_admin-auth';
 import type { Fixture, Season } from '../../src/types/player';
 import { randomUUID } from 'crypto';
 import { addAuditLog } from '../../src/utils/auditLog';
-import { purgeClubFeed } from './_profile-stats';
 
 /**
  * Create a single fixture
@@ -157,7 +156,6 @@ export const handler: Handler = async (
 
     // Save to Blobs
     await fixturesStore.setJSON(`fixtures-${seasonId}`, fixtures);
-    await purgeClubFeed(); // Club Feed shows results, POTM, upcoming fixtures and social posts
 
     // Wait for audit log to complete
     try {

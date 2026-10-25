@@ -5,12 +5,15 @@ import Layout from '../layouts/Layout.astro';
 import PageHeader from '../components/PageHeader.astro';
 import FeedItemCard from '../components/feed/FeedItemCard.astro';
 import { validateAdminSession, isMember } from '../middleware/auth';
-import { clubFeedCacheHeaders } from '../utils/feed';
+import { clubFeedCacheHeaders, viewStoredFeed } from '../utils/feed';
+import { buildStoredFeed, readStoredFeed } from '../../netlify/functions/_club-feed';
+import { todayString } from '../../netlify/functions/_profile-stats';
 import type { FeedItem } from '../types/profile';
 
 // Public page. Signed-out visitors get a CDN-cached copy (purged whenever the
-// feed changes); members get a fresh page with profile links and photos.
-// Admins hide posts from Admin → Club Feed.
+// stored feed changes); members get a fresh page with profile links and photos.
+// The feed is built every 6 hours (schedule-club-feed.ts): this page only reads
+// the stored copy and filters it. Admins hide posts from Admin → Club Feed.
 const cookieHeader = Astro.request.headers.get('cookie') || '';
 const session = validateAdminSession(cookieHeader);
 const signedIn = !!(session && isMember(session));
@@ -19,9 +22,12 @@ let upcoming: FeedItem[] = [];
 let items: FeedItem[] = [];
 let error: string | null = null;
 try {
-    const res = await fetch(`${Astro.url.origin}/.netlify/functions/club-feed-get`, { headers: { cookie: cookieHeader } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    ({ upcoming, items } = await res.json());
+    // Signed-out pages are cached on the CDN right after a purge, so read the
+    // latest copy; members are never cached, so the faster edge read is fine
+    let stored = await readStoredFeed({ strong: !signedIn });
+    // Nothing stored yet (a fresh environment): build it, without saving
+    if (!stored) stored = await buildStoredFeed();
+    ({ upcoming, items } = viewStoredFeed(stored, signedIn, todayString()));
 } catch (err) {
     console.error('Club feed error:', err);
     error = 'Could not load the club feed. Please try again.';

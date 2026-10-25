@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import { validateAdminSession } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
 import { addAuditLog } from '../../src/utils/auditLog';
-import { loadPlayers, purgeClubFeed } from './_profile-stats';
+import { loadPlayers } from './_profile-stats';
 import { json, loadDuties, loadSeason, notifyNewAssignments, saveDuties } from './_umpiring';
 import { dutyFieldsFromBody } from '../../src/utils/umpiring';
 import type { UmpiringDuty } from '../../src/types/umpiring';
@@ -49,7 +49,6 @@ export const handler: Handler = async (event: HandlerEvent) => {
       createdBy: session.username,
     };
     await saveDuties(season.id, [...duties, duty]);
-    await purgeClubFeed(); // "Coming up" lists umpiring duties
 
     const notified = await notifyNewAssignments(undefined, duty);
     try {

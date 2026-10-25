@@ -4,7 +4,6 @@ import Papa from 'papaparse';
 import { validateAdminSession } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
 import { addAuditLog } from '../../src/utils/auditLog';
-import { purgeClubFeed } from './_profile-stats';
 import { json, loadDuties, loadSeason, saveDuties } from './_umpiring';
 import { importDutyRows } from '../../src/utils/umpiring';
 
@@ -53,7 +52,6 @@ export const handler: Handler = async (event: HandlerEvent) => {
 
     if (!dryRun && (result.created > 0 || result.updated > 0)) {
       await saveDuties(season.id, duties);
-      await purgeClubFeed();
       try {
         await addAuditLog(
           session.username,
