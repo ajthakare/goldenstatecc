@@ -137,6 +137,9 @@ if (cookieHeader) {
 </Layout>
 
 <script>
+  // A new sign-in: forget the previous visitor's greeting name (Header.astro)
+  try { sessionStorage.removeItem('gscc-first-name'); } catch { /* storage blocked */ }
+
   const form = document.getElementById('login-form') as HTMLFormElement;
   const submitButton = document.getElementById('submit-button') as HTMLButtonElement;
   const errorMessage = document.getElementById('error-message') as HTMLDivElement;

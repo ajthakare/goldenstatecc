@@ -4,9 +4,9 @@ export const prerender = false;
 import Layout from '../layouts/Layout.astro';
 import PageHeader from '../components/PageHeader.astro';
 import FeedItemCard from '../components/feed/FeedItemCard.astro';
-import { validateAdminSession, isMember } from '../middleware/auth';
+import { validateAdminSession, isAdmin, isMember } from '../middleware/auth';
 import { clubFeedCacheHeaders, viewStoredFeed } from '../utils/feed';
-import { buildStoredFeed, readStoredFeed } from '../../netlify/functions/_club-feed';
+import { buildLiveFeed, readStoredFeed } from '../../netlify/functions/_club-feed';
 import { todayString } from '../../netlify/functions/_profile-stats';
 import type { FeedItem } from '../types/profile';
 
@@ -22,12 +22,18 @@ let upcoming: FeedItem[] = [];
 let items: FeedItem[] = [];
 let error: string | null = null;
 try {
-    // Signed-out pages are cached on the CDN right after a purge, so read the
-    // latest copy; members are never cached, so the faster edge read is fine
-    let stored = await readStoredFeed({ strong: !signedIn });
-    // Nothing stored yet (a fresh environment): build it, without saving
-    if (!stored) stored = await buildStoredFeed();
-    ({ upcoming, items } = viewStoredFeed(stored, signedIn, todayString()));
+    // Signed-out pages are cached on the CDN right after a purge, and admins
+    // expect a post they just hid to be gone, so both read the latest copy;
+    // other members get the faster edge read (can lag a write by about a minute)
+    const stored = await readStoredFeed({ strong: !signedIn || isAdmin(session) });
+    if (stored) {
+        ({ upcoming, items } = viewStoredFeed(stored, signedIn, todayString()));
+    } else {
+        // Nothing stored yet (a fresh environment, or the job hasn't run): build
+        // just this visitor's copy, without saving
+        console.warn('Club feed: no stored feed yet, building it for this request. Run schedule-club-feed.');
+        ({ upcoming, items } = await buildLiveFeed(signedIn));
+    }
 } catch (err) {
     console.error('Club feed error:', err);
     error = 'Could not load the club feed. Please try again.';

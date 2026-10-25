@@ -1,30 +1,59 @@
 /**
  * Unit Tests: the stored Club Feed
  *  - viewStoredFeed() / withHiddenFlags() / sameFeedContent() (src/utils/feed.ts)
- *  - rebuildStoredFeed() / setStoredFeedHidden() (netlify/functions/_club-feed.ts)
+ *  - rebuildStoredFeed() / setStoredFeedHidden() / buildLiveFeed() / loadFeedSources()
+ *    (netlify/functions/_club-feed.ts)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { FeedItem } from '../../src/types/profile';
 import type { StoredClubFeed } from '../../src/utils/feed';
 
-// In-memory Blobs: `blobs` is "store/key" -> value; keys in `failing` throw on read
+// In-memory Blobs with ETags and conditional writes: `blobs` is "store/key" ->
+// value; keys in `failing` throw on read; `beforeWrite` runs once just before
+// the next write to that key lands (to simulate another writer getting in first)
 const blobs = new Map<string, unknown>();
+const etags = new Map<string, number>();
 const failing = new Set<string>();
 const writes: string[] = [];
-vi.mock('@netlify/blobs', () => ({
-  getStore: ({ name }: { name: string }) => ({
-    get: async (key: string) => {
-      if (failing.has(`${name}/${key}`)) throw new Error(`read failed: ${name}/${key}`);
-      const value = blobs.get(`${name}/${key}`);
-      return value === undefined ? null : structuredClone(value);
-    },
-    setJSON: async (key: string, value: unknown) => {
-      writes.push(`${name}/${key}`);
-      blobs.set(`${name}/${key}`, structuredClone(value));
-    },
-  }),
-}));
+const beforeWrite = new Map<string, () => Promise<void>>();
+let sendEtags = true;   // The local Blobs server sends no ETag on reads
+vi.mock('@netlify/blobs', () => {
+  const read = (path: string) => {
+    if (failing.has(path)) throw new Error(`read failed: ${path}`);
+    const value = blobs.get(path);
+    return value === undefined ? null : structuredClone(value);
+  };
+  return {
+    getStore: ({ name }: { name: string }) => ({
+      get: async (key: string) => read(`${name}/${key}`),
+      getWithMetadata: async (key: string) => {
+        const data = read(`${name}/${key}`);
+        return data === null ? null : { data, etag: sendEtags ? String(etags.get(`${name}/${key}`)) : undefined, metadata: {} };
+      },
+      // Conditional saves go through set() (see updateStoredFeed); setJSON is unconditional
+      async set(key: string, value: string, opts: { onlyIfMatch?: string; onlyIfNew?: boolean } = {}) {
+        const path = `${name}/${key}`;
+        const hook = beforeWrite.get(path);
+        if (hook) {
+          beforeWrite.delete(path);
+          await hook();
+        }
+        const current = etags.get(path);
+        if (opts.onlyIfNew && current !== undefined) return { modified: false };
+        if (opts.onlyIfMatch !== undefined && opts.onlyIfMatch !== String(current)) return { modified: false };
+        writes.push(path);
+        blobs.set(path, JSON.parse(value));
+        etags.set(path, (current ?? 0) + 1);
+        return { modified: true, etag: String(etags.get(path)) };
+      },
+      // Like @netlify/blobs 10.5: ignores onlyIfMatch/onlyIfNew
+      async setJSON(key: string, value: unknown) {
+        return this.set(key, JSON.stringify(value));
+      },
+    }),
+  };
+});
 const purges: string[][] = [];
 vi.mock('@netlify/functions', () => ({
   purgeCache: async ({ tags }: { tags: string[] }) => { purges.push(tags); },
@@ -33,7 +62,7 @@ vi.mock('@netlify/functions', () => ({
 vi.mock('../../netlify/functions/_utils', () => ({ getPacificToday: () => new Date(2026, 5, 10) }));
 
 const { viewStoredFeed, withHiddenFlags, sameFeedContent } = await import('../../src/utils/feed');
-const { rebuildStoredFeed, setStoredFeedHidden, buildStoredFeed } = await import('../../netlify/functions/_club-feed');
+const { rebuildStoredFeed, setStoredFeedHidden, buildLiveFeed, loadFeedSources } = await import('../../netlify/functions/_club-feed');
 
 const TODAY = '2026-06-10';
 
@@ -105,6 +134,9 @@ describe('rebuildStoredFeed', () => {
 
   beforeEach(() => {
     blobs.clear();
+    etags.clear();
+    beforeWrite.clear();
+    sendEtags = true;
     failing.clear();
     writes.length = 0;
     purges.length = 0;
@@ -168,9 +200,58 @@ describe('rebuildStoredFeed', () => {
     expect(viewStoredFeed(feed, false, TODAY).items.map((i) => i.id)).toEqual(['result-f1', 'result-f2']);
   });
 
-  it('the /feed fallback build tolerates a failed optional read', async () => {
+  it('a hide during a rebuild is kept, and so is the new build', async () => {
+    await rebuildStoredFeed();
+    blobs.set('fixtures/fixtures-s1', [
+      ...(blobs.get('fixtures/fixtures-s1') as object[]),
+      { id: 'f4', seasonId: 's1', date: '2026-06-09', team: 'Cats', opponent: 'New', result: 'win' },
+    ]);
+    // An admin hides result-f1 just before the rebuild's save lands
+    beforeWrite.set('player-profiles/club-feed', async () => {
+      blobs.set('player-profiles/feed-hidden', [{ id: 'result-f1', title: '', date: '', hiddenAt: '', hiddenBy: '' }]);
+      await setStoredFeedHidden(new Set(['result-f1']));
+    });
+    await rebuildStoredFeed();
+    const feed = blobs.get('player-profiles/club-feed') as StoredClubFeed;
+    expect(viewStoredFeed(feed, true, TODAY).items.map((i) => i.id)).toEqual(['result-f4', 'result-f2']);
+  });
+
+  it("a hide that clashes with a rebuild's save doesn't bring back the old copy", async () => {
+    await rebuildStoredFeed();
+    blobs.set('fixtures/fixtures-s1', [
+      ...(blobs.get('fixtures/fixtures-s1') as object[]),
+      { id: 'f4', seasonId: 's1', date: '2026-06-09', team: 'Cats', opponent: 'New', result: 'win' },
+    ]);
+    // The rebuild saves while the hide is between reading and saving
+    beforeWrite.set('player-profiles/club-feed', async () => { await rebuildStoredFeed(); });
+    blobs.set('player-profiles/feed-hidden', [{ id: 'result-f2', title: '', date: '', hiddenAt: '', hiddenBy: '' }]);
+    await setStoredFeedHidden(new Set(['result-f2']));
+    const feed = blobs.get('player-profiles/club-feed') as StoredClubFeed;
+    expect(viewStoredFeed(feed, true, TODAY).items.map((i) => i.id)).toEqual(['result-f4', 'result-f1']);
+  });
+
+  it('still saves when reads come back without an ETag', async () => {
+    await rebuildStoredFeed();
+    sendEtags = false;
+    await setStoredFeedHidden(new Set(['result-f1']));
+    const feed = blobs.get('player-profiles/club-feed') as StoredClubFeed;
+    expect(viewStoredFeed(feed, true, TODAY).items.map((i) => i.id)).toEqual(['result-f2']);
+  });
+
+  it('the /feed fallback builds just the viewer\'s copy, without hidden posts or saving', async () => {
+    blobs.set('player-profiles/feed-hidden', [{ id: 'result-f2', title: '', date: '', hiddenAt: '', hiddenBy: '' }]);
+    const anon = await buildLiveFeed(false);
+    expect(anon.items.map((i) => i.id)).toEqual(['result-f1']);
+    expect(anon.items[0].potm?.playerId).toBeUndefined();
+    expect((await buildLiveFeed(true)).items[0].potm?.playerId).toBe('p1');
+    expect(writes).toEqual([]);
+  });
+
+  it('the live feed skips a failed optional read but not a required one', async () => {
     failing.add('social-feed/feed');
-    const feed = await buildStoredFeed();
-    expect(feed.members.items.map((i) => i.id)).toEqual(['result-f1', 'result-f2']);
+    const sources = await loadFeedSources({ today: TODAY, strict: false });
+    expect(sources.fixtures).toHaveLength(3);
+    failing.add('players/players-all');
+    await expect(loadFeedSources({ today: TODAY, strict: false })).rejects.toThrow('read failed');
   });
 });

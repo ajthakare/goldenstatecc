@@ -412,20 +412,29 @@ const currentPath = Astro.url.pathname;
     });
 
     // "Hi, <name>" for signed-in visitors. Loaded after the page shows so no page
-    // waits on it; the installed app has its own greeting (PWATopBar).
+    // waits on it, and remembered for the visit (cleared on the login page) so
+    // it's one auth-check call per visit. The installed app has its own (PWATopBar).
     const greetings = document.querySelectorAll<HTMLElement>('[data-greeting]');
     const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
+    const showGreeting = (firstName: string) => greetings.forEach((el) => {
+        (el.querySelector('span') || el).textContent = `Hi, ${firstName}`;
+        el.hidden = false;
+    });
     if (greetings.length && !standalone) {
-        fetch('/.netlify/functions/auth-check')
-            .then((r) => r.json())
-            .then((data) => {
-                const firstName = data.authenticated && data.user?.firstName;
-                if (!firstName) return;
-                greetings.forEach((el) => {
-                    (el.querySelector('span') || el).textContent = `Hi, ${firstName}`;
-                    el.hidden = false;
-                });
-            })
-            .catch(() => {/* the greeting is optional */});
+        let cached: string | null = null;
+        try { cached = sessionStorage.getItem('gscc-first-name'); } catch { /* storage blocked */ }
+        if (cached) {
+            showGreeting(cached);
+        } else {
+            fetch('/.netlify/functions/auth-check')
+                .then((r) => r.json())
+                .then((data) => {
+                    const firstName = data.authenticated && data.user?.firstName;
+                    if (!firstName) return;
+                    showGreeting(firstName);
+                    try { sessionStorage.setItem('gscc-first-name', firstName); } catch { /* storage blocked */ }
+                })
+                .catch(() => {/* the greeting is optional */});
+        }
     }
 </script>
