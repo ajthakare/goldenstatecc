@@ -1,6 +1,6 @@
 import type { Fixture, PracticeSession, Season } from '../../src/types/player';
 import { addDays } from '../../src/utils/feed';
-import { mapLimit, readJSON } from './_profile-stats';
+import { readJSON } from './_profile-stats';
 
 /** A season that isn't active still counts this many days after its end and before its start. */
 export const SEASON_OVERLAP_DAYS = 14;
@@ -74,6 +74,7 @@ export async function loadPractices(seasons: Season[]): Promise<PracticeSession[
     seasons.map((s) => readJSON<string[]>('practice-sessions', `practice-index-${s.id}`))
   );
   const ids = [...new Set(indexes.flatMap((ids) => ids || []))];
-  const practices = await mapLimit(ids, 8, (id) => readJSON<PracticeSession>('practice-sessions', `practice-${id}`));
+  // All at once: /mypractice waits on this, and reads in small batches add up to seconds
+  const practices = await Promise.all(ids.map((id) => readJSON<PracticeSession>('practice-sessions', `practice-${id}`)));
   return practices.filter((p): p is PracticeSession => !!p);
 }
