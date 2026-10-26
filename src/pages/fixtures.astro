@@ -260,27 +260,30 @@ const weekendCount = upcomingWeekendMatches.length + upcomingWeekendDuties.lengt
 
 // Week and month headings for a date-ordered list. Both kinds go in the one
 // card grid and the "Group by" toggle shows one of them, so each card is
-// rendered once. A week (Monday start, like Admin → Umpiring) is labelled with
-// the league week when a duty in it carries one.
+// rendered once. Weeks start on Monday, like Admin → Umpiring.
 type GroupHeading = { kind: 'week' | 'month'; label: string };
+const mondayOf = (d: Date) => {
+    const m = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    m.setDate(m.getDate() - ((m.getDay() + 6) % 7));
+    return m.getTime();
+};
+// League week names per calendar week, from duties in both lists. When two
+// seasons share a week it carries both names (e.g. "Week12 / Week1").
+const leagueWeeks = new Map<number, string[]>();
+for (const item of [...upcomingItems, ...pastItems]) {
+    if (!item.week) continue;
+    const names = leagueWeeks.get(mondayOf(item.sortDate)) || [];
+    if (!names.includes(item.week)) names.push(item.week);
+    leagueWeeks.set(mondayOf(item.sortDate), names);
+}
 function withHeadings(items: ScheduleItem[]): Array<{ item: ScheduleItem; headings: GroupHeading[] }> {
-    const mondayOf = (d: Date) => {
-        const m = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-        m.setDate(m.getDate() - ((m.getDay() + 6) % 7));
-        return m.getTime();
-    };
-    const leagueWeek = new Map<number, string>();
-    for (const item of items) {
-        const key = mondayOf(item.sortDate);
-        if (item.week && !leagueWeek.has(key)) leagueWeek.set(key, item.week);
-    }
     return items.map((item, i) => {
         const prev = items[i - 1];
         const headings: GroupHeading[] = [];
         if (!prev || prev.monthYear !== item.monthYear) headings.push({ kind: 'month', label: item.monthYear });
         const week = mondayOf(item.sortDate);
         if (!prev || mondayOf(prev.sortDate) !== week) {
-            const league = leagueWeek.get(week);
+            const league = leagueWeeks.get(week)?.join(' / ');
             const monday = new Date(week).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             headings.push({ kind: 'week', label: `${league ? `${league} · ` : ''}Week of ${monday}` });
         }
@@ -308,6 +311,10 @@ function getResultBadge(result: string): { text: string; color: string } {
 ---
 
 <Layout title="Match Fixtures - Golden State Cricket Club">
+    {/* Apply a saved "Group by: Month" before the schedule is drawn, so week headings don't flash */}
+    <script is:inline>
+        try { if (localStorage.getItem('fixtures-group-by') === 'month') document.documentElement.dataset.groupBy = 'month'; } catch (e) {}
+    </script>
     <PageHeader
         kicker="Schedule"
         title="Match Fixtures"
@@ -425,28 +432,28 @@ function getResultBadge(result: string): { text: string; color: string } {
     <div class="fixture-filters mb-8">
         <div class="flex flex-wrap gap-2 items-center">
             <span class="kicker mr-1">Filter by team</span>
-            <button class="filter-btn px-4 py-2 font-semibold text-sm active" data-team="all">
+            <button class="filter-btn px-4 py-2 font-semibold text-sm active" data-team="all" aria-pressed="true">
                 All Teams ({fixtures.length})
             </button>
             {OUR_TEAMS.map((teamName: string) => (
-                <button class="filter-btn px-4 py-2 font-semibold text-sm" data-team={teamName}>
+                <button class="filter-btn px-4 py-2 font-semibold text-sm" data-team={teamName} aria-pressed="false">
                     {teamName} ({fixtures.filter(f => f.ourTeam === teamName).length})
                 </button>
             ))}
         </div>
         <div class="flex flex-wrap gap-2 items-center mt-3">
             <span class="kicker mr-1">Game type</span>
-            <button class="filter-btn px-4 py-2 font-semibold text-sm active" data-type="all">All</button>
-            <button class="filter-btn px-4 py-2 font-semibold text-sm" data-type="home">Home ({fixtures.filter(f => f.isHome).length})</button>
-            <button class="filter-btn px-4 py-2 font-semibold text-sm" data-type="away">Away ({fixtures.filter(f => !f.isHome).length})</button>
+            <button class="filter-btn px-4 py-2 font-semibold text-sm active" data-type="all" aria-pressed="true">All</button>
+            <button class="filter-btn px-4 py-2 font-semibold text-sm" data-type="home" aria-pressed="false">Home ({fixtures.filter(f => f.isHome).length})</button>
+            <button class="filter-btn px-4 py-2 font-semibold text-sm" data-type="away" aria-pressed="false">Away ({fixtures.filter(f => !f.isHome).length})</button>
             {duties.length > 0 && (
-                <button class="filter-btn px-4 py-2 font-semibold text-sm" data-type="umpiring">Umpiring ({duties.length})</button>
+                <button class="filter-btn px-4 py-2 font-semibold text-sm" data-type="umpiring" aria-pressed="false">Umpiring ({duties.length})</button>
             )}
         </div>
         <div class="flex flex-wrap gap-2 items-center mt-3">
             <span class="kicker mr-1">Group by</span>
-            <button class="filter-btn px-4 py-2 font-semibold text-sm active" data-group-by="week">Week</button>
-            <button class="filter-btn px-4 py-2 font-semibold text-sm" data-group-by="month">Month</button>
+            <button class="filter-btn px-4 py-2 font-semibold text-sm active" data-group-by="week" aria-pressed="true">Week</button>
+            <button class="filter-btn px-4 py-2 font-semibold text-sm" data-group-by="month" aria-pressed="false">Month</button>
         </div>
     </div>
 
@@ -588,6 +595,7 @@ function getResultBadge(result: string): { text: string; color: string } {
                             </div>
                         )}</Fragment>)}
                         </div>
+                        <p class="filter-empty hidden">No games match these filters.</p>
             </Section>
             </div>
         </div>
@@ -718,6 +726,7 @@ function getResultBadge(result: string): { text: string; color: string } {
                                 );
                             })}
                             </div>
+                            <p class="filter-empty hidden">No games match these filters.</p>
                 </Section>
             </div>
         </div>
@@ -769,6 +778,9 @@ function getResultBadge(result: string): { text: string; color: string } {
     /* Space above a heading that follows a card (a hidden month heading can come first) */
     .schedule-grid > :global(.fixture-card) + .group-heading,
     .schedule-grid > :global(.fixture-card) + .group-heading + .group-heading { margin-top: 1rem; }
+    /* ...except the first heading still showing once filters hide earlier groups */
+    .schedule-grid > .group-heading.is-lead { margin-top: 0; }
+    .filter-empty { color: var(--color-muted-text); text-align: center; padding: 2rem 0; }
     /* The section toggle above already spaces the list */
     #upcoming-fixtures-content > :global(section),
     #past-fixtures-content > :global(section) { padding-top: 0; }
@@ -824,20 +836,31 @@ function getResultBadge(result: string): { text: string; color: string } {
         const pastContent = document.getElementById('past-fixtures-content');
         const pastIcon = document.getElementById('past-fixtures-icon');
 
-        // A heading with no visible card before the next heading of its kind is hidden
+        // One pass per list: a heading with no visible card before the next
+        // heading of its kind is hidden, the first one still showing loses its
+        // top margin, and a list with nothing visible says so
         function hideEmptyGroups() {
             document.querySelectorAll('.schedule-grid').forEach((grid) => {
-                const children = Array.from(grid.children);
-                children.forEach((el, i) => {
-                    if (!el.classList.contains('group-heading')) return;
-                    const kind = el.classList.contains('group-heading--week') ? 'group-heading--week' : 'group-heading--month';
-                    let visible = false;
-                    for (const next of children.slice(i + 1)) {
-                        if (next.classList.contains(kind)) break;
-                        if (next.classList.contains('fixture-card') && !next.classList.contains('hidden')) { visible = true; break; }
+                const kindOf = (el: Element) => el.classList.contains('group-heading--week') ? 'week' : 'month';
+                const current: Record<string, Element> = {};
+                const filled = new Set<Element>();
+                const headings: Element[] = [];
+                for (const el of Array.from(grid.children)) {
+                    if (el.classList.contains('group-heading')) {
+                        current[kindOf(el)] = el;
+                        headings.push(el);
+                    } else if (!el.classList.contains('hidden')) {
+                        Object.values(current).forEach((h) => filled.add(h));
                     }
-                    el.classList.toggle('is-empty', !visible);
-                });
+                }
+                const leads = new Set<string>();
+                for (const h of headings) {
+                    const empty = !filled.has(h);
+                    h.classList.toggle('is-empty', empty);
+                    h.classList.toggle('is-lead', !empty && !leads.has(kindOf(h)));
+                    if (!empty) leads.add(kindOf(h));
+                }
+                grid.nextElementSibling?.classList.toggle('hidden', filled.size > 0);
             });
         }
 
@@ -845,7 +868,10 @@ function getResultBadge(result: string): { text: string; color: string } {
         const groupButtons = document.querySelectorAll<HTMLButtonElement>('[data-group-by]');
         const setGroupBy = (mode: string) => {
             document.documentElement.dataset.groupBy = mode;
-            groupButtons.forEach((btn) => btn.classList.toggle('active', btn.dataset.groupBy === mode));
+            groupButtons.forEach((btn) => {
+                btn.classList.toggle('active', btn.dataset.groupBy === mode);
+                btn.setAttribute('aria-pressed', btn.dataset.groupBy === mode ? 'true' : 'false');
+            });
             try { localStorage.setItem('fixtures-group-by', mode); } catch {}
         };
         let savedGroupBy = 'week';
@@ -961,25 +987,15 @@ function getResultBadge(result: string): { text: string; color: string } {
             hideEmptyGroups();
         }
 
-        filterButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                const team = button.getAttribute('data-team') || 'all';
-                if (team === 'all') selectedTeams.clear();
-                else if (selectedTeams.has(team)) selectedTeams.delete(team);
-                else selectedTeams.add(team);
-                applyFilters();
-            });
-        });
-
-        typeButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                const type = button.dataset.type || 'all';
-                if (type === 'all') selectedTypes.clear();
-                else if (selectedTypes.has(type)) selectedTypes.delete(type);
-                else selectedTypes.add(type);
-                applyFilters();
-            });
-        });
+        // "all" clears the picks; anything else toggles in or out
+        const pick = (selected: Set<string>, value: string) => {
+            if (value === 'all') selected.clear();
+            else if (selected.has(value)) selected.delete(value);
+            else selected.add(value);
+            applyFilters();
+        };
+        filterButtons.forEach(button => button.addEventListener('click', () => pick(selectedTeams, button.getAttribute('data-team') || 'all')));
+        typeButtons.forEach(button => button.addEventListener('click', () => pick(selectedTypes, button.dataset.type || 'all')));
 
         // Auto-apply team filter from URL parameter
         if (teamFromUrl) {
@@ -993,7 +1009,7 @@ function getResultBadge(result: string): { text: string; color: string } {
 
                 // Scroll to the fixtures section
                 setTimeout(() => {
-                    const fixturesSection = document.querySelector('.grid.md\\:grid-cols-2');
+                    const fixturesSection = document.querySelector('.schedule-grid');
                     if (fixturesSection) {
                         fixturesSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     }
