@@ -8,6 +8,9 @@ import Icon from '../components/Icon.astro';
 import UmpiringDutyCard from '../components/UmpiringDutyCard.astro';
 import type { PublicUmpiringDuty } from '../types/umpiring';
 import { validateAdminSession, isMember } from '../middleware/auth';
+import type { Season } from '../types/player';
+import { loadSeasonsInPlay } from '../../netlify/functions/_seasons';
+import { todayString } from '../../netlify/functions/_profile-stats';
 
 // Check authentication status
 const cookieHeader = Astro.request.headers.get('cookie');
@@ -15,48 +18,49 @@ const session = validateAdminSession(cookieHeader || '');
 const isAuthenticated = !!session;
 const isAuthenticatedMember = session && isMember(session);
 
-// Fetch active season
-let activeSeason: any = null;
+// Seasons in play: the active season, plus the neighbouring season while two
+// overlap (the old season's last games, the new season's first ones)
+let seasonsInPlay: Season[] = [];
 try {
-    const seasonResponse = await fetch(`${Astro.url.origin}/.netlify/functions/seasons-get-active`);
-    if (seasonResponse.ok) {
-        activeSeason = await seasonResponse.json();
-    }
+    seasonsInPlay = await loadSeasonsInPlay(todayString());
 } catch (error) {
-    console.error('Error fetching active season:', error);
+    console.error('Error loading seasons:', error);
 }
+const activeSeason: Season | null = seasonsInPlay.find((s) => s.isActive) ?? null;
+const todayStr = todayString();
 
-// Our teams - derived from active season
-const OUR_TEAMS = activeSeason?.teams?.map((t: any) => t.teamName) ?? [];
+// Fixtures and umpiring duties per season: all of the active season's, only
+// upcoming ones from the other. Forward the cookie so signed-in members also
+// get the umpires' names.
+const seasonSchedules = await Promise.all(
+    seasonsInPlay.map(async (season) => {
+        const keep = (date: string) => season.id === activeSeason?.id || date.slice(0, 10) >= todayStr;
+        const [fixtures, duties] = await Promise.all([
+            fetch(`${Astro.url.origin}/.netlify/functions/fixtures-list?seasonId=${season.id}`)
+                .then((r) => (r.ok ? r.json() : []))
+                .catch((error) => { console.error('Error fetching fixtures:', error); return []; }),
+            fetch(`${Astro.url.origin}/.netlify/functions/umpiring-schedule-get?seasonId=${season.id}`, {
+                headers: { cookie: cookieHeader || '' },
+            })
+                .then((r) => (r.ok ? r.json() : []))
+                .catch((error) => { console.error('Error fetching umpiring duties:', error); return []; }),
+        ]);
+        return {
+            fixtures: (fixtures as any[]).filter((f) => keep(f.date)).map((f) => ({ ...f, seasonName: season.name })),
+            duties: (duties as PublicUmpiringDuty[]).filter((d) => keep(d.date)),
+        };
+    })
+);
+const fixturesData: any[] = seasonSchedules.flatMap((s) => s.fixtures);
+const dutiesData: PublicUmpiringDuty[] = seasonSchedules.flatMap((s) => s.duties);
+// Name each card's season once games from two seasons are listed
+const showSeason = new Set(fixturesData.map((f) => f.seasonName)).size > 1;
 
-// Fetch fixtures for active season
-let fixturesData: any[] = [];
-if (activeSeason) {
-    try {
-        const fixturesResponse = await fetch(`${Astro.url.origin}/.netlify/functions/fixtures-list?seasonId=${activeSeason.id}`);
-        if (fixturesResponse.ok) {
-            fixturesData = await fixturesResponse.json();
-        }
-    } catch (error) {
-        console.error('Error fetching fixtures:', error);
-    }
-}
-
-// Umpiring duties: games between other teams that one of ours officiates.
-// Forward the cookie so signed-in members also get the umpires' names.
-let dutiesData: PublicUmpiringDuty[] = [];
-if (activeSeason) {
-    try {
-        const dutiesResponse = await fetch(`${Astro.url.origin}/.netlify/functions/umpiring-schedule-get?seasonId=${activeSeason.id}`, {
-            headers: { cookie: cookieHeader || '' },
-        });
-        if (dutiesResponse.ok) {
-            dutiesData = await dutiesResponse.json();
-        }
-    } catch (error) {
-        console.error('Error fetching umpiring duties:', error);
-    }
-}
+// Our teams: the active season's, plus any the other season's games bring in
+const OUR_TEAMS: string[] = [...new Set<string>([
+    ...(activeSeason?.teams?.map((t) => t.teamName) ?? []),
+    ...fixturesData.map((f) => f.team),
+])];
 
 // Process fixtures
 interface Fixture {
@@ -71,6 +75,7 @@ interface Fixture {
     groundAddress: string;
     umpire: string;
     ourTeam: string;
+    seasonName: string;
     opponent: string;
     isHome: boolean;
     monthYear: string;
@@ -146,6 +151,7 @@ const fixtures: Fixture[] = fixturesData
             groundAddress: fixture.groundAddress || '',
             umpire: fixture.umpiringTeam || '',
             ourTeam,
+            seasonName: fixture.seasonName,
             opponent,
             isHome,
             monthYear,
@@ -323,7 +329,10 @@ function getResultBadge(result: string): { text: string; color: string } {
                     {upcomingWeekendMatches.map(match => (
                         <div class="fixture-card p-5" data-team={match.ourTeam}>
                             <div class="flex items-center justify-between gap-2 mb-3">
-                                <span class="badge badge-neutral badge-team">{match.ourTeam}</span>
+                                <div>
+                                    <span class="badge badge-neutral badge-team">{match.ourTeam}</span>
+                                    {showSeason && <div class="mt-1.5 pl-1 text-xs font-medium text-muted">{match.seasonName}</div>}
+                                </div>
                                 <span class="kicker">{match.isHome ? 'Home' : 'Away'}</span>
                             </div>
                             <div class="text-xl font-bold text-heading mb-3">
@@ -477,8 +486,11 @@ function getResultBadge(result: string): { text: string; color: string } {
                             >
                                 {/* Header */}
                                 <div class="flex items-start justify-between mb-4">
-                                    <div class="px-4 py-2 rounded-full text-base font-bold" style={`background:${getTeamColor(fixture.ourTeam).bg};border:1px solid ${getTeamColor(fixture.ourTeam).border};color:${getTeamColor(fixture.ourTeam).color}`}>
-                                        {fixture.ourTeam}
+                                    <div>
+                                        <div class="px-4 py-2 rounded-full text-base font-bold" style={`background:${getTeamColor(fixture.ourTeam).bg};border:1px solid ${getTeamColor(fixture.ourTeam).border};color:${getTeamColor(fixture.ourTeam).color}`}>
+                                            {fixture.ourTeam}
+                                        </div>
+                                        {showSeason && <div class="mt-1.5 pl-1 text-xs font-medium text-muted">{fixture.seasonName}</div>}
                                     </div>
                                     <div class="flex items-center gap-2">
                                         <span class={`text-sm font-semibold ${

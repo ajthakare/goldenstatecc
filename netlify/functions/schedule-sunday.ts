@@ -12,6 +12,8 @@ import { getPacificNow, parseLocalDate } from './_utils';
 import { sendPushToAll, sendPushToPlayers, toDateString } from './_push-utils';
 import { DUTY_STORE, clubUmpireIds, dutiesKey, dutyPushBody, sundayVoteMessage, upcomingWeekDuties } from '../../src/utils/umpiring';
 import type { UmpiringDuty } from '../../src/types/umpiring';
+import { readJSON } from './_profile-stats';
+import { loadSeasonsInPlay } from './_seasons';
 
 export const handler = schedule('0 3 * * 1', async () => {
   console.log('[schedule-sunday] Starting Sunday 8 PM notification job');
@@ -70,30 +72,24 @@ export const handler = schedule('0 3 * * 1', async () => {
       })
     );
 
-    // Check for upcoming fixtures this week
-    const fixturesStore = getStore({
-      name: 'fixtures',
-      siteID: process.env.SITE_ID || '',
-      token: process.env.NETLIFY_AUTH_TOKEN || '',
-    });
-    const allFixtures: any[] =
-      (await fixturesStore.get(`fixtures-${activeSeason.id}`, { type: 'json' })) || [];
+    // Fixtures and umpiring duties this week, from every season in play (the
+    // neighbouring season's too while two overlap)
+    const seasons = await loadSeasonsInPlay(toDateString(today));
+    const [fixtureLists, dutyLists] = await Promise.all([
+      Promise.all(seasons.map((s) => readJSON<any[]>('fixtures', `fixtures-${s.id}`))),
+      Promise.all(seasons.map((s) => readJSON<UmpiringDuty[]>(DUTY_STORE, dutiesKey(s.id)))),
+    ]);
 
-    const upcomingFixtures = allFixtures.filter((f) => {
+    const upcomingFixtures = fixtureLists.flat().filter((f) => {
+      if (!f) return false;
       const d = parseLocalDate(f.date);
       d.setHours(0, 0, 0, 0);
       return d >= today && d <= sevenDaysLater;
     });
 
-    // Umpiring duties this week (games between other teams that we officiate)
-    const dutiesStore = getStore({
-      name: DUTY_STORE,
-      siteID: process.env.SITE_ID || '',
-      token: process.env.NETLIFY_AUTH_TOKEN || '',
-    });
-    const allDuties: UmpiringDuty[] =
-      (await dutiesStore.get(dutiesKey(activeSeason.id), { type: 'json' })) || [];
+    // Umpiring duties: games between other teams that we officiate.
     // From tomorrow: today's (Sunday's) games finished before this 8 PM job runs
+    const allDuties = dutyLists.flatMap((d) => d || []);
     const weekDuties = upcomingWeekDuties(allDuties, toDateString(today), toDateString(sevenDaysLater));
 
     const hasPractice = hasWedPractice || hasFriPractice;

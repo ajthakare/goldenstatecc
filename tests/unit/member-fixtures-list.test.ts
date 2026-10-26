@@ -87,4 +87,24 @@ describe('member-fixtures-list', () => {
 
     expect((await list()).map((f) => f.canVote)).toEqual([false, false]);
   });
+
+  it("lists the neighbouring season's games too, voting by that season's roster", async () => {
+    const s2 = { id: 's2', startDate: day(3), endDate: day(120), isActive: false };
+    blobs.seasons = {
+      'active-season': { id: 's1', isActive: true },
+      'seasons-list': [{ id: 's1', startDate: day(-180), endDate: day(4), isActive: true }, s2],
+    };
+    // Tigers in the ending season, Bulls in the next one
+    blobs['core-roster'] = { 'core-roster-s1': roster('Tigers'), 'core-roster-s2': roster('Bulls') };
+    blobs.fixtures = {
+      'fixtures-s1': [fixture('last', 'Tigers', day(1))],
+      'fixtures-s2': [fixture('first-bulls', 'Bulls', day(2)), fixture('first-tigers', 'Tigers', day(3))],
+    };
+
+    expect((await list()).map((f) => [f.id, f.canVote])).toEqual([
+      ['last', true],
+      ['first-bulls', true],
+      ['first-tigers', false],
+    ]);
+  });
 });

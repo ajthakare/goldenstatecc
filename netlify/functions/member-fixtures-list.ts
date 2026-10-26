@@ -3,6 +3,8 @@ import { getStore } from '@netlify/blobs';
 import { validateAdminSession, isMember } from '../../src/middleware/auth';
 import type { Fixture, FixtureAvailability, CoreRosterAssignment, Player } from '../../src/types/player';
 import { parseLocalDate, getPacificToday } from './_utils';
+import { readJSON, todayString } from './_profile-stats';
+import { loadSeasonsInPlay } from './_seasons';
 
 /**
  * List upcoming fixtures for authenticated member (next 7 days only)
@@ -33,50 +35,34 @@ export const handler: Handler = async (
     const sevenDaysFromNow = new Date(today);
     sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
 
-    // Get active season
-    const seasonsStore = getStore({
-      name: 'seasons',
-      siteID: process.env.SITE_ID || '',
-      token: process.env.NETLIFY_AUTH_TOKEN || '',
-    });
-    const activeSeason = await seasonsStore.get('active-season', { type: 'json' }) as any;
+    // Fixtures and rosters of every season in play (the active one, plus the
+    // neighbouring season while two overlap). Rosters are per season, so a
+    // player's teams are matched against the fixture's own season.
+    const seasons = await loadSeasonsInPlay(todayString());
+    const seasonData = await Promise.all(
+      seasons.map(async (season) => {
+        const [coreRoster, fixtures] = await Promise.all([
+          readJSON<CoreRosterAssignment[]>('core-roster', `core-roster-${season.id}`),
+          readJSON<Fixture[]>('fixtures', `fixtures-${season.id}`),
+        ]);
+        // A season's fixtures live under its key, so that is their season
+        return { season, coreRoster: coreRoster || [], fixtures: (fixtures || []).map((f) => ({ ...f, seasonId: season.id, seasonName: season.name })) };
+      })
+    );
 
-    if (!activeSeason || !activeSeason.id) {
-      return {
-        statusCode: 200,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify([]),
-      };
-    }
+    // Find player's team assignments (any roster member - core or reserve),
+    // keyed "seasonId|team". These decide which fixtures the player can vote
+    // on; other teams' fixtures are still listed, view-only.
+    const playerTeams = new Set(
+      seasonData.flatMap(({ season, coreRoster }) =>
+        coreRoster.filter(r => r.playerId === playerId).map(r => `${season.id}|${r.teamName}`)
+      )
+    );
+    const isOwn = (fixture: Fixture) => playerTeams.has(`${fixture.seasonId}|${fixture.team}`);
 
-    const seasonId = activeSeason.id;
+    const allFixtures = seasonData.flatMap((d) => d.fixtures);
 
-    // Get player's core roster assignments and all fixtures for the season
-    // in parallel — neither depends on the other, only on seasonId.
-    const coreRosterStore = getStore({
-      name: 'core-roster',
-      siteID: process.env.SITE_ID || '',
-      token: process.env.NETLIFY_AUTH_TOKEN || '',
-    });
-    const fixturesStore = getStore({
-      name: 'fixtures',
-      siteID: process.env.SITE_ID || '',
-      token: process.env.NETLIFY_AUTH_TOKEN || '',
-    });
-    const coreRosterKey = `core-roster-${seasonId}`;
-    const [coreRoster, allFixtures] = await Promise.all([
-      coreRosterStore.get(coreRosterKey, { type: 'json' }) as Promise<CoreRosterAssignment[] | null>,
-      fixturesStore.get(`fixtures-${seasonId}`, { type: 'json' }) as Promise<Fixture[] | null>,
-    ]);
-
-    // Find player's team assignments (any roster member - core or reserve).
-    // These decide which fixtures the player can vote on; other teams'
-    // fixtures are still listed, view-only.
-    const playerTeams = coreRoster
-      ? coreRoster.filter(r => r.playerId === playerId).map(r => r.teamName)
-      : [];
-
-    if (!allFixtures || allFixtures.length === 0) {
+    if (allFixtures.length === 0) {
       return {
         statusCode: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -93,13 +79,13 @@ export const handler: Handler = async (
       return (
         fixtureDate >= today &&
         (fixtureDate <= sevenDaysFromNow ||
-          (fixture.availabilityOpen === true && playerTeams.includes(fixture.team)))
+          (fixture.availabilityOpen === true && isOwn(fixture)))
       );
     });
 
     // Player's own (votable) fixtures first, then by date
     upcomingFixtures.sort((a, b) =>
-      Number(playerTeams.includes(b.team)) - Number(playerTeams.includes(a.team)) ||
+      Number(isOwn(b)) - Number(isOwn(a)) ||
       new Date(a.date).getTime() - new Date(b.date).getTime()
     );
 
@@ -148,7 +134,7 @@ export const handler: Handler = async (
         }
 
         // Only roster members of the fixture's team can vote (enforced again in member-availability-update)
-        const canVote = playerTeams.includes(fixture.team);
+        const canVote = isOwn(fixture);
 
         return {
           id: fixture.id,
@@ -161,6 +147,7 @@ export const handler: Handler = async (
           division: fixture.division,
           groundAddress: fixture.groundAddress,
           isHomeTeam: fixture.isHomeTeam,
+          seasonName: fixture.seasonName,
           availabilityOpen: fixture.availabilityOpen ?? false,
           myAvailability,
           submittedAt,

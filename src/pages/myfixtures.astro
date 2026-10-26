@@ -180,6 +180,8 @@ if (!session || !isMember(session)) {
 
       // Fixtures arrive votable-first; label the two groups once other teams' matches are listed
       const showGroups = fixtures.some(f => !f.canVote);
+      // Name each card's season once games from two seasons are listed (as one ends and the next starts)
+      const showSeason = new Set(fixtures.map(f => f.seasonName)).size > 1;
 
       fixtures.forEach((fixture, i) => {
         if (showGroups && (i === 0 || fixture.canVote !== fixtures[i - 1].canVote)) {
@@ -235,8 +237,11 @@ if (!session || !isMember(session)) {
         card.innerHTML = `
           <!-- Header - Team badge + Home/Away -->
           <div class="flex items-start justify-between mb-4">
-            <div class="px-4 py-2 rounded-full text-base font-bold ${teamColor}">
-              ${fixture.team}
+            <div>
+              <div class="px-4 py-2 rounded-full text-base font-bold ${teamColor}">
+                ${fixture.team}
+              </div>
+              ${showSeason && fixture.seasonName ? `<div class="mt-1.5 pl-1 text-xs font-medium text-muted">${escapeHtml(fixture.seasonName)}</div>` : ''}
             </div>
             <div class="flex items-center gap-2">
               <span class="text-lg">${homeAwayIcon}</span>
