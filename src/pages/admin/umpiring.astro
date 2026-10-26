@@ -249,7 +249,6 @@ if (!isAdminUser) return Astro.redirect('/');
     let duties: Duty[] = [];
     let summary: Summary | null = null;
     let players: Player[] = [];
-    let pushIds = new Set<string>();
     let busy: Record<string, Record<string, string>> = {};
     let today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
     let editing: Duty | null = null;
@@ -337,7 +336,6 @@ if (!isAdminUser) return Astro.redirect('/');
         const data = await api(`umpiring-duties-list?seasonId=${encodeURIComponent(season.id)}`);
         duties = data.duties;
         summary = data.summary;
-        pushIds = new Set(data.pushPlayerIds);
         busy = data.busy || {};
         today = data.today || today;
         render();
@@ -423,9 +421,8 @@ if (!isAdminUser) return Astro.redirect('/');
         ? slots.map((s) => {
             const icon = s.attended === true ? '✅ ' : s.attended === false ? '🔁 ' : '';
             const paid = s.clubPaid ? ` · ${money(s.clubPaidAmount || 0)}` : '';
-            const noPush = s.playerId && !pushIds.has(s.playerId) && d.date >= today ? ' <span title="No push notifications enabled">🔕</span>' : '';
             const ext = s.externalName ? ' <span class="ext-tag">External</span>' : '';
-            return `<span class="ump-chip">${icon}${esc(slotName(s))}${ext}${esc(paid)}${noPush}</span>`;
+            return `<span class="ump-chip">${icon}${esc(slotName(s))}${ext}${esc(paid)}</span>`;
           }).join('')
         : '<span class="ump-chip ump-chip--empty">No umpire assigned</span>';
       const isPast = d.date < today;
@@ -497,7 +494,6 @@ if (!isAdminUser) return Astro.redirect('/');
       const hint = el.querySelector<HTMLElement>('.slot-player .slot-hint')!;
       const notes: string[] = [];
       if (id && busy[date]?.[id]) notes.push(`⚠️ ${busy[date][id]} that day`);
-      if (id && !pushIds.has(id)) notes.push('🔕 No push notifications enabled. Tell them directly.');
       hint.textContent = notes.join(' · ');
       hint.classList.toggle('warn', notes.length > 0);
     }

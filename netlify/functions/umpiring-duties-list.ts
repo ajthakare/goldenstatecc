@@ -2,7 +2,6 @@ import { Handler, HandlerEvent } from '@netlify/functions';
 import { validateAdminSession } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
 import { getJSONWithRetry, blobStore, mapLimit, readJSON, todayString } from './_profile-stats';
-import { subscribedPlayerIds } from './_push-utils';
 import { json, loadDuties } from './_umpiring';
 import { dutySummary } from '../../src/utils/umpiring';
 import type { Fixture, FixtureAvailability } from '../../src/types/player';
@@ -14,7 +13,6 @@ import type { Fixture, FixtureAvailability } from '../../src/types/player';
  * Returns: {
  *   duties: UmpiringDuty[],
  *   summary: DutySummary,
- *   pushPlayerIds: string[],                       // players who can get push notifications
  *   busy: Record<date, Record<playerId, string>>   // our matches on upcoming duty dates
  * }
  */
@@ -30,10 +28,9 @@ export const handler: Handler = async (event: HandlerEvent) => {
     if (!seasonId) return json(400, { error: 'seasonId is required' });
 
     const today = todayString();
-    const [duties, fixtures, pushIds] = await Promise.all([
+    const [duties, fixtures] = await Promise.all([
       loadDuties(seasonId, { strong: true }),
       readJSON<Fixture[]>('fixtures', `fixtures-${seasonId}`).then((f) => f || []),
-      subscribedPlayerIds().catch(() => new Set<string>()),
     ]);
 
     // Our own matches on upcoming duty days, so the picker can warn about clashes
@@ -60,7 +57,6 @@ export const handler: Handler = async (event: HandlerEvent) => {
     return json(200, {
       duties,
       summary: dutySummary(duties, today),
-      pushPlayerIds: [...pushIds],
       busy,
       today,
     });
