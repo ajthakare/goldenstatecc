@@ -6,3 +6,9 @@ export function getTeamColor(teamName: string): { bg: string; border: string; co
     if (teamName.includes('Bears')) return { bg: '#dcfce7', border: '#86efac', color: '#166534' };
     return { bg: '#f3f4f6', border: '#d1d5db', color: '#1f2937' };
 }
+
+// Inline style for the colored team pill
+export function teamPillStyle(teamName: string): string {
+    const { bg, border, color } = getTeamColor(teamName);
+    return `background:${bg};border:1px solid ${border};color:${color}`;
+}

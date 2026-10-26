@@ -8,7 +8,7 @@ import Icon from '../components/Icon.astro';
 import UmpiringDutyCard from '../components/UmpiringDutyCard.astro';
 import type { PublicUmpiringDuty, UmpiringDuty } from '../types/umpiring';
 import { DUTY_STORE, dutiesKey, toPublicDuty } from '../utils/umpiring';
-import { getTeamColor } from '../utils/teamColors';
+import { teamPillStyle } from '../utils/teamColors';
 import { validateAdminSession, isMember } from '../middleware/auth';
 import type { Season, Fixture as PlayerFixture } from '../types/player';
 import { loadSeasonsInPlay } from '../../netlify/functions/_seasons';
@@ -494,7 +494,7 @@ function getResultBadge(result: string): { text: string; color: string } {
                                 {/* Header */}
                                 <div class="flex items-start justify-between mb-4">
                                     <div>
-                                        <div class="px-4 py-2 rounded-full text-base font-bold" style={`background:${getTeamColor(fixture.ourTeam).bg};border:1px solid ${getTeamColor(fixture.ourTeam).border};color:${getTeamColor(fixture.ourTeam).color}`}>
+                                        <div class="px-4 py-2 rounded-full text-base font-bold" style={teamPillStyle(fixture.ourTeam)}>
                                             {fixture.ourTeam}
                                         </div>
                                         {showSeason && <div class="mt-1.5 pl-1 text-xs font-medium text-muted">{fixture.seasonName}</div>}
