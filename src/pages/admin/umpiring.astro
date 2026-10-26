@@ -475,7 +475,7 @@ if (!isAdminUser) return Astro.redirect('/');
       // Active players, plus whoever is already assigned (even if inactive or removed since)
       const sorted = players.filter((p) => p.isActive || p.id === selected).sort((a, b) => rank(a) - rank(b) || `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`));
       if (selected && !sorted.some((p) => p.id === selected)) sorted.push({ id: selected, firstName: 'Removed', lastName: 'player', isActive: false });
-      const opt = (p: Player) => `<option value="${esc(p.id)}"${p.id === selected ? ' selected' : ''}>${esc(`${p.firstName} ${p.lastName}`)}${p.umpireStatus ? ` · ${UMPIRE_LABELS[p.umpireStatus] || p.umpireStatus}` : ''}${pushIds.has(p.id) ? '' : ' 🔕'}</option>`;
+      const opt = (p: Player) => `<option value="${esc(p.id)}"${p.id === selected ? ' selected' : ''}>${esc(`${p.firstName} ${p.lastName}`)}${p.umpireStatus ? ` · ${UMPIRE_LABELS[p.umpireStatus] || p.umpireStatus}` : ''}</option>`;
       const umpires = sorted.filter((p) => p.umpireStatus);
       const others = sorted.filter((p) => !p.umpireStatus);
       return '<option value="">— Not assigned —</option>' +
