@@ -542,7 +542,7 @@ const fixtureId = Astro.url.searchParams.get('fid') || '';
         const createResp = await fetch('/.netlify/functions/availability-create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fixtureId }),
+          body: JSON.stringify({ fixtureId, seasonId: currentFixture.seasonId || seasonId }),
         });
         if (!createResp.ok) throw new Error('Failed to create availability record');
         const result = await createResp.json();

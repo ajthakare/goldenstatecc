@@ -3,14 +3,17 @@ import { getStore } from '@netlify/blobs';
 import { validateAdminSession } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
 import { addAuditLog } from '../../src/utils/auditLog';
-import type { FixtureAvailability, Fixture, CoreRosterAssignment, Player } from '../../src/types/player';
+import type { FixtureAvailability, CoreRosterAssignment, Player, Season } from '../../src/types/player';
+import { readJSON, todayString } from './_profile-stats';
+import { findFixture, loadSeasonsInPlay } from './_seasons';
 import { randomUUID } from 'crypto';
 
 /**
  * Create availability record for a fixture
  * POST /api/availability-create
  * Requires: Valid admin session
- * Body: { fixtureId }
+ * Body: { fixtureId, seasonId? } — without seasonId, the fixture is looked up
+ *       in the seasons in play (active, plus the neighbouring season)
  * Returns: Created FixtureAvailability
  */
 export const handler: Handler = async (
@@ -47,7 +50,7 @@ export const handler: Handler = async (
 
     // Parse request body
     const body = JSON.parse(event.body || '{}');
-    const { fixtureId } = body;
+    const { fixtureId, seasonId } = body;
 
     // Validate required fields
     if (!fixtureId) {
@@ -58,12 +61,6 @@ export const handler: Handler = async (
     }
 
     // Get stores
-    const fixturesStore = getStore({
-      name: 'fixtures',
-      siteID: process.env.SITE_ID || '',
-      token: process.env.NETLIFY_AUTH_TOKEN || '',
-    });
-
     const availabilityStore = getStore({
       name: 'fixture-availability',
       siteID: process.env.SITE_ID || '',
@@ -82,29 +79,17 @@ export const handler: Handler = async (
       token: process.env.NETLIFY_AUTH_TOKEN || '',
     });
 
-    // Get active season to find fixtures
-    const seasonsStore = getStore({
-      name: 'seasons',
-      siteID: process.env.SITE_ID || '',
-      token: process.env.NETLIFY_AUTH_TOKEN || '',
-    });
-
-    const seasons = (await seasonsStore.get('seasons-list', { type: 'json' })) as any[] | null;
-    const activeSeason = seasons?.find((s) => s.isActive);
-
-    if (!activeSeason) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'No active season found' }),
-      };
+    // Find the fixture in the season the admin is viewing, or else in the
+    // seasons in play (the old season's last games are still open for
+    // availability after the next season becomes active)
+    let seasonsToSearch: Season[];
+    if (seasonId) {
+      const seasons = await readJSON<Season[]>('seasons', 'seasons-list');
+      seasonsToSearch = (seasons || []).filter((s) => s.id === seasonId);
+    } else {
+      seasonsToSearch = (await loadSeasonsInPlay(todayString())).seasons;
     }
-
-    // Get fixture details
-    const fixtures = (await fixturesStore.get(`fixtures-${activeSeason.id}`, {
-      type: 'json',
-    })) as Fixture[] | null;
-
-    const fixture = fixtures?.find((f) => f.id === fixtureId);
+    const fixture = await findFixture(seasonsToSearch, fixtureId);
 
     if (!fixture) {
       return {
@@ -129,7 +114,7 @@ export const handler: Handler = async (
     }
 
     // Get all roster players for the team in this season
-    const coreRosterKey = `core-roster-${activeSeason.id}`;
+    const coreRosterKey = `core-roster-${fixture.seasonId}`;
     const coreRoster =
       (await coreRosterStore.get(coreRosterKey, {
         type: 'json',
@@ -172,7 +157,7 @@ export const handler: Handler = async (
     const availability: FixtureAvailability = {
       id: randomUUID(),
       fixtureId: fixture.id,
-      seasonId: activeSeason.id,
+      seasonId: fixture.seasonId,
       gameNumber: fixture.gameNumber,
       date: fixture.date,
       team: fixture.team,
@@ -188,7 +173,7 @@ export const handler: Handler = async (
     await availabilityStore.setJSON(`availability-${fixtureId}`, availability);
 
     // Update availability index for quick lookups
-    const indexKey = `availability-index-${activeSeason.id}`;
+    const indexKey = `availability-index-${fixture.seasonId}`;
     const index =
       (await availabilityStore.get(indexKey, { type: 'json' })) as any[] | null;
 
@@ -209,7 +194,7 @@ export const handler: Handler = async (
       'availability_create',
       `Opened availability tracking for ${fixture.gameNumber} (${fixture.team} vs ${fixture.opponent})`,
       fixture.gameNumber,
-      { seasonId: activeSeason.id, fixtureId, rosterSize: playerAvailability.length }
+      { seasonId: fixture.seasonId, fixtureId, rosterSize: playerAvailability.length }
     );
 
     return {

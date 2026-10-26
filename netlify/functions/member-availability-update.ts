@@ -3,8 +3,10 @@ import { getStore } from '@netlify/blobs';
 import { v4 as uuidv4 } from 'uuid';
 import { validateAdminSession, isMember } from '../../src/middleware/auth';
 import { addAuditLog } from '../../src/utils/auditLog';
-import type { Fixture, FixtureAvailability, CoreRosterAssignment, Player, PlayerAvailabilityRecord } from '../../src/types/player';
+import type { FixtureAvailability, CoreRosterAssignment, Player, PlayerAvailabilityRecord } from '../../src/types/player';
 import { parseLocalDate, getPacificToday } from './_utils';
+import { todayString } from './_profile-stats';
+import { findFixture, loadSeasonsInPlay } from './_seasons';
 
 /**
  * Update member availability for a fixture (binary: true/false only, next 7 days only)
@@ -52,31 +54,9 @@ export const handler: Handler = async (
     const sevenDaysFromNow = new Date(today);
     sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
 
-    // Get fixture
-    const seasonsStore = getStore({
-      name: 'seasons',
-      siteID: process.env.SITE_ID || '',
-      token: process.env.NETLIFY_AUTH_TOKEN || '',
-    });
-    const activeSeason = await seasonsStore.get('active-season', { type: 'json' }) as any;
-
-    if (!activeSeason || !activeSeason.id) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'No active season found' }),
-      };
-    }
-
-    const seasonId = activeSeason.id;
-
-    const fixturesStore = getStore({
-      name: 'fixtures',
-      siteID: process.env.SITE_ID || '',
-      token: process.env.NETLIFY_AUTH_TOKEN || '',
-    });
-    const allFixtures = (await fixturesStore.get(`fixtures-${seasonId}`, { type: 'json' })) as Fixture[] | null;
-
-    const fixture = allFixtures?.find(f => f.id === fixtureId);
+    // Find the fixture in any season in play (the active one, plus the
+    // neighbouring season while two overlap)
+    const fixture = await findFixture((await loadSeasonsInPlay(todayString())).seasons, fixtureId);
 
     if (!fixture) {
       return {
