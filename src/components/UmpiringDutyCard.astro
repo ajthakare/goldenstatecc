@@ -19,9 +19,6 @@ interface Props {
 const { duty, isPast, compact = false, seasonName } = Astro.props;
 const umpires = duty.umpires;
 const teamColor = getTeamColor(duty.umpiringTeam);
-const mapsUrl = duty.groundAddress
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(duty.groundAddress)}`
-    : null;
 ---
 <div
     class={`fixture-card umpiring-card ${compact ? 'p-5' : 'p-6'}`}
@@ -73,11 +70,7 @@ const mapsUrl = duty.groundAddress
             <Icon name="map-pin" size={14} />
             <span>{duty.venue}</span>
         </div>
-        {duty.groundAddress && (
-            mapsUrl
-                ? <a href={mapsUrl} target="_blank" rel="noopener noreferrer" class="block text-xs text-muted pl-6 underline-offset-2 hover:underline">{duty.groundAddress}</a>
-                : <div class="text-xs text-muted pl-6">{duty.groundAddress}</div>
-        )}
+        {duty.groundAddress && <div class="text-xs text-muted pl-6">{duty.groundAddress}</div>}
         {compact && <div class="text-xs text-subtle mt-2 pl-6">{duty.division}</div>}
     </div>
 
