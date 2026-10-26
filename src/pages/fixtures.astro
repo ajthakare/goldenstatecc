@@ -40,7 +40,11 @@ let fixturesData: SeasonFixture[] = [];
 let dutiesData: SeasonDuty[] = [];
 try {
     const [players, schedules] = await Promise.all([
-        loadPlayers(),
+        // Only for names: without them the schedule still shows
+        loadPlayers().catch((error) => {
+            console.error('Error loading players:', error);
+            return [];
+        }),
         Promise.all(seasonsInPlay.map((season) => Promise.all([
             readJSON<PlayerFixture[]>('fixtures', `fixtures-${season.id}`),
             readJSON<UmpiringDuty[]>(DUTY_STORE, dutiesKey(season.id)),
