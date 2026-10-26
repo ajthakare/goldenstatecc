@@ -9,6 +9,7 @@ import UmpiringDutyCard from '../components/UmpiringDutyCard.astro';
 import type { PublicUmpiringDuty, UmpiringDuty } from '../types/umpiring';
 import { DUTY_STORE, dutiesKey, toPublicDuty } from '../utils/umpiring';
 import { teamPillStyle } from '../utils/teamColors';
+import { weekStart } from '../utils/feed';
 import { validateAdminSession, isMember } from '../middleware/auth';
 import type { Season, Fixture as PlayerFixture } from '../types/player';
 import { loadSeasonsInPlay } from '../../netlify/functions/_seasons';
@@ -262,14 +263,11 @@ const weekendCount = upcomingWeekendMatches.length + upcomingWeekendDuties.lengt
 // card grid and the "Group by" toggle shows one of them, so each card is
 // rendered once. Weeks start on Monday, like Admin → Umpiring.
 type GroupHeading = { kind: 'week' | 'month'; label: string };
-const mondayOf = (d: Date) => {
-    const m = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    m.setDate(m.getDate() - ((m.getDay() + 6) % 7));
-    return m.getTime();
-};
+const mondayOf = (d: Date) =>
+    weekStart(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
 // League week names per calendar week, from duties in both lists. When two
 // seasons share a week it carries both names (e.g. "Week12 / Week1").
-const leagueWeeks = new Map<number, string[]>();
+const leagueWeeks = new Map<string, string[]>();
 for (const item of [...upcomingItems, ...pastItems]) {
     if (!item.week) continue;
     const names = leagueWeeks.get(mondayOf(item.sortDate)) || [];
@@ -284,7 +282,7 @@ function withHeadings(items: ScheduleItem[]): Array<{ item: ScheduleItem; headin
         const week = mondayOf(item.sortDate);
         if (!prev || mondayOf(prev.sortDate) !== week) {
             const league = leagueWeeks.get(week)?.join(' / ');
-            const monday = new Date(week).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const monday = new Date(`${week}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
             headings.push({ kind: 'week', label: `${league ? `${league} · ` : ''}Week of ${monday}` });
         }
         return { item, headings };
@@ -776,8 +774,8 @@ function getResultBadge(result: string): { text: string; color: string } {
     /* Week / month headings inside the card grid; the "Group by" toggle shows one kind */
     .group-heading { grid-column: 1 / -1; }
     /* Space above a heading that follows a card (a hidden month heading can come first) */
-    .schedule-grid > :global(.fixture-card) + .group-heading,
-    .schedule-grid > :global(.fixture-card) + .group-heading + .group-heading { margin-top: 1rem; }
+    .schedule-grid > :global(.fixture-card) + .group-heading:not(.is-lead),
+    .schedule-grid > :global(.fixture-card) + .group-heading + .group-heading:not(.is-lead) { margin-top: 1rem; }
     /* ...except the first heading still showing once filters hide earlier groups */
     .schedule-grid > .group-heading.is-lead { margin-top: 0; }
     .filter-empty { color: var(--color-muted-text); text-align: center; padding: 2rem 0; }

@@ -226,6 +226,8 @@ if (!isAdminUser) return Astro.redirect('/');
   </div>
 
   <script>
+    import { weekStart } from '../../utils/feed';
+
     type Slot = {
       playerId?: string; externalName?: string; externalClub?: string; externalPhone?: string;
       attended?: boolean; clubPaid?: boolean; clubPaidAmount?: number; paymentNote?: string;
@@ -398,10 +400,7 @@ if (!isAdminUser) return Astro.redirect('/');
       // Group by week (Monday start)
       const groups = new Map<string, Duty[]>();
       for (const d of shown) {
-        const [y, m, day] = d.date.split('-').map(Number);
-        const dt = new Date(Date.UTC(y, m - 1, day));
-        dt.setUTCDate(dt.getUTCDate() - ((dt.getUTCDay() + 6) % 7));
-        const key = d.week ? `${d.week}|${dt.toISOString().slice(0, 10)}` : `|${dt.toISOString().slice(0, 10)}`;
+        const key = `${d.week || ''}|${weekStart(d.date)}`;
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key)!.push(d);
       }

@@ -52,6 +52,14 @@ function dateOnly(date: string): string {
   return date.split('T')[0];
 }
 
+/** Monday of the week containing `dateStr` (YYYY-MM-DD); weeks start Monday. */
+export function weekStart(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() - ((dt.getUTCDay() + 6) % 7));
+  return dt.toISOString().slice(0, 10);
+}
+
 export function addDays(dateStr: string, days: number): string {
   const [y, m, d] = dateStr.split('-').map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d + days));
