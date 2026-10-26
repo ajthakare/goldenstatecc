@@ -1,8 +1,8 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
-import { getStore } from '@netlify/blobs';
 import { validateAdminSession, isMember } from '../../src/middleware/auth';
 import type { PracticeSession } from '../../src/types/player';
 import { getPacificToday } from './_utils';
+import { loadPractices, loadSeasonsInPlay } from './_seasons';
 
 /**
  * List upcoming practice sessions for authenticated member (next 30 days)
@@ -35,50 +35,10 @@ export const handler: Handler = async (
     const todayStr = today.toISOString().split('T')[0];
     const thirtyDaysStr = thirtyDaysFromNow.toISOString().split('T')[0];
 
-    // Get active season
-    const seasonsStore = getStore({
-      name: 'seasons',
-      siteID: process.env.SITE_ID || '',
-      token: process.env.NETLIFY_AUTH_TOKEN || '',
-    });
-    const activeSeason = await seasonsStore.get('active-season', { type: 'json' }) as any;
-
-    if (!activeSeason || !activeSeason.id) {
-      return {
-        statusCode: 200,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify([]),
-      };
-    }
-
-    const seasonId = activeSeason.id;
-
-    // Get practices from Blobs
-    const practicesStore = getStore({
-      name: 'practice-sessions',
-      siteID: process.env.SITE_ID || '',
-      token: process.env.NETLIFY_AUTH_TOKEN || '',
-    });
-
-    // Get practice index for season
-    const practiceIndex = await practicesStore.get(`practice-index-${seasonId}`, { type: 'json' }) as string[] | null;
-
-    if (!practiceIndex || practiceIndex.length === 0) {
-      return {
-        statusCode: 200,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify([]),
-      };
-    }
-
-    // Fetch all practices in parallel (sequential awaits here previously
-    // added seconds of latency as the season's practice index grew)
-    const fetchedPractices = await Promise.all(
-      practiceIndex.map(practiceId =>
-        practicesStore.get(`practice-${practiceId}`, { type: 'json' }) as Promise<PracticeSession | null>
-      )
-    );
-    const allPractices: PracticeSession[] = fetchedPractices.filter((p): p is PracticeSession => p !== null);
+    // Practices from every season in play: this week's can still belong to the
+    // season that just ended after the next one is made active
+    const { seasons } = await loadSeasonsInPlay(todayStr);
+    const allPractices = await loadPractices(seasons);
 
     // Filter practices:
     // 1. Status is 'active'

@@ -11,6 +11,7 @@ import { randomUUID } from 'crypto';
 import { getPacificNow } from './_utils';
 import { toDateString } from './_push-utils';
 import type { PracticeSession } from '../../src/types/player';
+import { loadPractices, loadSeasonsInPlay } from './_seasons';
 
 export const handler = schedule('0 22 * * 6', async () => {
   console.log('[schedule-saturday] Starting Saturday 3 PM job');
@@ -33,12 +34,7 @@ export const handler = schedule('0 22 * * 6', async () => {
     const wednesdayStr = toDateString(wednesdayDate);
     const fridayStr = toDateString(fridayDate);
 
-    const seasonsStore = getStore({
-      name: 'seasons',
-      siteID: process.env.SITE_ID || '',
-      token: process.env.NETLIFY_AUTH_TOKEN || '',
-    });
-    const activeSeason: any = await seasonsStore.get('active-season', { type: 'json' });
+    const { active: activeSeason, seasons } = await loadSeasonsInPlay(toDateString(today));
 
     if (!activeSeason?.id) {
       console.log('[schedule-saturday] No active season. Exiting.');
@@ -54,13 +50,9 @@ export const handler = schedule('0 22 * * 6', async () => {
     const practiceIndex: string[] =
       (await practicesStore.get(`practice-index-${activeSeason.id}`, { type: 'json' })) || [];
 
-    const existingDates = new Set<string>();
-    await Promise.all(
-      practiceIndex.map(async (id) => {
-        const p: any = await practicesStore.get(`practice-${id}`, { type: 'json' });
-        if (p?.date) existingDates.add(p.date);
-      })
-    );
+    // New practices go in the active season, but one already made in the
+    // season that just ended still counts
+    const existingDates = new Set((await loadPractices(seasons)).map((p) => p.date));
 
     const nowIso = new Date().toISOString();
 
