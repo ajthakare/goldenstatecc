@@ -3,10 +3,14 @@ import { getStore } from '@netlify/blobs';
 import { validateAdminSession } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
 import type { PracticeSession } from '../../src/types/player';
+import { loadPractices, loadSeasonsInPlay } from './_seasons';
+import { todayString } from './_profile-stats';
 
 /**
  * List all practice sessions for admin
- * GET /.netlify/functions/practice-admin-list?seasonId=...&team=...&dateFrom=...&dateTo=...
+ * GET /.netlify/functions/practice-admin-list?seasonId=...&inPlay=1&team=...&dateFrom=...&dateTo=...
+ * inPlay=1 adds upcoming practices from the other seasons in play (e.g. this
+ * week's, made before the next season was activated).
  * Requires: Valid admin session
  * Returns: Array of practice sessions with stats
  */
@@ -44,7 +48,7 @@ export const handler: Handler = async (
 
     // Parse query parameters
     const params = event.queryStringParameters || {};
-    const { seasonId, team, dateFrom, dateTo } = params;
+    const { seasonId, inPlay, team, dateFrom, dateTo } = params;
 
     // Get practices from Blobs
     const practicesStore = getStore({
@@ -73,6 +77,13 @@ export const handler: Handler = async (
       )
     );
     const practices: PracticeSession[] = fetchedPractices.filter((p): p is PracticeSession => p !== null);
+
+    if (seasonId && inPlay) {
+      const today = todayString();
+      const { seasons } = await loadSeasonsInPlay(today);
+      const others = await loadPractices(seasons.filter((s) => s.id !== seasonId));
+      practices.push(...others.filter((p) => p.date >= today));
+    }
 
     // Filter by team if provided
     let filteredPractices = practices;

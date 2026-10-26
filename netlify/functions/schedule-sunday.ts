@@ -7,13 +7,12 @@
  * Practice sessions are created separately on Saturday at 3 PM.
  */
 import { schedule } from '@netlify/functions';
-import { getStore } from '@netlify/blobs';
 import { getPacificNow, parseLocalDate } from './_utils';
 import { sendPushToAll, sendPushToPlayers, toDateString } from './_push-utils';
 import { DUTY_STORE, clubUmpireIds, dutiesKey, dutyPushBody, sundayVoteMessage, upcomingWeekDuties } from '../../src/utils/umpiring';
 import type { UmpiringDuty } from '../../src/types/umpiring';
 import { readJSON } from './_profile-stats';
-import { loadSeasonsInPlay } from './_seasons';
+import { loadPractices, loadSeasonsInPlay } from './_seasons';
 
 export const handler = schedule('0 3 * * 1', async () => {
   console.log('[schedule-sunday] Starting Sunday 8 PM notification job');
@@ -47,26 +46,10 @@ export const handler = schedule('0 3 * * 1', async () => {
     const wednesdayStr = toDateString(wednesdayDate);
     const fridayStr = toDateString(fridayDate);
 
-    const practicesStore = getStore({
-      name: 'practice-sessions',
-      siteID: process.env.SITE_ID || '',
-      token: process.env.NETLIFY_AUTH_TOKEN || '',
-    });
-
-    const practiceIndex: string[] =
-      (await practicesStore.get(`practice-index-${activeSeason.id}`, { type: 'json' })) || [];
-
-    let hasWedPractice = false;
-    let hasFriPractice = false;
-
-    await Promise.all(
-      practiceIndex.map(async (id) => {
-        const p: any = await practicesStore.get(`practice-${id}`, { type: 'json' });
-        if (!p || p.status === 'cancelled') return;
-        if (p.date === wednesdayStr) hasWedPractice = true;
-        if (p.date === fridayStr) hasFriPractice = true;
-      })
-    );
+    // This week's practices may still sit in the season that just ended
+    const practices = (await loadPractices(seasons)).filter((p) => p.status !== 'cancelled');
+    const hasWedPractice = practices.some((p) => p.date === wednesdayStr);
+    const hasFriPractice = practices.some((p) => p.date === fridayStr);
 
     // Fixtures and umpiring duties this week, from every season in play
     const [fixtureLists, dutyLists] = await Promise.all([
