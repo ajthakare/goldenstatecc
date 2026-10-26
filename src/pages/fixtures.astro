@@ -8,6 +8,7 @@ import Icon from '../components/Icon.astro';
 import UmpiringDutyCard from '../components/UmpiringDutyCard.astro';
 import type { PublicUmpiringDuty, UmpiringDuty } from '../types/umpiring';
 import { DUTY_STORE, dutiesKey, toPublicDuty } from '../utils/umpiring';
+import { getTeamColor } from '../utils/teamColors';
 import { validateAdminSession, isMember } from '../middleware/auth';
 import type { Season, Fixture as PlayerFixture } from '../types/player';
 import { loadSeasonsInPlay } from '../../netlify/functions/_seasons';
@@ -274,15 +275,6 @@ const pastByMonth = pastItems.reduce((acc: Record<string, ScheduleItem[]>, fixtu
     acc[fixture.monthYear].push(fixture);
     return acc;
 }, {});
-
-// Get team color based on team name
-function getTeamColor(teamName: string): { bg: string; border: string; color: string } {
-    if (teamName.includes('Tigers')) return { bg: '#fef3c7', border: '#fcd34d', color: '#78350f' };
-    if (teamName.includes('Bulls')) return { bg: '#dbeafe', border: '#93c5fd', color: '#1e40af' };
-    if (teamName.includes('Thunder')) return { bg: '#f3e8ff', border: '#d8b4fe', color: '#6b21a8' };
-    if (teamName.includes('Bears')) return { bg: '#dcfce7', border: '#86efac', color: '#166534' };
-    return { bg: '#f3f4f6', border: '#d1d5db', color: '#1f2937' };
-}
 
 // Get result badge styling
 function getResultBadge(result: string): { text: string; color: string } {

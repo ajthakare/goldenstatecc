@@ -7,6 +7,7 @@
  */
 import Icon from './Icon.astro';
 import type { PublicUmpiringDuty } from '../types/umpiring';
+import { getTeamColor } from '../utils/teamColors';
 
 interface Props {
     duty: PublicUmpiringDuty & { displayDate: string };
@@ -17,6 +18,7 @@ interface Props {
 
 const { duty, isPast, compact = false, seasonName } = Astro.props;
 const umpires = duty.umpires;
+const teamColor = getTeamColor(duty.umpiringTeam);
 const mapsUrl = duty.groundAddress
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(duty.groundAddress)}`
     : null;
@@ -27,24 +29,46 @@ const mapsUrl = duty.groundAddress
     data-kind="umpiring"
     data-is-past={isPast ? 'true' : 'false'}
 >
-    <div class="flex items-start justify-between gap-2 mb-3">
-        <span class="umpiring-pill"><Icon name="field-rings" size={13} /> Umpiring</span>
-        <div class="text-right">
-            <span class="badge badge-neutral badge-team">{duty.umpiringTeam}</span>
-            {seasonName && <div class="mt-1.5 pr-1 text-xs font-medium text-muted">{seasonName}</div>}
+    {/* Header: same layout as match cards — our team on the left, the kind of game on the right */}
+    {compact ? (
+        <div class="flex items-center justify-between gap-2 mb-3">
+            <div>
+                <span class="badge badge-neutral badge-team">{duty.umpiringTeam}</span>
+                {seasonName && <div class="mt-1.5 pl-1 text-xs font-medium text-muted">{seasonName}</div>}
+            </div>
+            <span class="kicker umpiring-label"><Icon name="field-rings" size={13} /> Umpiring</span>
         </div>
-    </div>
+    ) : (
+        <div class="flex items-start justify-between gap-2 mb-4">
+            <div>
+                <div class="px-4 py-2 rounded-full text-base font-bold" style={`background:${teamColor.bg};border:1px solid ${teamColor.border};color:${teamColor.color}`}>
+                    {duty.umpiringTeam}
+                </div>
+                {seasonName && <div class="mt-1.5 pl-1 text-xs font-medium text-muted">{seasonName}</div>}
+            </div>
+            <span class="umpiring-label text-sm font-semibold"><Icon name="field-rings" size={14} /> UMPIRING</span>
+        </div>
+    )}
 
-    <div class={`${compact ? 'text-lg' : 'text-xl'} font-bold text-heading mb-2`}>
+    <div class={`${compact ? 'text-lg mb-3' : 'text-xl mb-2'} font-bold text-heading`}>
         {duty.homeTeam} <span class="text-muted font-semibold text-base">vs</span> {duty.visitorTeam}
     </div>
-    <div class="flex flex-wrap items-center gap-3 text-sm text-muted mb-3">
-        <span class="flex items-center gap-1.5"><Icon name="calendar" size={14} /><span class="font-semibold">{duty.displayDate}</span></span>
-        <span>{duty.time}</span>
-        <span class="px-2 py-0.5 bg-gray-100 rounded text-xs font-medium">{duty.division}</span>
-    </div>
+    {compact ? (
+        <div class="flex items-center gap-2 text-muted mb-2 text-sm">
+            <Icon name="calendar" size={15} />
+            <span class="font-semibold">{duty.displayDate}</span>
+            <span class="text-subtle">·</span>
+            <span>{duty.time}</span>
+        </div>
+    ) : (
+        <div class="flex flex-wrap items-center gap-3 text-sm text-muted mb-3">
+            <span class="flex items-center gap-1.5"><Icon name="calendar" size={14} /><span class="font-semibold">{duty.displayDate}</span></span>
+            <span>{duty.time}</span>
+            <span class="px-2 py-0.5 bg-gray-100 rounded text-xs font-medium">{duty.division}</span>
+        </div>
+    )}
 
-    <div class="rounded-lg p-3" style="background:var(--color-surface-sunken);border:1px solid var(--color-hairline);">
+    <div class={`rounded-lg p-3 ${compact ? 'mt-1' : ''}`} style="background:var(--color-surface-sunken);border:1px solid var(--color-hairline);">
         <div class="font-semibold text-heading text-sm mb-1 flex items-center gap-2">
             <Icon name="map-pin" size={14} />
             <span>{duty.venue}</span>
@@ -54,10 +78,11 @@ const mapsUrl = duty.groundAddress
                 ? <a href={mapsUrl} target="_blank" rel="noopener noreferrer" class="text-xs text-muted pl-6 underline-offset-2 hover:underline">{duty.groundAddress}</a>
                 : <div class="text-xs text-muted pl-6">{duty.groundAddress}</div>
         )}
+        {compact && <div class="text-xs text-subtle mt-2 pl-6">{duty.division}</div>}
     </div>
 
     {umpires && (
-        <div class="umpiring-names mt-3 text-sm">
+        <div class={`umpiring-names text-sm ${compact ? 'umpiring-names--compact mt-2' : 'mt-3'}`}>
             <Icon name="users" size={14} />
             {umpires.length > 0
                 ? <span><span class="font-semibold">{umpires.length > 1 ? 'Umpires' : 'Umpire'}:</span> {umpires.join(', ')}</span>
@@ -65,9 +90,11 @@ const mapsUrl = duty.groundAddress
         </div>
     )}
 
-    <div class="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
-        <span>Game #{duty.gameNumber}{duty.week && <> • {duty.week}</>}</span>
-    </div>
+    {!compact && (
+        <div class="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
+            <span>Game #{duty.gameNumber}{duty.week && <> • {duty.week}</>}</span>
+        </div>
+    )}
 </div>
 
 <style>
@@ -75,18 +102,12 @@ const mapsUrl = duty.groundAddress
     @layer components {
         .fixture-card.umpiring-card[data-kind="umpiring"] { border-left-color: #1e4f86 !important; }
     }
-    .umpiring-pill {
+    .umpiring-label {
         display: inline-flex;
         align-items: center;
         gap: 5px;
-        padding: 0.25rem 0.65rem;
-        border-radius: 9999px;
-        background: #eef4fb;
         color: #1e4f86;
-        font-size: 0.7rem;
-        font-weight: 800;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
+        white-space: nowrap;
     }
     .umpiring-names {
         display: flex;
@@ -96,5 +117,9 @@ const mapsUrl = duty.groundAddress
         border-radius: 8px;
         background: #f5f8fc;
         color: #1f2937;
+    }
+    .umpiring-names--compact {
+        padding: 0 4px;
+        background: none;
     }
 </style>
