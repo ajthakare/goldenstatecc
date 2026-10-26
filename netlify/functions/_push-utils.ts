@@ -19,13 +19,6 @@ function subscriptionsStore() {
   });
 }
 
-/** Player IDs with at least one push subscription (any device). */
-export async function subscribedPlayerIds(): Promise<Set<string>> {
-  const subscriptions: any[] =
-    (await subscriptionsStore().get('subscriptions', { type: 'json' })) || [];
-  return new Set(subscriptions.map((s) => s.playerId).filter(Boolean));
-}
-
 /** Send to every subscription that passes `filter`, then drop expired ones. */
 async function sendPush(
   payload: PushPayload,
