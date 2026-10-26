@@ -38,7 +38,7 @@ export const handler: Handler = async (
     // Fixtures and rosters of every season in play (the active one, plus the
     // neighbouring season while two overlap). Rosters are per season, so a
     // player's teams are matched against the fixture's own season.
-    const seasons = await loadSeasonsInPlay(todayString());
+    const { seasons } = await loadSeasonsInPlay(todayString());
     const seasonData = await Promise.all(
       seasons.map(async (season) => {
         const [coreRoster, fixtures] = await Promise.all([

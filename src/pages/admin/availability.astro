@@ -1625,7 +1625,7 @@ if (!isAdminUser) {
           const createResponse = await fetch('/.netlify/functions/availability-create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fixtureId }),
+            body: JSON.stringify({ fixtureId, seasonId: currentFixture.seasonId }),
           });
 
           if (!createResponse.ok) throw new Error('Failed to create availability record');

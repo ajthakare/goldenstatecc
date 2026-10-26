@@ -6,11 +6,12 @@ import Section from '../components/Section.astro';
 import PageHeader from '../components/PageHeader.astro';
 import Icon from '../components/Icon.astro';
 import UmpiringDutyCard from '../components/UmpiringDutyCard.astro';
-import type { PublicUmpiringDuty } from '../types/umpiring';
+import type { PublicUmpiringDuty, UmpiringDuty } from '../types/umpiring';
+import { DUTY_STORE, dutiesKey, toPublicDuty } from '../utils/umpiring';
 import { validateAdminSession, isMember } from '../middleware/auth';
-import type { Season } from '../types/player';
+import type { Season, Fixture as PlayerFixture } from '../types/player';
 import { loadSeasonsInPlay } from '../../netlify/functions/_seasons';
-import { todayString } from '../../netlify/functions/_profile-stats';
+import { loadPlayers, readJSON, todayString } from '../../netlify/functions/_profile-stats';
 
 // Check authentication status
 const cookieHeader = Astro.request.headers.get('cookie');
@@ -21,40 +22,50 @@ const isAuthenticatedMember = session && isMember(session);
 // Seasons in play: the active season, plus the neighbouring season while two
 // overlap (the old season's last games, the new season's first ones)
 let seasonsInPlay: Season[] = [];
+let activeSeason: Season | null = null;
 try {
-    seasonsInPlay = await loadSeasonsInPlay(todayString());
+    ({ seasons: seasonsInPlay, active: activeSeason } = await loadSeasonsInPlay(todayString()));
 } catch (error) {
     console.error('Error loading seasons:', error);
 }
-const activeSeason: Season | null = seasonsInPlay.find((s) => s.isActive) ?? null;
 const todayStr = todayString();
 
 // Fixtures and umpiring duties per season: all of the active season's, only
-// upcoming ones from the other. Forward the cookie so signed-in members also
-// get the umpires' names.
-const seasonSchedules = await Promise.all(
-    seasonsInPlay.map(async (season) => {
+// upcoming ones from the other. Each is tagged with its season's name.
+// Signed-in members also get the umpires' names; nobody gets contact details,
+// payments or notes. Cancelled duties are left out.
+type SeasonFixture = PlayerFixture & { seasonName: string; playerOfMatchName?: string };
+type SeasonDuty = PublicUmpiringDuty & { seasonName: string };
+let fixturesData: SeasonFixture[] = [];
+let dutiesData: SeasonDuty[] = [];
+try {
+    const [players, schedules] = await Promise.all([
+        loadPlayers(),
+        Promise.all(seasonsInPlay.map((season) => Promise.all([
+            readJSON<PlayerFixture[]>('fixtures', `fixtures-${season.id}`),
+            readJSON<UmpiringDuty[]>(DUTY_STORE, dutiesKey(season.id)),
+        ]))),
+    ]);
+    const names = new Map(players.map((p) => [p.id, `${p.firstName} ${p.lastName}`.trim()]));
+    const nameOf = isAuthenticatedMember ? (id: string) => names.get(id) : undefined;
+    seasonsInPlay.forEach((season, i) => {
         const keep = (date: string) => season.id === activeSeason?.id || date.slice(0, 10) >= todayStr;
-        const [fixtures, duties] = await Promise.all([
-            fetch(`${Astro.url.origin}/.netlify/functions/fixtures-list?seasonId=${season.id}`)
-                .then((r) => (r.ok ? r.json() : []))
-                .catch((error) => { console.error('Error fetching fixtures:', error); return []; }),
-            fetch(`${Astro.url.origin}/.netlify/functions/umpiring-schedule-get?seasonId=${season.id}`, {
-                headers: { cookie: cookieHeader || '' },
-            })
-                .then((r) => (r.ok ? r.json() : []))
-                .catch((error) => { console.error('Error fetching umpiring duties:', error); return []; }),
-        ]);
-        return {
-            fixtures: (fixtures as any[]).filter((f) => keep(f.date)).map((f) => ({ ...f, seasonName: season.name })),
-            duties: (duties as PublicUmpiringDuty[]).filter((d) => keep(d.date)),
-        };
-    })
-);
-const fixturesData: any[] = seasonSchedules.flatMap((s) => s.fixtures);
-const dutiesData: PublicUmpiringDuty[] = seasonSchedules.flatMap((s) => s.duties);
+        const [fixtures, duties] = schedules[i];
+        fixturesData.push(...(fixtures || []).filter((f) => keep(f.date)).map((f) => ({
+            ...f,
+            seasonName: season.name,
+            playerOfMatchName: f.playerOfMatch ? names.get(f.playerOfMatch) : undefined,
+        })));
+        dutiesData.push(...(duties || []).filter((d) => !d.cancelled && keep(d.date)).map((d) => ({
+            ...toPublicDuty(d, nameOf),
+            seasonName: season.name,
+        })));
+    });
+} catch (error) {
+    console.error('Error loading fixtures:', error);
+}
 // Name each card's season once games from two seasons are listed
-const showSeason = new Set(fixturesData.map((f) => f.seasonName)).size > 1;
+const showSeason = new Set([...fixturesData, ...dutiesData].map((f) => f.seasonName)).size > 1;
 
 // Our teams: the active season's, plus any the other season's games bring in
 const OUR_TEAMS: string[] = [...new Set<string>([
@@ -88,7 +99,7 @@ interface Fixture {
     kind?: 'match';
 }
 
-type DutyItem = PublicUmpiringDuty & { kind: 'umpiring'; displayDate: string; monthYear: string; sortDate: Date };
+type DutyItem = SeasonDuty & { kind: 'umpiring'; displayDate: string; monthYear: string; sortDate: Date };
 type ScheduleItem = Fixture | DutyItem;
 
 // "9:00 AM" -> [9, 0]
@@ -382,7 +393,7 @@ function getResultBadge(result: string): { text: string; color: string } {
                         </div>
                     ))}
                     {upcomingWeekendDuties.map(duty => (
-                        <UmpiringDutyCard duty={duty} isPast={false} compact />
+                        <UmpiringDutyCard duty={duty} isPast={false} compact seasonName={showSeason ? duty.seasonName : undefined} />
                     ))}
                 </div>
             </div>
@@ -476,7 +487,7 @@ function getResultBadge(result: string): { text: string; color: string } {
 
                         <div class="grid md:grid-cols-2 gap-6">
                         {monthFixtures.map((fixture) => isDuty(fixture) ? (
-                            <UmpiringDutyCard duty={fixture} isPast={false} />
+                            <UmpiringDutyCard duty={fixture} isPast={false} seasonName={showSeason ? fixture.seasonName : undefined} />
                         ) : (
                             <div
                                 class="fixture-card p-6"

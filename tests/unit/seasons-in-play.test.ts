@@ -17,7 +17,7 @@ const old = season('old', '2025-11-01', '2026-03-31');
 describe('seasonsInPlay', () => {
   it('includes the next season, starting soon, alongside the active one', () => {
     const active = { ...summer, isActive: true };
-    expect(seasonsInPlay([old, active, winter], active, '2026-10-25').map((s) => s.id)).toEqual(['summer', 'old', 'winter']);
+    expect(seasonsInPlay([old, active, winter], active, '2026-10-25').map((s) => s.id)).toEqual(['summer', 'winter']);
   });
 
   it('keeps the season that just ended once the next is active', () => {
@@ -34,10 +34,11 @@ describe('seasonsInPlay', () => {
     expect(seasonsInPlay([old, earlySummer, active], active, '2026-10-28').map((s) => s.id)).toEqual(['winter', 'summer']);
   });
 
-  it('drops older and far-off seasons', () => {
+  it('drops the previous season a month after the active one starts', () => {
     const active = { ...winter, isActive: true };
-    expect(seasonsInPlay([old, summer, active], active, '2026-12-20').map((s) => s.id)).toEqual(['winter', 'summer']);
-    expect(seasonsInPlay([old, summer, winter], { ...summer, isActive: true }, '2026-09-01').map((s) => s.id)).toEqual(['summer', 'old']);
+    expect(seasonsInPlay([old, summer, active], active, '2026-12-01').map((s) => s.id)).toEqual(['winter', 'summer']);
+    expect(seasonsInPlay([old, summer, active], active, '2026-12-02').map((s) => s.id)).toEqual(['winter']);
+    expect(seasonsInPlay([old, summer, winter], { ...summer, isActive: true }, '2026-09-01').map((s) => s.id)).toEqual(['summer']);
   });
 
   it('still finds a running season with no active season set', () => {

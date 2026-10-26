@@ -107,4 +107,22 @@ describe('member-fixtures-list', () => {
       ['first-tigers', false],
     ]);
   });
+
+  it("keeps the previous season's last game once the next season is active", async () => {
+    // The ending season's end date was entered before its last game
+    blobs.seasons = {
+      'active-season': { id: 's2', isActive: true, startDate: day(-2) },
+      'seasons-list': [
+        { id: 's1', startDate: day(-180), endDate: day(-20), isActive: false },
+        { id: 's2', startDate: day(-2), endDate: day(150), isActive: true },
+      ],
+    };
+    blobs['core-roster'] = { 'core-roster-s1': roster('Bears'), 'core-roster-s2': roster('Bears') };
+    blobs.fixtures = {
+      'fixtures-s1': [fixture('last', 'Bears', day(3)), fixture('old', 'Bears', day(-25))],
+      'fixtures-s2': [fixture('first', 'Bears', day(4))],
+    };
+
+    expect((await list()).map((f) => [f.id, f.canVote])).toEqual([['last', true], ['first', true]]);
+  });
 });

@@ -26,12 +26,8 @@ export const handler = schedule('0 3 * * 1', async () => {
     const sevenDaysLater = new Date(today);
     sevenDaysLater.setDate(today.getDate() + 7);
 
-    const seasonsStore = getStore({
-      name: 'seasons',
-      siteID: process.env.SITE_ID || '',
-      token: process.env.NETLIFY_AUTH_TOKEN || '',
-    });
-    const activeSeason: any = await seasonsStore.get('active-season', { type: 'json' });
+    // Seasons in play: the active one, plus the neighbouring season while two overlap
+    const { active: activeSeason, seasons } = await loadSeasonsInPlay(toDateString(today));
 
     if (!activeSeason?.id) {
       console.log('[schedule-sunday] No active season. Exiting.');
@@ -72,9 +68,7 @@ export const handler = schedule('0 3 * * 1', async () => {
       })
     );
 
-    // Fixtures and umpiring duties this week, from every season in play (the
-    // neighbouring season's too while two overlap)
-    const seasons = await loadSeasonsInPlay(toDateString(today));
+    // Fixtures and umpiring duties this week, from every season in play
     const [fixtureLists, dutyLists] = await Promise.all([
       Promise.all(seasons.map((s) => readJSON<any[]>('fixtures', `fixtures-${s.id}`))),
       Promise.all(seasons.map((s) => readJSON<UmpiringDuty[]>(DUTY_STORE, dutiesKey(s.id)))),

@@ -3,7 +3,7 @@ import { getStore } from '@netlify/blobs';
 import { v4 as uuidv4 } from 'uuid';
 import { validateAdminSession, isMember } from '../../src/middleware/auth';
 import { addAuditLog } from '../../src/utils/auditLog';
-import type { Fixture, FixtureAvailability, CoreRosterAssignment, Player, PlayerAvailabilityRecord } from '../../src/types/player';
+import type { FixtureAvailability, CoreRosterAssignment, Player, PlayerAvailabilityRecord } from '../../src/types/player';
 import { parseLocalDate, getPacificToday } from './_utils';
 import { todayString } from './_profile-stats';
 import { findFixture, loadSeasonsInPlay } from './_seasons';
@@ -56,7 +56,7 @@ export const handler: Handler = async (
 
     // Find the fixture in any season in play (the active one, plus the
     // neighbouring season while two overlap)
-    const fixture = await findFixture(await loadSeasonsInPlay(todayString()), fixtureId);
+    const fixture = await findFixture((await loadSeasonsInPlay(todayString())).seasons, fixtureId);
 
     if (!fixture) {
       return {
