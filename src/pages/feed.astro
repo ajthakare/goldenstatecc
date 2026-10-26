@@ -5,7 +5,7 @@ import Layout from '../layouts/Layout.astro';
 import PageHeader from '../components/PageHeader.astro';
 import FeedItemCard from '../components/feed/FeedItemCard.astro';
 import { validateAdminSession, isAdmin, isMember } from '../middleware/auth';
-import { clubFeedCacheHeaders, viewStoredFeed } from '../utils/feed';
+import { clubFeedCacheHeaders, viewStoredFeed, weekStart } from '../utils/feed';
 import { buildLiveFeed, readStoredFeed } from '../../netlify/functions/_club-feed';
 import { todayString } from '../../netlify/functions/_profile-stats';
 import type { FeedItem } from '../types/profile';
@@ -45,12 +45,6 @@ for (const [name, value] of Object.entries(error ? { 'Cache-Control': 'no-store'
 }
 
 // Group by week (weeks start Monday), newest first
-function weekStart(date: string): string {
-    const [y, m, d] = date.split('-').map(Number);
-    const dt = new Date(Date.UTC(y, m - 1, d));
-    dt.setUTCDate(dt.getUTCDate() - ((dt.getUTCDay() + 6) % 7));
-    return dt.toISOString().slice(0, 10);
-}
 const fmt = (date: string, opts: Intl.DateTimeFormatOptions) => {
     const [y, m, d] = date.split('-').map(Number);
     return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', { ...opts, timeZone: 'UTC' });

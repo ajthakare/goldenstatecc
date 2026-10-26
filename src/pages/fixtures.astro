@@ -9,6 +9,7 @@ import UmpiringDutyCard from '../components/UmpiringDutyCard.astro';
 import type { PublicUmpiringDuty, UmpiringDuty } from '../types/umpiring';
 import { DUTY_STORE, dutiesKey, toPublicDuty } from '../utils/umpiring';
 import { teamPillStyle } from '../utils/teamColors';
+import { weekStart } from '../utils/feed';
 import { validateAdminSession, isMember } from '../middleware/auth';
 import type { Season, Fixture as PlayerFixture } from '../types/player';
 import { loadSeasonsInPlay } from '../../netlify/functions/_seasons';
@@ -258,23 +259,35 @@ const upcomingWeekendMatches = getUpcomingWeekendMatches(upcomingFixtures);
 const upcomingWeekendDuties = getUpcomingWeekendMatches(upcomingDuties);
 const weekendCount = upcomingWeekendMatches.length + upcomingWeekendDuties.length;
 
-// Group upcoming fixtures by month
-const upcomingByMonth = upcomingItems.reduce((acc: Record<string, ScheduleItem[]>, fixture: ScheduleItem) => {
-    if (!acc[fixture.monthYear]) {
-        acc[fixture.monthYear] = [];
-    }
-    acc[fixture.monthYear].push(fixture);
-    return acc;
-}, {});
-
-// Group past fixtures by month
-const pastByMonth = pastItems.reduce((acc: Record<string, ScheduleItem[]>, fixture: ScheduleItem) => {
-    if (!acc[fixture.monthYear]) {
-        acc[fixture.monthYear] = [];
-    }
-    acc[fixture.monthYear].push(fixture);
-    return acc;
-}, {});
+// Week and month headings for a date-ordered list. Both kinds go in the one
+// card grid and the "Group by" toggle shows one of them, so each card is
+// rendered once. Weeks start on Monday, like Admin → Umpiring.
+type GroupHeading = { kind: 'week' | 'month'; label: string };
+const mondayOf = (d: Date) =>
+    weekStart(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+// League week names per calendar week, from duties in both lists. When two
+// seasons share a week it carries both names (e.g. "Week12 / Week1").
+const leagueWeeks = new Map<string, string[]>();
+for (const item of [...upcomingItems, ...pastItems]) {
+    if (!item.week) continue;
+    const names = leagueWeeks.get(mondayOf(item.sortDate)) || [];
+    if (!names.includes(item.week)) names.push(item.week);
+    leagueWeeks.set(mondayOf(item.sortDate), names);
+}
+function withHeadings(items: ScheduleItem[]): Array<{ item: ScheduleItem; headings: GroupHeading[] }> {
+    return items.map((item, i) => {
+        const prev = items[i - 1];
+        const headings: GroupHeading[] = [];
+        if (!prev || prev.monthYear !== item.monthYear) headings.push({ kind: 'month', label: item.monthYear });
+        const week = mondayOf(item.sortDate);
+        if (!prev || mondayOf(prev.sortDate) !== week) {
+            const league = leagueWeeks.get(week)?.join(' / ');
+            const monday = new Date(`${week}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+            headings.push({ kind: 'week', label: `${league ? `${league} · ` : ''}Week of ${monday}` });
+        }
+        return { item, headings };
+    });
+}
 
 // Get result badge styling
 function getResultBadge(result: string): { text: string; color: string } {
@@ -296,6 +309,10 @@ function getResultBadge(result: string): { text: string; color: string } {
 ---
 
 <Layout title="Match Fixtures - Golden State Cricket Club">
+    {/* Apply a saved "Group by: Month" before the schedule is drawn, so week headings don't flash */}
+    <script is:inline>
+        try { if (localStorage.getItem('fixtures-group-by') === 'month') document.documentElement.dataset.groupBy = 'month'; } catch (e) {}
+    </script>
     <PageHeader
         kicker="Schedule"
         title="Match Fixtures"
@@ -410,22 +427,31 @@ function getResultBadge(result: string): { text: string; color: string } {
     )}
 
     {/* Team Filter Buttons */}
-    <div class="mb-8">
+    <div class="fixture-filters mb-8">
         <div class="flex flex-wrap gap-2 items-center">
             <span class="kicker mr-1">Filter by team</span>
-            <button class="filter-btn px-4 py-2 font-semibold text-sm active" data-team="all">
+            <button class="filter-btn px-4 py-2 font-semibold text-sm active" data-team="all" aria-pressed="true">
                 All Teams ({fixtures.length})
             </button>
             {OUR_TEAMS.map((teamName: string) => (
-                <button class="filter-btn px-4 py-2 font-semibold text-sm" data-team={teamName}>
+                <button class="filter-btn px-4 py-2 font-semibold text-sm" data-team={teamName} aria-pressed="false">
                     {teamName} ({fixtures.filter(f => f.ourTeam === teamName).length})
                 </button>
             ))}
+        </div>
+        <div class="flex flex-wrap gap-2 items-center mt-3">
+            <span class="kicker mr-1">Game type</span>
+            <button class="filter-btn px-4 py-2 font-semibold text-sm active" data-type="all" aria-pressed="true">All</button>
+            <button class="filter-btn px-4 py-2 font-semibold text-sm" data-type="home" aria-pressed="false">Home ({fixtures.filter(f => f.isHome).length})</button>
+            <button class="filter-btn px-4 py-2 font-semibold text-sm" data-type="away" aria-pressed="false">Away ({fixtures.filter(f => !f.isHome).length})</button>
             {duties.length > 0 && (
-                <button class="filter-btn px-4 py-2 font-semibold text-sm" data-team="__umpiring">
-                    Umpiring ({duties.length})
-                </button>
+                <button class="filter-btn px-4 py-2 font-semibold text-sm" data-type="umpiring" aria-pressed="false">Umpiring ({duties.length})</button>
             )}
+        </div>
+        <div class="flex flex-wrap gap-2 items-center mt-3">
+            <span class="kicker mr-1">Group by</span>
+            <button class="filter-btn px-4 py-2 font-semibold text-sm active" data-group-by="week" aria-pressed="true">Week</button>
+            <button class="filter-btn px-4 py-2 font-semibold text-sm" data-group-by="month" aria-pressed="false">Month</button>
         </div>
     </div>
 
@@ -474,15 +500,11 @@ function getResultBadge(result: string): { text: string; color: string } {
 
             <div id="upcoming-fixtures-content">
 
-            {Object.entries(upcomingByMonth).map(([month, monthFixtures]) => (
-                <div class="month-section mb-0">
-                    <Section>
-                        <div class="mb-6">
-                            <h3 class="month-label">{month}</h3>
-                        </div>
-
-                        <div class="grid md:grid-cols-2 gap-6">
-                        {monthFixtures.map((fixture) => isDuty(fixture) ? (
+            <Section>
+                        <div class="grid md:grid-cols-2 gap-6 schedule-grid">
+                        {withHeadings(upcomingItems).map(({ item: fixture, headings }) => <Fragment>
+                        {headings.map((h) => <h3 class={`group-heading group-heading--${h.kind}`}>{h.label}</h3>)}
+                        {isDuty(fixture) ? (
                             <UmpiringDutyCard duty={fixture} isPast={false} seasonName={showSeason ? fixture.seasonName : undefined} />
                         ) : (
                             <div
@@ -569,11 +591,10 @@ function getResultBadge(result: string): { text: string; color: string } {
                                     </div>
                                 </div>
                             </div>
-                        ))}
+                        )}</Fragment>)}
                         </div>
-                    </Section>
-                </div>
-            ))}
+                        <p class="filter-empty hidden">No games match these filters.</p>
+            </Section>
             </div>
         </div>
     )}
@@ -597,18 +618,17 @@ function getResultBadge(result: string): { text: string; color: string } {
             </button>
 
             <div id="past-fixtures-content" class="hidden">
-                {Object.entries(pastByMonth).map(([month, monthFixtures]) => (
-                    <div class="month-section mb-0">
-                        <Section>
-                            <div class="mb-6">
-                                <h3 class="month-label month-label--past">{month}</h3>
-                            </div>
-
-                            <div class="grid md:grid-cols-2 gap-6">
-                            {monthFixtures.map((fixture) => {
-                                if (isDuty(fixture)) return <UmpiringDutyCard duty={fixture} isPast={true} />;
+                <Section>
+                            <div class="grid md:grid-cols-2 gap-6 schedule-grid">
+                            {withHeadings(pastItems).map(({ item: fixture, headings }) => {
+                                const groupHeadings = headings.map((h) => (
+                                    <h3 class={`group-heading group-heading--${h.kind} group-heading--past`}>{h.label}</h3>
+                                ));
+                                if (isDuty(fixture)) return <Fragment>{groupHeadings}<UmpiringDutyCard duty={fixture} isPast={true} /></Fragment>;
                                 const resultBadge = fixture.result ? getResultBadge(fixture.result) : null;
                                 return (
+                                <Fragment>
+                                {groupHeadings}
                                 <div
                                     class="fixture-card p-6"
                                     data-team={fixture.ourTeam}
@@ -700,12 +720,12 @@ function getResultBadge(result: string): { text: string; color: string } {
                                         </div>
                                     </div>
                                 </div>
+                                </Fragment>
                                 );
                             })}
                             </div>
-                        </Section>
-                    </div>
-                ))}
+                            <p class="filter-empty hidden">No games match these filters.</p>
+                </Section>
             </div>
         </div>
     )}
@@ -738,16 +758,51 @@ function getResultBadge(result: string): { text: string; color: string } {
     }
     .section-toggle:hover { background: var(--color-hairline); }
 
-    .month-label {
+    /* Three rows of filters: keep them compact on phones */
+    @media (max-width: 639px) {
+        .fixture-filters { margin-bottom: 1.25rem; }
+        .fixture-filters > div { gap: 0.375rem; }
+        .fixture-filters > div + div { margin-top: 0.5rem; }
+        .fixture-filters .kicker { font-size: 0.625rem; }
+        .fixture-filters .filter-btn {
+            min-height: 28px;
+            padding: 0.25rem 0.625rem;
+            font-size: 0.75rem;
+        }
+    }
+
+    /* Week / month headings inside the card grid; the "Group by" toggle shows one kind */
+    .group-heading { grid-column: 1 / -1; }
+    /* Space above a heading that follows a card (a hidden month heading can come first) */
+    .schedule-grid > :global(.fixture-card) + .group-heading:not(.is-lead),
+    .schedule-grid > :global(.fixture-card) + .group-heading + .group-heading:not(.is-lead) { margin-top: 1rem; }
+    /* ...except the first heading still showing once filters hide earlier groups */
+    .schedule-grid > .group-heading.is-lead { margin-top: 0; }
+    .filter-empty { color: var(--color-muted-text); text-align: center; padding: 2rem 0; }
+    /* The section toggle above already spaces the list */
+    #upcoming-fixtures-content > :global(section),
+    #past-fixtures-content > :global(section) { padding-top: 0; }
+    .group-heading--week {
+        font-size: 0.8rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--color-gold-600);
+        margin-bottom: -0.5rem;
+    }
+    .group-heading--month {
+        display: none;
         font-size: 1.25rem;
         font-weight: 750;
         letter-spacing: -0.01em;
         color: var(--color-ink);
         padding-left: 0.9rem;
         border-left: 3px solid var(--color-gold-500);
-        margin-bottom: 1.5rem;
     }
-    .month-label--past { border-left-color: var(--color-hairline-strong); color: var(--color-muted-text); }
+    .group-heading--past { color: var(--color-muted-text); border-left-color: var(--color-hairline-strong); }
+    :global(html[data-group-by="month"]) .group-heading--month { display: block; }
+    :global(html[data-group-by="month"]) .group-heading--week { display: none; }
+    .group-heading.is-empty { display: none !important; }
 
     .result-badge {
         display: inline-flex;
@@ -769,14 +824,58 @@ function getResultBadge(result: string): { text: string; color: string } {
 <script>
     // Team filter functionality
     document.addEventListener('DOMContentLoaded', () => {
-        const filterButtons = document.querySelectorAll('.filter-btn');
-        const fixtureCards = document.querySelectorAll('.fixture-card');
+        const filterButtons = document.querySelectorAll('.filter-btn[data-team]');
+        // The filters act on the Upcoming and Past lists; the Upcoming Weekend box always shows everything
+        const fixtureCards = Array.from(document.querySelectorAll('.fixture-card')).filter(card => !card.closest('.accent-box'));
         const upcomingToggle = document.getElementById('upcoming-fixtures-toggle');
         const upcomingContent = document.getElementById('upcoming-fixtures-content');
         const upcomingIcon = document.getElementById('upcoming-fixtures-icon');
         const pastToggle = document.getElementById('past-fixtures-toggle');
         const pastContent = document.getElementById('past-fixtures-content');
         const pastIcon = document.getElementById('past-fixtures-icon');
+
+        // One pass per list: a heading with no visible card before the next
+        // heading of its kind is hidden, the first one still showing loses its
+        // top margin, and a list with nothing visible says so
+        function hideEmptyGroups() {
+            document.querySelectorAll('.schedule-grid').forEach((grid) => {
+                const kindOf = (el: Element) => el.classList.contains('group-heading--week') ? 'week' : 'month';
+                const current: Record<string, Element> = {};
+                const filled = new Set<Element>();
+                const headings: Element[] = [];
+                for (const el of Array.from(grid.children)) {
+                    if (el.classList.contains('group-heading')) {
+                        current[kindOf(el)] = el;
+                        headings.push(el);
+                    } else if (!el.classList.contains('hidden')) {
+                        Object.values(current).forEach((h) => filled.add(h));
+                    }
+                }
+                const leads = new Set<string>();
+                for (const h of headings) {
+                    const empty = !filled.has(h);
+                    h.classList.toggle('is-empty', empty);
+                    h.classList.toggle('is-lead', !empty && !leads.has(kindOf(h)));
+                    if (!empty) leads.add(kindOf(h));
+                }
+                grid.nextElementSibling?.classList.toggle('hidden', filled.size > 0);
+            });
+        }
+
+        // Group by week (default) or month, remembered per browser
+        const groupButtons = document.querySelectorAll<HTMLButtonElement>('[data-group-by]');
+        const setGroupBy = (mode: string) => {
+            document.documentElement.dataset.groupBy = mode;
+            groupButtons.forEach((btn) => {
+                btn.classList.toggle('active', btn.dataset.groupBy === mode);
+                btn.setAttribute('aria-pressed', btn.dataset.groupBy === mode ? 'true' : 'false');
+            });
+            try { localStorage.setItem('fixtures-group-by', mode); } catch {}
+        };
+        let savedGroupBy = 'week';
+        try { savedGroupBy = localStorage.getItem('fixtures-group-by') === 'month' ? 'month' : 'week'; } catch {}
+        setGroupBy(savedGroupBy);
+        groupButtons.forEach((btn) => btn.addEventListener('click', () => setGroupBy(btn.dataset.groupBy || 'week')));
 
         // Check for team parameter in URL
         const urlParams = new URLSearchParams(window.location.search);
@@ -813,79 +912,88 @@ function getResultBadge(result: string): { text: string; color: string } {
         }
 
         // Team filter functionality
-        filterButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                const selectedTeam = button.getAttribute('data-team');
+        // Two filters, combined: teams and game types (home, away, umpiring).
+        // Each takes several picks at once; none picked means All. A duty
+        // belongs to the team that umpires it.
+        const selectedTeams = new Set<string>();
+        const selectedTypes = new Set<string>();
+        const typeButtons = document.querySelectorAll<HTMLButtonElement>('.filter-btn[data-type]');
 
-                // Update active button
-                filterButtons.forEach(btn => btn.classList.remove('active'));
-                button.classList.add('active');
-
-                // Filter cards
-                let visibleCount = 0;
-                let homeCount = 0;
-                let awayCount = 0;
-                let upcomingCount = 0;
-                let pastCount = 0;
-                let upcomingDutyCount = 0;
-                let pastDutyCount = 0;
-
-                fixtureCards.forEach(card => {
-                    const cardTeam = card.getAttribute('data-team');
-                    const isDuty = card.getAttribute('data-kind') === 'umpiring';
-                    const isHome = card.getAttribute('data-is-home') === 'true';
-                    const isPast = card.getAttribute('data-is-past') === 'true';
-
-                    // A team shows its matches and its umpiring duties; "Umpiring" shows duties only
-                    const visible = selectedTeam === 'all'
-                        || (selectedTeam === '__umpiring' ? isDuty : cardTeam === selectedTeam);
-
-                    if (!visible) {
-                        card.classList.add('hidden');
-                        return;
-                    }
-                    card.classList.remove('hidden');
-                    // Weekend cards repeat ones in the lists below; count those once
-                    if (card.closest('.accent-box')) return;
-                    if (isDuty) {
-                        if (isPast) pastDutyCount++;
-                        else upcomingDutyCount++;
-                        return;
-                    }
-                    visibleCount++;
-                    if (isHome) homeCount++;
-                    else awayCount++;
-                    if (isPast) pastCount++;
-                    else upcomingCount++;
-                });
-
-                // Update stats
-                document.getElementById('total-matches').textContent = visibleCount;
-                document.getElementById('home-games').textContent = homeCount;
-                document.getElementById('away-games').textContent = awayCount;
-
-                // Update section counts
-                const upcomingCountEl = document.getElementById('upcoming-count');
-                const pastCountEl = document.getElementById('past-count');
-                if (upcomingCountEl) upcomingCountEl.textContent = upcomingCount;
-                if (pastCountEl) pastCountEl.textContent = pastCount;
-                const upcomingDutyEl = document.getElementById('upcoming-duty-count');
-                const pastDutyEl = document.getElementById('past-duty-count');
-                if (upcomingDutyEl) upcomingDutyEl.textContent = upcomingDutyCount;
-                if (pastDutyEl) pastDutyEl.textContent = pastDutyCount;
-
-                // Hide empty month sections
-                const monthSections = document.querySelectorAll('.month-section');
-                monthSections.forEach(section => {
-                    const visibleCards = section.querySelectorAll('.fixture-card:not(.hidden)');
-                    if (visibleCards.length === 0) {
-                        section.style.display = 'none';
-                    } else {
-                        section.style.display = 'block';
-                    }
-                });
+        function applyFilters() {
+            filterButtons.forEach(btn => {
+                const btnTeam = btn.getAttribute('data-team') || 'all';
+                const on = btnTeam === 'all' ? selectedTeams.size === 0 : selectedTeams.has(btnTeam);
+                btn.classList.toggle('active', on);
+                btn.setAttribute('aria-pressed', on ? 'true' : 'false');
             });
-        });
+            typeButtons.forEach(btn => {
+                const btnType = btn.dataset.type || 'all';
+                const on = btnType === 'all' ? selectedTypes.size === 0 : selectedTypes.has(btnType);
+                btn.classList.toggle('active', on);
+                btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+            });
+
+            let visibleCount = 0;
+            let homeCount = 0;
+            let awayCount = 0;
+            let upcomingCount = 0;
+            let pastCount = 0;
+            let upcomingDutyCount = 0;
+            let pastDutyCount = 0;
+
+            fixtureCards.forEach(card => {
+                const cardTeam = card.getAttribute('data-team') || '';
+                const isDuty = card.getAttribute('data-kind') === 'umpiring';
+                const isHome = card.getAttribute('data-is-home') === 'true';
+                const isPast = card.getAttribute('data-is-past') === 'true';
+
+                const visible = (selectedTeams.size === 0 || selectedTeams.has(cardTeam))
+                    && (selectedTypes.size === 0 || selectedTypes.has(isDuty ? 'umpiring' : isHome ? 'home' : 'away'));
+
+                if (!visible) {
+                    card.classList.add('hidden');
+                    return;
+                }
+                card.classList.remove('hidden');
+                if (isDuty) {
+                    if (isPast) pastDutyCount++;
+                    else upcomingDutyCount++;
+                    return;
+                }
+                visibleCount++;
+                if (isHome) homeCount++;
+                else awayCount++;
+                if (isPast) pastCount++;
+                else upcomingCount++;
+            });
+
+            // Update stats
+            document.getElementById('total-matches').textContent = String(visibleCount);
+            document.getElementById('home-games').textContent = String(homeCount);
+            document.getElementById('away-games').textContent = String(awayCount);
+
+            // Update section counts
+            const upcomingCountEl = document.getElementById('upcoming-count');
+            const pastCountEl = document.getElementById('past-count');
+            if (upcomingCountEl) upcomingCountEl.textContent = String(upcomingCount);
+            if (pastCountEl) pastCountEl.textContent = String(pastCount);
+            const upcomingDutyEl = document.getElementById('upcoming-duty-count');
+            const pastDutyEl = document.getElementById('past-duty-count');
+            if (upcomingDutyEl) upcomingDutyEl.textContent = String(upcomingDutyCount);
+            if (pastDutyEl) pastDutyEl.textContent = String(pastDutyCount);
+
+            hideEmptyGroups();
+        }
+
+        // "all" clears the picks; anything else toggles in or out
+        const pick = (selected: Set<string>, value: string) => {
+            if (value === 'all') selected.clear();
+            else if (selected.has(value)) selected.delete(value);
+            else selected.add(value);
+            applyFilters();
+        };
+        filterButtons.forEach(button => button.addEventListener('click', () => pick(selectedTeams, button.getAttribute('data-team') || 'all')));
+        typeButtons.forEach(button => button.addEventListener('click', () => pick(selectedTypes, button.dataset.type || 'all')));
 
         // Auto-apply team filter from URL parameter
         if (teamFromUrl) {
@@ -899,7 +1007,7 @@ function getResultBadge(result: string): { text: string; color: string } {
 
                 // Scroll to the fixtures section
                 setTimeout(() => {
-                    const fixturesSection = document.querySelector('.grid.md\\:grid-cols-2');
+                    const fixturesSection = document.querySelector('.schedule-grid');
                     if (fixturesSection) {
                         fixturesSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     }
