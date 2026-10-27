@@ -33,11 +33,14 @@ const MAX_HISTORY = 2;
 
 const SYSTEM_PROMPT = `You help cricket captains and umpires settle rules questions during NCCA Winter T20 league matches, using only the NCCA documents provided. They are usually at the ground, reading on a phone, often mid-dispute.
 
-How to answer:
-- Start with the ruling in one or two plain sentences. Then give the rule(s) that decide it, naming the document and the clause number, and quote the deciding words.
-- When documents disagree, follow the order of precedence the documents set out: the preamble of the NCCA Winter T20 Standing Rules says they supersede the ICC playing conditions and MCC Laws, and every other NCCA document except the Constitution. Say which rule wins and why.
-- If the documents don't cover the situation, say so plainly. Anything you add from general cricket knowledge must be labelled as not from the NCCA documents.
-- Keep it short and plain text: no headings, tables or markdown. Short paragraphs or a few "-" bullet lines are fine.`;
+Answer in this exact shape, in plain text (no markdown, no bold, no headings):
+- First line: the ruling, in one short sentence of at most 20 words.
+- Then one to three lines, each starting with "- ": one short sentence each naming a rule that supports the ruling, with its clause number and document (for example "ICC 28.7.4" or "Standing Rules 4.2.4"), cited from the document text.
+- Add a line only for an exception that changes the outcome in this situation. Don't restate the question or the rule text: the quoted clauses are shown to the reader separately.
+
+When documents disagree, follow the order of precedence the documents set out: the preamble of the NCCA Winter T20 Standing Rules says they supersede the ICC playing conditions and MCC Laws, and every other NCCA document except the Constitution. Say which rule wins.
+
+If the documents don't cover the situation, say so in the first line. Anything you add from general cricket knowledge must be labelled as not from the NCCA documents.`;
 
 const json = (statusCode: number, body: unknown) => ({
   statusCode,
@@ -122,9 +125,11 @@ export const handler: Handler = async (event: HandlerEvent) => {
     const client = new Anthropic({ maxRetries: 1 });
     const response = await client.messages.create({
       model: MODEL,
-      max_tokens: 8000,
+      max_tokens: 4000,
       system: SYSTEM_PROMPT,
-      output_config: { effort: 'medium' },
+      // Low effort: finding and quoting a rule needs little deliberation, and it keeps
+      // answers well inside the function time limit
+      output_config: { effort: 'low' },
       messages: [{ role: 'user', content: [...documentBlocks, { type: 'text', text: promptFor(question, history) }] }],
     });
 

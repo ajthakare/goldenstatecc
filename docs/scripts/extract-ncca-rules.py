@@ -25,9 +25,18 @@ OUT = ROOT / "src" / "data" / "ncca-rules.json"
 # everything else is collapsed, since Word-exported PDFs put one word per line.
 CLAUSE = re.compile(r"\s+(?=(?:\d+(?:\.\d+)+\.?|●)\s)")
 
+# Running headers/footers repeated on every page; left in, they end up inside
+# quoted clauses ("ICC MEN'S TWENTY20 ... CONDITIONS 22 13.8.2 Where ...")
+RUNNING = re.compile(
+    r"ICC MEN'S TWENTY20 INTERNATIONAL PLAYING CONDITIONS \d+"
+    r"|Page \| \d+"
+    r"|^NCCA Winter T20 Standing Rules \(\d+/\d+/\d+\)"
+)
+
 
 def page_text(raw: str) -> str:
-    return CLAUSE.sub("\n", " ".join(raw.split()))
+    text = RUNNING.sub(" ", " ".join(raw.split()))
+    return CLAUSE.sub("\n", " ".join(text.split()))
 
 
 def main() -> None:
