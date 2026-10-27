@@ -431,21 +431,21 @@ function getResultBadge(result: string): { text: string; color: string } {
         <div class="flex flex-wrap gap-2 items-center">
             <span class="kicker mr-1">Filter by team</span>
             <button class="filter-btn px-4 py-2 font-semibold text-sm active" data-team="all" aria-pressed="true">
-                All Teams ({fixtures.length})
+                All Teams (<span class="filter-count">{fixtures.length + duties.length}</span>)
             </button>
             {OUR_TEAMS.map((teamName: string) => (
                 <button class="filter-btn px-4 py-2 font-semibold text-sm" data-team={teamName} aria-pressed="false">
-                    {teamName} ({fixtures.filter(f => f.ourTeam === teamName).length})
+                    {teamName} (<span class="filter-count">{fixtures.filter(f => f.ourTeam === teamName).length + duties.filter(d => d.umpiringTeam === teamName).length}</span>)
                 </button>
             ))}
         </div>
         <div class="flex flex-wrap gap-2 items-center mt-3">
             <span class="kicker mr-1">Game type</span>
-            <button class="filter-btn px-4 py-2 font-semibold text-sm active" data-type="all" aria-pressed="true">All</button>
-            <button class="filter-btn px-4 py-2 font-semibold text-sm" data-type="home" aria-pressed="false">Home ({fixtures.filter(f => f.isHome).length})</button>
-            <button class="filter-btn px-4 py-2 font-semibold text-sm" data-type="away" aria-pressed="false">Away ({fixtures.filter(f => !f.isHome).length})</button>
+            <button class="filter-btn px-4 py-2 font-semibold text-sm active" data-type="all" aria-pressed="true">All (<span class="filter-count">{fixtures.length + duties.length}</span>)</button>
+            <button class="filter-btn px-4 py-2 font-semibold text-sm" data-type="home" aria-pressed="false">Home (<span class="filter-count">{fixtures.filter(f => f.isHome).length}</span>)</button>
+            <button class="filter-btn px-4 py-2 font-semibold text-sm" data-type="away" aria-pressed="false">Away (<span class="filter-count">{fixtures.filter(f => !f.isHome).length}</span>)</button>
             {duties.length > 0 && (
-                <button class="filter-btn px-4 py-2 font-semibold text-sm" data-type="umpiring" aria-pressed="false">Umpiring ({duties.length})</button>
+                <button class="filter-btn px-4 py-2 font-semibold text-sm" data-type="umpiring" aria-pressed="false">Umpiring (<span class="filter-count">{duties.length}</span>)</button>
             )}
         </div>
         <div class="flex flex-wrap gap-2 items-center mt-3">
@@ -778,6 +778,8 @@ function getResultBadge(result: string): { text: string; color: string } {
     .schedule-grid > :global(.fixture-card) + .group-heading + .group-heading:not(.is-lead) { margin-top: 1rem; }
     /* ...except the first heading still showing once filters hide earlier groups */
     .schedule-grid > .group-heading.is-lead { margin-top: 0; }
+    /* A filter that would show nothing given the other row's picks */
+    .fixture-filters .filter-btn.is-zero:not(.active) { opacity: 0.45; }
     .filter-empty { color: var(--color-muted-text); text-align: center; padding: 2rem 0; }
     /* The section toggle above already spaces the list */
     #upcoming-fixtures-content > :global(section),
@@ -919,6 +921,45 @@ function getResultBadge(result: string): { text: string; color: string } {
         const selectedTypes = new Set<string>();
         const typeButtons = document.querySelectorAll<HTMLButtonElement>('.filter-btn[data-type]');
 
+        const typeOf = (card: Element) =>
+            card.getAttribute('data-kind') === 'umpiring' ? 'umpiring' : card.getAttribute('data-is-home') === 'true' ? 'home' : 'away';
+        const teamMatches = (card: Element) => selectedTeams.size === 0 || selectedTeams.has(card.getAttribute('data-team') || '');
+        const typeMatches = (card: Element) => selectedTypes.size === 0 || selectedTypes.has(typeOf(card));
+
+        // Each row's counts follow the other row's picks but not its own, so
+        // they don't depend on which row was picked first and don't shift
+        // under the button just clicked
+        function updateFilterCounts() {
+            const byTeam = new Map<string, number>();
+            const byType = new Map<string, number>();
+            let teamTotal = 0;
+            let typeTotal = 0;
+            fixtureCards.forEach(card => {
+                const team = card.getAttribute('data-team') || '';
+                if (typeMatches(card)) {
+                    byTeam.set(team, (byTeam.get(team) || 0) + 1);
+                    teamTotal++;
+                }
+                if (teamMatches(card)) {
+                    byType.set(typeOf(card), (byType.get(typeOf(card)) || 0) + 1);
+                    typeTotal++;
+                }
+            });
+            const show = (btn: Element, n: number) => {
+                const el = btn.querySelector('.filter-count');
+                if (el) el.textContent = String(n);
+                btn.classList.toggle('is-zero', n === 0);
+            };
+            filterButtons.forEach(btn => {
+                const team = btn.getAttribute('data-team') || 'all';
+                show(btn, team === 'all' ? teamTotal : byTeam.get(team) || 0);
+            });
+            typeButtons.forEach(btn => {
+                const type = btn.dataset.type || 'all';
+                show(btn, type === 'all' ? typeTotal : byType.get(type) || 0);
+            });
+        }
+
         function applyFilters() {
             filterButtons.forEach(btn => {
                 const btnTeam = btn.getAttribute('data-team') || 'all';
@@ -942,13 +983,11 @@ function getResultBadge(result: string): { text: string; color: string } {
             let pastDutyCount = 0;
 
             fixtureCards.forEach(card => {
-                const cardTeam = card.getAttribute('data-team') || '';
                 const isDuty = card.getAttribute('data-kind') === 'umpiring';
                 const isHome = card.getAttribute('data-is-home') === 'true';
                 const isPast = card.getAttribute('data-is-past') === 'true';
 
-                const visible = (selectedTeams.size === 0 || selectedTeams.has(cardTeam))
-                    && (selectedTypes.size === 0 || selectedTypes.has(isDuty ? 'umpiring' : isHome ? 'home' : 'away'));
+                const visible = teamMatches(card) && typeMatches(card);
 
                 if (!visible) {
                     card.classList.add('hidden');
@@ -982,6 +1021,7 @@ function getResultBadge(result: string): { text: string; color: string } {
             if (upcomingDutyEl) upcomingDutyEl.textContent = String(upcomingDutyCount);
             if (pastDutyEl) pastDutyEl.textContent = String(pastDutyCount);
 
+            updateFilterCounts();
             hideEmptyGroups();
         }
 
@@ -994,6 +1034,7 @@ function getResultBadge(result: string): { text: string; color: string } {
         };
         filterButtons.forEach(button => button.addEventListener('click', () => pick(selectedTeams, button.getAttribute('data-team') || 'all')));
         typeButtons.forEach(button => button.addEventListener('click', () => pick(selectedTypes, button.dataset.type || 'all')));
+        updateFilterCounts();
 
         // Auto-apply team filter from URL parameter
         if (teamFromUrl) {
