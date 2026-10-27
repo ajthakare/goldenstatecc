@@ -69,6 +69,19 @@ describe('formatAnswer', () => {
   });
 });
 
+describe('formatAnswer off-topic', () => {
+  it('turns the off-topic marker into the fixed reply, with no sources', async () => {
+    const { formatAnswer } = await import('../../netlify/functions/rules-ask');
+    const answer = formatAnswer([
+      { type: 'thinking', thinking: '', signature: 'x' } as any,
+      { type: 'text', text: 'OUT_OF_SCOPE', citations: null },
+    ]);
+    expect(answer.sources).toEqual([]);
+    expect(answer.parts).toHaveLength(1);
+    expect(answer.parts[0].text).toMatch(/only answer questions about NCCA/);
+  });
+});
+
 describe('pageAt', () => {
   const text = '[Page 1]\nalpha\n\n[Page 2]\nbeta\n\n[Page 3]\ngamma';
 
