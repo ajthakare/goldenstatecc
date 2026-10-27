@@ -1,0 +1,316 @@
+---
+export const prerender = false;
+
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { DOCUMENTS } from '../../data/documents';
+import { documentUrl } from '../../utils/documents';
+
+const cookieHeader = Astro.request.headers.get('cookie');
+let authenticated = false;
+let username = '';
+let userRole = 'admin';
+let isAdminUser = false;
+
+if (cookieHeader) {
+  try {
+    const response = await fetch(
+      `${Astro.url.origin}/.netlify/functions/auth-check`,
+      { headers: { cookie: cookieHeader } }
+    );
+    const data = await response.json();
+    authenticated = data.authenticated;
+    username = data.user?.firstName || data.user?.username || '';
+    userRole = data.user?.role_auth || data.user?.role || 'admin';
+    isAdminUser = userRole === 'admin' || userRole === 'super_admin';
+  } catch {
+    authenticated = false;
+  }
+}
+
+if (!authenticated) return Astro.redirect('/admin/login');
+if (!isAdminUser) return Astro.redirect('/');
+
+const nccaDocs = DOCUMENTS.filter((d) => d.folder === 'ncca');
+---
+
+<AdminLayout title="Rules Assistant - GSCC Admin" username={username} userRole={userRole} activePage="rules">
+  <div class="rules-page">
+
+    <div class="page-header">
+      <h1 class="page-title">Rules Assistant</h1>
+      <p class="page-description">Describe the situation and get the rule that decides it, quoted from the NCCA documents.</p>
+    </div>
+
+    <div id="rules-thread" class="rules-thread" aria-live="polite"></div>
+
+    <form id="rules-form" class="rules-form">
+      <textarea
+        id="rules-question"
+        rows="3"
+        maxlength="2000"
+        placeholder="e.g. The ball hit the helmet on the ground behind the keeper. Is it 5 penalty runs?"
+        required
+      ></textarea>
+      <div class="rules-form__row">
+        <button type="button" id="rules-new" class="rules-link" hidden>Start a new question</button>
+        <button type="submit" id="rules-ask" class="rules-ask-btn">Ask</button>
+      </div>
+    </form>
+
+    <details class="rules-docs">
+      <summary>Answers come from these documents</summary>
+      <ul>
+        {nccaDocs.map((doc) => (
+          <li><a href={documentUrl(doc.folder, doc.file)} target="_blank" rel="noopener">{doc.title}</a></li>
+        ))}
+      </ul>
+      <p>Every question uses the club’s API credit, so ask when it matters.</p>
+    </details>
+  </div>
+</AdminLayout>
+
+<script>
+  interface Source { title: string; page: number | null; url: string; quote: string }
+  interface Part { text: string; sources: number[] }
+
+  const thread = document.getElementById('rules-thread')!;
+  const form = document.getElementById('rules-form') as HTMLFormElement;
+  const input = document.getElementById('rules-question') as HTMLTextAreaElement;
+  const askBtn = document.getElementById('rules-ask') as HTMLButtonElement;
+  const newBtn = document.getElementById('rules-new') as HTMLButtonElement;
+
+  // The last couple of exchanges go back with the next question so follow-ups work
+  let history: { question: string; answer: string }[] = [];
+
+  const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  };
+
+  function renderAnswer(container: HTMLElement, parts: Part[], sources: Source[]) {
+    const answer = el('div', 'rules-answer');
+    for (const part of parts) {
+      answer.append(document.createTextNode(part.text));
+      for (const n of part.sources) answer.append(el('sup', 'rules-ref', `[${n}]`));
+    }
+    container.append(answer);
+
+    if (!sources.length) return;
+    const list = el('ol', 'rules-sources');
+    sources.forEach((s) => {
+      const item = el('li');
+      item.append(el('blockquote', 'rules-quote', s.quote));
+      const link = el('a', 'rules-source-link', `${s.title}${s.page ? `, page ${s.page}` : ''}`) as HTMLAnchorElement;
+      link.href = s.url;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      item.append(link);
+      list.append(item);
+    });
+    container.append(list);
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const question = input.value.trim();
+    if (!question || askBtn.disabled) return;
+
+    const turn = el('div', 'rules-turn');
+    turn.append(el('div', 'rules-question', question));
+    const status = el('div', 'rules-status', 'Checking the rulebooks… this can take up to half a minute.');
+    turn.append(status);
+    thread.append(turn);
+    turn.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    askBtn.disabled = true;
+    askBtn.textContent = 'Asking…';
+    try {
+      const res = await fetch('/.netlify/functions/rules-ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question, history }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'The assistant could not answer right now. Try again.');
+
+      status.remove();
+      renderAnswer(turn, data.parts || [], data.sources || []);
+      history = [...history, { question, answer: (data.parts || []).map((p: Part) => p.text).join('') }].slice(-2);
+      input.value = '';
+      input.placeholder = 'Ask a follow-up, or start a new question';
+      newBtn.hidden = false;
+    } catch (err) {
+      status.textContent = err instanceof Error ? err.message : String(err);
+      status.classList.add('rules-status--error');
+    } finally {
+      askBtn.disabled = false;
+      askBtn.textContent = 'Ask';
+    }
+  });
+
+  // Enter sends on desktop; Shift+Enter (and the phone keyboard's return) adds a line
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && window.matchMedia('(pointer: fine)').matches) {
+      e.preventDefault();
+      form.requestSubmit();
+    }
+  });
+
+  newBtn.addEventListener('click', () => {
+    history = [];
+    thread.replaceChildren();
+    input.value = '';
+    input.placeholder = 'Describe the situation';
+    newBtn.hidden = true;
+    input.focus();
+  });
+</script>
+
+<style>
+  .rules-page {
+    max-width: 720px;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .rules-thread {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+  .rules-thread:empty { display: none; }
+
+  .rules-turn {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    scroll-margin-top: 1rem;
+  }
+
+  .rules-question {
+    align-self: flex-end;
+    max-width: 90%;
+    padding: 0.625rem 0.875rem;
+    background: #1A1614;
+    color: white;
+    border-radius: 0.875rem 0.875rem 0.25rem 0.875rem;
+    font-size: 0.9375rem;
+    white-space: pre-wrap;
+  }
+
+  .rules-answer {
+    padding: 1rem;
+    background: white;
+    border: 1px solid var(--color-border);
+    border-radius: 0.875rem 0.875rem 0.875rem 0.25rem;
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    white-space: pre-wrap;
+  }
+
+  .rules-ref {
+    margin-left: 0.15rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #8a6d12;
+  }
+
+  .rules-status {
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+  }
+  .rules-status--error { color: #b42318; }
+
+  .rules-sources {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    margin: 0;
+    padding-left: 1.5rem;
+    font-size: 0.8125rem;
+  }
+  .rules-sources li::marker {
+    font-weight: 700;
+    color: #8a6d12;
+  }
+
+  .rules-quote {
+    margin: 0 0 0.25rem;
+    padding: 0.5rem 0.75rem;
+    border-left: 3px solid #C9A227;
+    background: rgba(201, 162, 39, 0.08);
+    border-radius: 0 0.5rem 0.5rem 0;
+    color: var(--color-text-body);
+    font-style: italic;
+  }
+
+  .rules-source-link {
+    font-weight: 600;
+    text-decoration: underline;
+  }
+
+  .rules-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem;
+    background: white;
+    border: 1px solid var(--color-border);
+    border-radius: 1rem;
+  }
+
+  .rules-form textarea {
+    width: 100%;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 0.625rem;
+    font: inherit;
+    font-size: 1rem; /* 16px keeps iOS from zooming in on focus */
+    resize: vertical;
+  }
+
+  .rules-form__row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.75rem;
+  }
+
+  .rules-ask-btn {
+    padding: 0.625rem 1.5rem;
+    background: #1A1614;
+    color: white;
+    border: none;
+    border-radius: 0.625rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .rules-ask-btn:disabled { opacity: 0.6; cursor: wait; }
+
+  .rules-link {
+    margin-right: auto;
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
+  .rules-docs {
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+  }
+  .rules-docs summary { cursor: pointer; }
+  .rules-docs ul {
+    margin: 0.5rem 0;
+    padding-left: 1.25rem;
+    list-style: disc;
+  }
+  .rules-docs a { text-decoration: underline; }
+</style>

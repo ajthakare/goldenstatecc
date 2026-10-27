@@ -13,7 +13,7 @@ interface Props {
   title: string;
   username: string;
   userRole?: 'super_admin' | 'admin';
-  activePage: 'inquiries' | 'users' | 'seasons' | 'fixtures' | 'umpiring' | 'players' | 'roster' | 'availability' | 'statistics' | 'logs' | 'practices' | 'notifications' | 'winter-checkin' | 'summer-feedback' | 'feed';
+  activePage: 'inquiries' | 'users' | 'seasons' | 'fixtures' | 'umpiring' | 'players' | 'roster' | 'availability' | 'statistics' | 'logs' | 'practices' | 'notifications' | 'winter-checkin' | 'summer-feedback' | 'feed' | 'rules';
 }
 
 const { title, username, userRole = 'admin', activePage } = Astro.props;
@@ -113,6 +113,14 @@ const hideWinterCheckInNav = isWinterCheckInAdminRestricted(adminSession?.email)
               <path d="M6 7h8M6 10h8M6 13h5"/>
             </svg>
             <span>Club Feed</span>
+          </a>
+
+          <a href="/admin/rules" class:list={['nav-item', { active: activePage === 'rules' }]}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>
+            <span>Rules Assistant</span>
           </a>
 
           <!-- Season Setup Section -->
