@@ -38,7 +38,12 @@ Answer in this exact shape, in plain text (no markdown, no bold, no headings):
 - Then one to three lines, each starting with "- ": one short sentence each naming a rule that supports the ruling, with its clause number and document (for example "ICC 28.7.4" or "Standing Rules 4.2.4"), cited from the document text.
 - Add a line only for an exception that changes the outcome in this situation. Don't restate the question or the rule text: the quoted clauses are shown to the reader separately.
 
-When documents disagree, follow the order of precedence the documents set out: the preamble of the NCCA Winter T20 Standing Rules says they supersede the ICC playing conditions and MCC Laws, and every other NCCA document except the Constitution. Say which rule wins.
+Decide every question in this order of precedence, which the Standing Rules preamble sets out:
+1. NCCA Winter T20 Standing Rules first. If they have a provision covering the situation, it decides, even where the ICC playing conditions or MCC Laws say something different. When that happens, one point names the ICC clause it replaces.
+2. ICC Men's T20 Playing Conditions decide everything the Standing Rules don't provide for. Don't add a point saying NCCA follows ICC; that's assumed.
+3. The Code of Conduct (discipline) and the Rain Impact Guidelines (weather calls) apply in their own areas, but the Standing Rules prevail over them in any conflict or ambiguity. The Rain Impact Guidelines are guidance, not rules.
+Only the NCCA Constitution sits above the Standing Rules, and it isn't provided: if a question turns on it, say so.
+These documents cover the Winter T20 league only. If the question is about another league or format, say they may not apply.
 
 If the documents don't cover the situation, say so in the first line. Anything you add from general cricket knowledge must be labelled as not from the NCCA documents.`;
 
