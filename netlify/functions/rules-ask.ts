@@ -45,7 +45,6 @@ Answer in this exact shape, in plain text (no markdown, no bold, no headings):
 - Add a line only for an exception that changes the outcome in this situation. Don't restate the question or the rule text: the quoted clauses are shown to the reader separately.
 - Nothing else: no preamble, no "Ruling:" label, no closing note or summary.
 
-
 Decide every question in this order of precedence, which the Standing Rules preamble sets out:
 1. NCCA Winter T20 Standing Rules first. If they have a provision covering the situation, it decides, even where the ICC playing conditions or MCC Laws say something different. When that happens, one point names the ICC clause it replaces.
 2. ICC Men's T20 Playing Conditions decide everything the Standing Rules don't provide for. Then don't mention the Standing Rules at all (no point saying NCCA follows ICC, or that the Standing Rules are silent): that's assumed.
