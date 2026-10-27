@@ -128,6 +128,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
 
   try {
     const client = new Anthropic({ maxRetries: 1 });
+    const startedAt = Date.now();
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 4000,
@@ -138,8 +139,9 @@ export const handler: Handler = async (event: HandlerEvent) => {
       messages: [{ role: 'user', content: [...documentBlocks, { type: 'text', text: promptFor(question, history) }] }],
     });
 
-    // Token counts only (never the question) so the cost can be checked in the function log
-    console.log('rules-ask usage', JSON.stringify({ model: response.model, ...response.usage }));
+    // Time and token counts only (never the question), so speed against the
+    // function time limit and the cost can be checked in the function log
+    console.log('rules-ask usage', JSON.stringify({ ms: Date.now() - startedAt, model: response.model, ...response.usage }));
 
     if (response.stop_reason === 'refusal') {
       return json(200, { parts: [{ text: 'The assistant could not answer that question. Try rephrasing it.', sources: [] }], sources: [] });
