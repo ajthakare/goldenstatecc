@@ -10,7 +10,7 @@ import { documentUrl, pageAt } from '../../src/utils/documents';
  * Rules Assistant: answers a rules question from the NCCA documents, with quotes.
  * POST /.netlify/functions/rules-ask
  * Body: { question: string, history?: { question: string, answer: string }[] }
- *   (history: the last couple of exchanges, so follow-ups like "what if it was a no-ball?" work)
+ *   (history: the last few exchanges, so follow-ups like "what if it was a no-ball?" work)
  * Requires: admin
  * Returns: { parts: { text: string, sources: number[] }[], sources: Source[] }
  *
@@ -29,7 +29,7 @@ interface Source {
 
 const MODEL = process.env.RULES_MODEL || 'claude-haiku-5-5';
 const MAX_QUESTION = 2000;
-const MAX_HISTORY = 2;
+const MAX_HISTORY = 5;
 
 const SYSTEM_PROMPT = `You help cricket captains and umpires settle rules questions during NCCA Winter T20 league matches, using only the NCCA documents provided. They are usually at the ground, reading on a phone, often mid-dispute.
 

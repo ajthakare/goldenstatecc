@@ -66,7 +66,10 @@ const nccaDocs = DOCUMENTS.filter((d) => d.folder === 'ncca');
       </button>
     </form>
     <div class="rules-footer">
-      <button type="button" id="rules-new" class="rules-link" hidden>Start a new question</button>
+      <p class="rules-tip">
+        Follow-ups remember your last 5 questions. Leaving this page clears them.
+        <button type="button" id="rules-new" class="rules-link" hidden>Start a new question</button>
+      </p>
       <details class="rules-docs">
         <summary>Documents used</summary>
         <ul>
@@ -91,7 +94,9 @@ const nccaDocs = DOCUMENTS.filter((d) => d.folder === 'ncca');
   const askBtn = document.getElementById('rules-ask') as HTMLButtonElement;
   const newBtn = document.getElementById('rules-new') as HTMLButtonElement;
 
-  // The last couple of exchanges go back with the next question so follow-ups work
+  // The last few exchanges go back with the next question so follow-ups work
+  // (rules-ask accepts up to 5; keep the tip under the composer in step)
+  const MAX_HISTORY = 5;
   let history: { question: string; answer: string }[] = [];
   let answerCount = 0;
 
@@ -211,7 +216,7 @@ const nccaDocs = DOCUMENTS.filter((d) => d.folder === 'ncca');
       bubble.replaceChildren();
       bubble.classList.remove('rules-bubble--waiting');
       renderAnswer(bubble, data.parts || [], data.sources || []);
-      history = [...history, { question, answer: (data.parts || []).map((p: Part) => p.text).join('') }].slice(-2);
+      history = [...history, { question, answer: (data.parts || []).map((p: Part) => p.text).join('') }].slice(-MAX_HISTORY);
       input.placeholder = 'Ask a follow-up';
       newBtn.hidden = false;
     } catch (err) {
@@ -493,6 +498,11 @@ const nccaDocs = DOCUMENTS.filter((d) => d.folder === 'ncca');
     font-size: 0.8125rem;
     color: var(--color-text-muted);
   }
+  .rules-page .rules-tip {
+    margin: 0;
+    font-size: 0.75rem;
+  }
+  .rules-page .rules-tip .rules-link { margin-left: 0.25rem; }
   .rules-page .rules-link {
     background: none;
     border: none;
