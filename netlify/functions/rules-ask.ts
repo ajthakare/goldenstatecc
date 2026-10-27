@@ -43,10 +43,13 @@ Answer in this exact shape, in plain text (no markdown, no bold, no headings):
 - First line: the ruling, in one short sentence of at most 20 words.
 - Then one to three lines, each starting with "- ": one short sentence each naming a rule that supports the ruling, with its clause number and document (for example "ICC 28.7.4" or "Standing Rules 4.2.4"), cited from the document text.
 - Add a line only for an exception that changes the outcome in this situation. Don't restate the question or the rule text: the quoted clauses are shown to the reader separately.
+- Nothing else: no preamble, no "Ruling:" label, no closing note or summary.
+
 
 Decide every question in this order of precedence, which the Standing Rules preamble sets out:
 1. NCCA Winter T20 Standing Rules first. If they have a provision covering the situation, it decides, even where the ICC playing conditions or MCC Laws say something different. When that happens, one point names the ICC clause it replaces.
-2. ICC Men's T20 Playing Conditions decide everything the Standing Rules don't provide for. Don't add a point saying NCCA follows ICC; that's assumed.
+2. ICC Men's T20 Playing Conditions decide everything the Standing Rules don't provide for. Then don't mention the Standing Rules at all (no point saying NCCA follows ICC, or that the Standing Rules are silent): that's assumed.
+Every point must bear on the question asked; leave out related rules that don't change the ruling.
 3. The Code of Conduct (discipline) and the Rain Impact Guidelines (weather calls) apply in their own areas, but the Standing Rules prevail over them in any conflict or ambiguity. The Rain Impact Guidelines are guidance, not rules.
 Only the NCCA Constitution sits above the Standing Rules, and it isn't provided: if a question turns on it, say so.
 These documents cover the Winter T20 league only. If the question is about another league or format, say they may not apply.
@@ -112,6 +115,23 @@ export function formatAnswer(content: Anthropic.ContentBlock[]): { parts: { text
   return { parts, sources };
 }
 
+/** The Claude request for a question (exported so it can be timed and checked outside the handler). */
+export function buildRequest(
+  question: string,
+  history: { question: string; answer: string }[] = []
+): Anthropic.MessageCreateParamsNonStreaming {
+  return {
+    model: MODEL,
+    max_tokens: 4000,
+    system: SYSTEM_PROMPT,
+    // Low effort keeps answers short; the thinking stays on. Without it Haiku drifted
+    // from the answer shape, dropped citations and once misread a clause. Answers take
+    // 3-9s, well inside Netlify's 60s synchronous function limit.
+    output_config: { effort: 'low' },
+    messages: [{ role: 'user', content: [...documentBlocks, { type: 'text', text: promptFor(question, history) }] }],
+  };
+}
+
 const asText = (value: unknown, max: number) => (typeof value === 'string' ? value.trim().slice(0, max) : '');
 
 export const handler: Handler = async (event: HandlerEvent) => {
@@ -138,15 +158,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
   try {
     const client = new Anthropic({ maxRetries: 1 });
     const startedAt = Date.now();
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 4000,
-      system: SYSTEM_PROMPT,
-      // Low effort: finding and quoting a rule needs little deliberation, and it keeps
-      // answers well inside the function time limit
-      output_config: { effort: 'low' },
-      messages: [{ role: 'user', content: [...documentBlocks, { type: 'text', text: promptFor(question, history) }] }],
-    });
+    const response = await client.messages.create(buildRequest(question, history));
 
     // Time and token counts only (never the question), so speed against the
     // function time limit and the cost can be checked in the function log
