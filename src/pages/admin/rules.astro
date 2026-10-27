@@ -1,0 +1,523 @@
+---
+export const prerender = false;
+
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { DOCUMENTS } from '../../data/documents';
+import { documentUrl } from '../../utils/documents';
+
+const cookieHeader = Astro.request.headers.get('cookie');
+let authenticated = false;
+let username = '';
+let userRole = 'admin';
+let isAdminUser = false;
+
+if (cookieHeader) {
+  try {
+    const response = await fetch(
+      `${Astro.url.origin}/.netlify/functions/auth-check`,
+      { headers: { cookie: cookieHeader } }
+    );
+    const data = await response.json();
+    authenticated = data.authenticated;
+    username = data.user?.firstName || data.user?.username || '';
+    userRole = data.user?.role_auth || data.user?.role || 'admin';
+    isAdminUser = userRole === 'admin' || userRole === 'super_admin';
+  } catch {
+    authenticated = false;
+  }
+}
+
+if (!authenticated) return Astro.redirect('/admin/login');
+if (!isAdminUser) return Astro.redirect('/');
+
+const nccaDocs = DOCUMENTS.filter((d) => d.folder === 'ncca');
+---
+
+
+<AdminLayout title="Rules Assistant - GSCC Admin" username={username} userRole={userRole} activePage="rules">
+  <div class="rules-page">
+
+    <div class="page-header">
+      <h1 class="page-title">Rules Assistant</h1>
+      <p class="page-description">Describe the situation. You get the ruling first, then the rules that decide it.</p>
+    </div>
+
+    <div id="rules-thread" class="rules-thread" aria-live="polite">
+      <div class="rules-msg rules-msg--bot" id="rules-welcome">
+        <div class="rules-msg__label">Rules Assistant</div>
+        <div class="rules-bubble">
+          <p class="rules-ruling">Ask about any match situation.</p>
+          <p class="rules-hint">For example: “The ball hit the helmet lying behind the keeper. Is that 5 penalty runs?” Answers come only from the NCCA documents, with the exact clauses quoted.</p>
+        </div>
+      </div>
+    </div>
+
+    <form id="rules-form" class="rules-composer">
+      <textarea
+        id="rules-question"
+        rows="2"
+        maxlength="2000"
+        placeholder="Describe the situation"
+        aria-label="Your question"
+        required
+      ></textarea>
+      <button type="submit" id="rules-ask" class="rules-send" aria-label="Ask">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+      </button>
+    </form>
+    <div class="rules-footer">
+      <p class="rules-tip">
+        Follow-ups remember your last 5 questions. Leaving this page clears them.
+        <button type="button" id="rules-new" class="rules-link" hidden>Start a new question</button>
+      </p>
+      <details class="rules-docs">
+        <summary>Documents used</summary>
+        <ul>
+          {nccaDocs.map((doc) => (
+            <li><a href={documentUrl(doc.folder, doc.file)} target="_blank" rel="noopener">{doc.title}</a></li>
+          ))}
+        </ul>
+        <p>Every question uses the club’s API credit, so ask when it matters.</p>
+      </details>
+    </div>
+  </div>
+</AdminLayout>
+
+<script>
+  interface Source { title: string; page: number | null; url: string; quote: string }
+  interface Part { text: string; sources: number[] }
+  type Token = { text: string } | { ref: number };
+
+  const thread = document.getElementById('rules-thread')!;
+  const form = document.getElementById('rules-form') as HTMLFormElement;
+  const input = document.getElementById('rules-question') as HTMLTextAreaElement;
+  const askBtn = document.getElementById('rules-ask') as HTMLButtonElement;
+  const newBtn = document.getElementById('rules-new') as HTMLButtonElement;
+
+  // The last few exchanges go back with the next question so follow-ups work
+  // (rules-ask accepts up to 5; keep the tip under the composer in step)
+  const MAX_HISTORY = 5;
+  let history: { question: string; answer: string }[] = [];
+  let answerCount = 0;
+
+  const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  };
+
+  function message(who: 'me' | 'bot'): HTMLElement {
+    const msg = el('div', `rules-msg rules-msg--${who}`);
+    msg.append(el('div', 'rules-msg__label', who === 'me' ? 'You' : 'Rules Assistant'));
+    const bubble = el('div', 'rules-bubble');
+    msg.append(bubble);
+    thread.append(msg);
+    return bubble;
+  }
+
+  // Answer text arrives in pieces (one per cited span); regroup it into lines
+  function toLines(parts: Part[]): Token[][] {
+    const lines: Token[][] = [[]];
+    for (const part of parts) {
+      part.text.replace(/\*\*/g, '').split('\n').forEach((segment, i) => {
+        if (i > 0) lines.push([]);
+        if (segment) lines[lines.length - 1].push({ text: segment });
+      });
+      for (const n of part.sources) lines[lines.length - 1].push({ ref: n });
+    }
+    return lines.filter((line) => line.some((t) => 'ref' in t || t.text.trim()));
+  }
+
+  function fillLine(node: HTMLElement, tokens: Token[], answerId: number) {
+    tokens.forEach((t, i) => {
+      if ('ref' in t) {
+        const chip = el('a', 'rules-ref', String(t.ref)) as HTMLAnchorElement;
+        chip.href = `#rules-src-${answerId}-${t.ref}`;
+        chip.setAttribute('aria-label', `Rule ${t.ref}`);
+        chip.addEventListener('click', (e) => {
+          e.preventDefault();
+          const target = document.getElementById(chip.hash.slice(1));
+          const details = target?.closest('details');
+          if (details) details.open = true;
+          target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          target?.classList.add('rules-source--flash');
+          setTimeout(() => target?.classList.remove('rules-source--flash'), 1200);
+        });
+        node.append(chip);
+      } else {
+        // Bullet markers and the leading space of a continuation aren't shown
+        const text = i === 0 ? t.text.replace(/^\s*[-•*]\s*/, '') : t.text;
+        node.append(document.createTextNode(text));
+      }
+    });
+  }
+
+  function renderAnswer(bubble: HTMLElement, parts: Part[], sources: Source[]) {
+    const answerId = ++answerCount;
+    const lines = toLines(parts);
+    const isBullet = (line: Token[]) => 'text' in line[0] && /^\s*[-•*]\s/.test(line[0].text);
+
+    let list: HTMLUListElement | null = null;
+    lines.forEach((line, i) => {
+      if (i > 0 && isBullet(line)) {
+        if (!list) list = bubble.appendChild(el('ul', 'rules-points'));
+        fillLine(list.appendChild(el('li')), line, answerId);
+      } else {
+        list = null;
+        fillLine(bubble.appendChild(el('p', i === 0 ? 'rules-ruling' : 'rules-note')), line, answerId);
+      }
+    });
+
+    if (!sources.length) return;
+    const details = el('details', 'rules-sources');
+    details.append(el('summary', undefined, `Rules quoted (${sources.length})`));
+    const list2 = el('ol');
+    sources.forEach((s, i) => {
+      const item = el('li', 'rules-source');
+      item.id = `rules-src-${answerId}-${i + 1}`;
+      const head = el('div', 'rules-source__head');
+      head.append(el('span', 'rules-source__n', String(i + 1)));
+      const link = el('a', 'rules-source__doc', `${s.title}${s.page ? ` · p. ${s.page}` : ''} ↗`) as HTMLAnchorElement;
+      link.href = s.url;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      head.append(link);
+      item.append(head, el('blockquote', 'rules-source__quote', s.quote));
+      list2.append(item);
+    });
+    details.append(list2);
+    bubble.append(details);
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const question = input.value.trim();
+    if (!question || askBtn.disabled) return;
+
+    document.getElementById('rules-welcome')?.remove();
+    message('me').textContent = question;
+    const bubble = message('bot');
+    bubble.classList.add('rules-bubble--waiting');
+    bubble.append(el('span', 'rules-typing'), el('span', 'rules-hint', 'Checking the rulebooks…'));
+    bubble.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+    input.value = '';
+    askBtn.disabled = true;
+    try {
+      const res = await fetch('/.netlify/functions/rules-ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question, history }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'The assistant could not answer right now. Try again.');
+
+      bubble.replaceChildren();
+      bubble.classList.remove('rules-bubble--waiting');
+      renderAnswer(bubble, data.parts || [], data.sources || []);
+      history = [...history, { question, answer: (data.parts || []).map((p: Part) => p.text).join('') }].slice(-MAX_HISTORY);
+      input.placeholder = 'Ask a follow-up';
+      newBtn.hidden = false;
+    } catch (err) {
+      bubble.classList.remove('rules-bubble--waiting');
+      bubble.classList.add('rules-bubble--error');
+      bubble.textContent = err instanceof Error ? err.message : String(err);
+      if (!input.value) input.value = question;
+    } finally {
+      askBtn.disabled = false;
+      bubble.closest('.rules-msg')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+
+  // Enter sends on desktop; Shift+Enter (and the phone keyboard's return) adds a line
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && window.matchMedia('(pointer: fine)').matches) {
+      e.preventDefault();
+      form.requestSubmit();
+    }
+  });
+
+  newBtn.addEventListener('click', () => {
+    history = [];
+    thread.replaceChildren();
+    input.placeholder = 'Describe the situation';
+    newBtn.hidden = true;
+    input.focus();
+  });
+</script>
+
+<!-- Global (but prefixed) because the messages are built in the script, and
+     Astro's scoped styles only reach elements written in the template -->
+<style is:global>
+  .rules-page {
+    max-width: 720px;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .rules-page .rules-thread {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .rules-page .rules-msg {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    max-width: 92%;
+    scroll-margin-top: 1rem;
+  }
+  .rules-page .rules-msg--me { align-self: flex-end; align-items: flex-end; }
+  .rules-page .rules-msg--bot { align-self: flex-start; }
+
+  .rules-page .rules-msg__label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    padding: 0 0.25rem;
+  }
+
+  .rules-page .rules-bubble {
+    padding: 0.75rem 0.9rem;
+    border-radius: 1rem;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+  }
+  .rules-page .rules-msg--me .rules-bubble {
+    background: #1A1614;
+    color: #fff;
+    border-bottom-right-radius: 0.3rem;
+    white-space: pre-wrap;
+  }
+  .rules-page .rules-msg--bot .rules-bubble {
+    background: #fff;
+    border: 1px solid var(--color-border);
+    border-bottom-left-radius: 0.3rem;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  }
+  .rules-page .rules-bubble--error { color: #b42318; }
+  .rules-page .rules-bubble--waiting {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .rules-page .rules-ruling {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-text-heading);
+  }
+  .rules-page .rules-note { margin-top: 0.5rem; }
+  .rules-page .rules-hint {
+    margin-top: 0.35rem;
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+  }
+  .rules-page .rules-bubble--waiting .rules-hint { margin-top: 0; }
+
+  .rules-page .rules-points {
+    margin: 0.5rem 0 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .rules-page .rules-points li {
+    position: relative;
+    padding-left: 1rem;
+  }
+  .rules-page .rules-points li::before {
+    content: '';
+    position: absolute;
+    left: 0.15rem;
+    top: 0.6em;
+    width: 0.35rem;
+    height: 0.35rem;
+    border-radius: 50%;
+    background: #C9A227;
+  }
+
+  .rules-page .rules-ref {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.15rem;
+    height: 1.15rem;
+    margin-left: 0.2rem;
+    padding: 0 0.25rem;
+    border-radius: 999px;
+    background: rgba(201, 162, 39, 0.18);
+    color: #7a5f0e;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    line-height: 1;
+    vertical-align: 0.15em;
+    text-decoration: none;
+  }
+  .rules-page .rules-ref:hover { background: rgba(201, 162, 39, 0.32); }
+
+  .rules-page .rules-sources {
+    margin-top: 0.75rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--color-border);
+  }
+  .rules-page .rules-sources summary {
+    cursor: pointer;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #7a5f0e;
+  }
+  .rules-page .rules-sources ol {
+    margin: 0.6rem 0 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .rules-page .rules-source {
+    padding: 0.6rem 0.7rem;
+    border-radius: 0.6rem;
+    background: #faf8f3;
+    border: 1px solid rgba(201, 162, 39, 0.25);
+    transition: background-color 0.3s;
+  }
+  .rules-page .rules-source--flash { background: rgba(201, 162, 39, 0.22); }
+  .rules-page .rules-source__head {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.75rem;
+  }
+  .rules-page .rules-source__n {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.15rem;
+    height: 1.15rem;
+    border-radius: 999px;
+    background: #C9A227;
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.6875rem;
+  }
+  .rules-page .rules-source__doc {
+    font-weight: 600;
+    color: var(--color-text-heading);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .rules-page .rules-source__quote {
+    margin: 0.35rem 0 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--color-text-body);
+  }
+
+  /* Typing dots while waiting */
+  .rules-page .rules-typing,
+  .rules-page .rules-typing::before,
+  .rules-page .rules-typing::after {
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 50%;
+    background: #C9A227;
+    animation: rules-dot 1s infinite ease-in-out;
+  }
+  .rules-page .rules-typing {
+    position: relative;
+    margin: 0 0.6rem;
+    animation-delay: 0.15s;
+  }
+  .rules-page .rules-typing::before,
+  .rules-page .rules-typing::after {
+    content: '';
+    position: absolute;
+    top: 0;
+  }
+  .rules-page .rules-typing::before { left: -0.6rem; animation-delay: 0s; }
+  .rules-page .rules-typing::after { left: 0.6rem; animation-delay: 0.3s; }
+  @keyframes rules-dot {
+    0%, 80%, 100% { opacity: 0.3; transform: translateY(0); }
+    40% { opacity: 1; transform: translateY(-2px); }
+  }
+
+  /* Composer stays in reach at the bottom while the thread scrolls */
+  .rules-page .rules-composer {
+    position: sticky;
+    bottom: 0.75rem;
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    background: #fff;
+    border: 1px solid var(--color-border);
+    border-radius: 1.25rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  }
+  .rules-page .rules-composer textarea {
+    flex: 1;
+    min-height: 2.75rem;
+    max-height: 9rem;
+    padding: 0.6rem 0.7rem;
+    border: none;
+    outline: none;
+    background: transparent;
+    font: inherit;
+    font-size: 1rem; /* 16px keeps iOS from zooming in on focus */
+    resize: none;
+  }
+  .rules-page .rules-send {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border: none;
+    border-radius: 999px;
+    background: #1A1614;
+    color: #fff;
+    cursor: pointer;
+  }
+  .rules-page .rules-send:disabled { opacity: 0.45; cursor: wait; }
+
+  .rules-page .rules-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    font-size: 0.8125rem;
+    color: var(--color-text-muted);
+  }
+  .rules-page .rules-tip {
+    margin: 0;
+    font-size: 0.75rem;
+  }
+  .rules-page .rules-tip .rules-link { margin-left: 0.25rem; }
+  .rules-page .rules-link {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .rules-page .rules-docs { margin-left: auto; }
+  .rules-page .rules-docs summary { cursor: pointer; }
+  .rules-page .rules-docs ul {
+    margin: 0.4rem 0;
+    padding-left: 1.1rem;
+    list-style: disc;
+  }
+  .rules-page .rules-docs a { text-decoration: underline; }
+</style>

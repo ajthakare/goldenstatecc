@@ -21,8 +21,20 @@ const navItems = [
     { linkText: 'Members', href: '/members' },
     // /winter-checkin is no longer in the nav; the page still works by direct URL.
     { linkText: 'Gallery', href: '/gallery' },
-    { linkText: 'Contact Us', href: '/contact' }
+    {
+        linkText: 'Others',
+        href: '/contact',
+        dropdown: [
+            { linkText: 'Contact Us', href: '/contact' },
+            { linkText: 'Documents', href: '/documents' }
+        ]
+    }
 ];
+
+// A dropdown parent is active when its own page or any page under it is open
+const isItemActive = (item: (typeof navItems)[number]) =>
+    (item.href !== '/' && currentPath.startsWith(item.href))
+    || !!item.dropdown?.some((d) => currentPath.startsWith(d.href));
 
 // Check authentication status
 const cookieHeader = Astro.request.headers.get('cookie');
@@ -95,7 +107,7 @@ const currentPath = Astro.url.pathname;
                 !!navItems?.length && (
                     <ul class="hidden lg:flex flex-wrap gap-x-1 xl:gap-x-2 items-center">
                         {navItems.map((item) => {
-                            const isActive = item.href !== '/' && (currentPath === item.href || currentPath.startsWith(item.href));
+                            const isActive = isItemActive(item);
                             const hasDropdown = item.dropdown && item.dropdown.length > 0;
 
                             return (
@@ -165,7 +177,7 @@ const currentPath = Astro.url.pathname;
 
             {
                 navItems.map((item, index) => {
-                    const isActive = item.href !== '/' && (currentPath === item.href || currentPath.startsWith(item.href));
+                    const isActive = isItemActive(item);
                     const hasDropdown = item.dropdown && item.dropdown.length > 0;
 
                     return (

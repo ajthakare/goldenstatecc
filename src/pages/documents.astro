@@ -1,0 +1,94 @@
+---
+export const prerender = false;
+
+import Layout from '../layouts/Layout.astro';
+import PageHeader from '../components/PageHeader.astro';
+import Icon from '../components/Icon.astro';
+import { DOCUMENTS, NCCA_DOCUMENTS_URL } from '../data/documents';
+import { documentUrl } from '../utils/documents';
+
+const sections = [
+    { folder: 'gscc', heading: 'Club documents', intro: 'Guides and regulations from Golden State Cricket Club.' },
+    { folder: 'ncca', heading: 'NCCA league documents', intro: 'Rules and guidelines from the Northern California Cricket Association.' },
+] as const;
+---
+
+<Layout title="Documents - Golden State Cricket Club">
+    <PageHeader kicker="Resources" title="Documents" subtitle="Club guides and league rules in one place. Open any document in your browser, or download a copy." />
+
+    <div class="space-y-12">
+        {sections.map((section) => (
+            <section>
+                <h2 class="section-heading">{section.heading}</h2>
+                <p class="text-body mb-5">{section.intro}</p>
+
+                {section.folder === 'ncca' && NCCA_DOCUMENTS_URL && (
+                    <p class="doc-note mb-5">
+                        These are our copies. NCCA also publishes league documents on its
+                        <a href={NCCA_DOCUMENTS_URL} target="_blank" rel="noopener noreferrer">documents page <Icon name="external-link" size={12} /></a>.
+                    </p>
+                )}
+
+                <ul class="grid gap-4 md:grid-cols-2">
+                    {DOCUMENTS.filter((doc) => doc.folder === section.folder).map((doc) => {
+                        const url = documentUrl(doc.folder, doc.file);
+                        return (
+                            <li class="doc-card">
+                                <div class="doc-card__body">
+                                    <h3 class="doc-card__title">{doc.title}</h3>
+                                    <p class="doc-card__desc">{doc.description}</p>
+                                </div>
+                                <div class="doc-card__actions">
+                                    <a href={url} target="_blank" rel="noopener" class="btn btn-sm">Open</a>
+                                    <a href={url} download class="btn btn-secondary btn-sm">Download</a>
+                                </div>
+                            </li>
+                        );
+                    })}
+                </ul>
+            </section>
+        ))}
+    </div>
+</Layout>
+
+<style>
+    .doc-card {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 1.25rem;
+        background: #fff;
+        border: 1px solid var(--color-border);
+        border-radius: 1rem;
+    }
+    .doc-card__title {
+        font-size: 1.0625rem;
+        font-weight: 700;
+        line-height: 1.3;
+    }
+    .doc-card__desc {
+        margin-top: 0.35rem;
+        font-size: 0.9375rem;
+        color: var(--color-text-muted);
+    }
+    .doc-card__actions {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+    .doc-note {
+        font-size: 0.9375rem;
+        padding: 0.75rem 1rem;
+        border-radius: 0.75rem;
+        background: rgba(201, 162, 39, 0.1);
+        border: 1px solid rgba(201, 162, 39, 0.35);
+    }
+    .doc-note a {
+        font-weight: 600;
+        text-decoration: underline;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.2rem;
+    }
+</style>

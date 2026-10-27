@@ -25,3 +25,6 @@ pnpm-debug.log*
 
 # Local debug and migration scripts (not for production)
 local-debug/
+
+# Python venv for docs/scripts/extract-ncca-rules.py
+.venv-docs/
