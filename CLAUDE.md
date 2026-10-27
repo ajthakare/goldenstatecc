@@ -21,7 +21,7 @@
 ## Project Structure
 
 ```
-bengalscc/
+goldenstatecc/
 ├── src/
 │   ├── pages/                      # Route-based pages (file-based routing)
 │   │   ├── index.astro             # Homepage with carousel
@@ -264,6 +264,22 @@ export const SITE_CONFIG = {
 - Filter by date range, action type, username
 - Export logs to CSV
 
+## Documents and Rules Assistant
+
+### Documents page (`/documents`, public)
+- PDFs live in `public/documents/gscc/` (club documents) and `public/documents/ncca/` (NCCA league rules)
+- The list shown on the page is `src/data/documents.ts` (title, description per file). Pages are server-rendered and Netlify doesn't ship `public/` to functions, so the page can't read the folder at runtime
+- **To add a document:** drop the PDF in the right folder and add an entry to `src/data/documents.ts`
+- Linked from the header ("Others" → Documents) and the footer; not in the player app
+
+### Rules Assistant (`/admin/rules`, admins only)
+- Chat that answers NCCA rules questions with quoted clauses and links to the PDF page; also a "Rules" tab in the admin app
+- `netlify/functions/rules-ask.ts` sends every PDF in `ncca/` (extracted to `src/data/ncca-rules.json`) with each question to Claude Haiku 5.5, with citations on and the documents cached for an hour
+- **After changing anything in `public/documents/ncca/`**, re-run the extraction (see Run Maintenance Scripts). `tests/unit/ncca-rules.test.ts` fails if the documents list or the extracted text no longer match the PDFs
+- Precedence, as the Standing Rules preamble sets it: Standing Rules → ICC playing conditions → Code of Conduct / Rain Impact Guidelines. Off-topic questions get a fixed one-line refusal
+- Keep thinking on: tested without it, Haiku dropped citations and misread a clause. Answers take 2–9s, inside Netlify's 60s synchronous function limit
+- Cost: the documents are ~160K tokens. About 16¢ to cache them, then about 1¢ per question within the hour (the cache is shared by all admins). Capped by a $10/month spend limit on the `gscc-rules` workspace in the Anthropic Console. The API key there expires 2027-11-03
+
 ## Data Storage Architecture
 
 **Storage:** Netlify Blobs (key-value storage)
@@ -459,12 +475,15 @@ try {
 ### Add New Admin Function
 1. Create Netlify function in `/netlify/functions/`
 2. Follow pattern from existing functions (auth check, Blobs operations)
-3. Use `validateAdminSession()` for authentication
+3. **Check the role, not just the session:** `validateAdminSession()` accepts any signed-in user, members included. After it, call `isCurrentAdmin(session)` (or `isCurrentSuperAdmin`) from `netlify/functions/_admin-auth.ts` and return 403 if it fails. `tests/unit/admin-auth.test.ts` fails for any admin function that skips this
 
 ### Run Maintenance Scripts
 ```bash
 # Production-safe scripts only
 node docs/scripts/generate-session-secret.cjs
+
+# Re-extract the NCCA PDFs for the Rules Assistant (needs pypdf + fonttools; see the script header)
+.venv-docs/bin/python docs/scripts/extract-ncca-rules.py
 ```
 
 ### Run Debug Scripts (Local Only)
@@ -493,6 +512,10 @@ touch local-debug/scripts/check-data-integrity.js
 ```
 
 ## Important Technical Notes
+
+### Local Development Uses Production Data
+- `.env` holds the production `SITE_ID` and `NETLIFY_AUTH_TOKEN`, and every function passes them to `getStore()`, so a plain `netlify dev` **reads and writes production Blobs**, and can send real push notifications through the VAPID keys
+- Treat local testing of anything that writes as a change to the live site. For an empty sandbox, use `local-debug/scripts/blobs-sandbox-server.mjs` with those variables blanked
 
 ### Image Rendering Issues (Historical)
 - **Problem:** Astro Image component + CSS aspect-ratio = black boxes
@@ -526,9 +549,15 @@ touch local-debug/scripts/check-data-integrity.js
 - Build command: `npm run build`
 - Publish directory: `dist`
 
-**Environment Variables Required:**
-- `JWT_SECRET` - Session secret (generate with script)
-- `CLOUDINARY_*` - If using Cloudinary (future enhancement)
+**Environment Variables:**
+- `SESSION_SECRET` - Signs session cookies (generate with `docs/scripts/generate-session-secret.cjs`)
+- `SITE_ID`, `NETLIFY_AUTH_TOKEN` - Netlify Blobs access (every store)
+- `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `PUBLIC_VAPID_PUBLIC_KEY` - Push notifications
+- `ANTHROPIC_API_KEY` - Rules Assistant (secret; key scoped to the `gscc-rules` workspace). `RULES_MODEL` optionally overrides the model
+- `RECAPTCHA_SECRET_KEY` - Member registration captcha
+- `BACKUP_GITHUB_TOKEN` - Weekly data backup
+- `YOUTUBE_API_KEY` (and optional `YOUTUBE_CHANNEL_HANDLE`) - YouTube in the social feed
+- `WINTER_CHECKIN_MEMBERS_OPEN`, `PUBLIC_DISABLE_UPLOADS` - Feature switches
 
 **Netlify Features Used:**
 - Functions (serverless API)
@@ -570,7 +599,7 @@ touch local-debug/scripts/check-data-integrity.js
 ## Security Considerations
 
 - Password hashing with salt
-- JWT token validation on all admin endpoints
+- Session validation on all admin endpoints, plus a current-role check (`isCurrentAdmin`), since a valid session alone can belong to a member
 - Role-based access control (RBAC)
 - Input sanitization
 - CSRF protection via same-origin policy

@@ -41,4 +41,4 @@ Documentation assets:
 ## See Also
 
 - `/README.md` (project root) - Main project README
-- `/claude.md` (project root) - Claude Code project instructions
+- `/CLAUDE.md` (project root) - Claude Code project instructions
