@@ -3,106 +3,71 @@
 ## Project Overview
 
 **Project Name:** Golden State Cricket Club (GSCC) / Bengals Inc.
-**Type:** Cricket club website with comprehensive admin management system
+**Type:** Cricket club website with a member portal, player app and admin system
 **Organization:** Bengals Inc. - 501(c)(3) non-profit organization (EIN: 93-4696065)
 **Location:** Bay Area, California (8 counties: San Jose, Sunnyvale, Fremont, Milpitas, Livermore, Morgan Hill, Tracy, Davis)
 
 **Technology Stack:**
-- **Framework**: Astro.js v5.17.1 (Static Site Generator with SSR capabilities)
+- **Framework**: Astro.js v5.17.1, server-rendered on Netlify (`@astrojs/netlify`)
 - **Styling**: Tailwind CSS v4 (utility-first CSS framework)
-- **UI Components**: React v19 integration for interactive components
+- **UI Components**: Astro components with inline scripts (React v19 integration installed, unused)
 - **Backend**: Netlify Functions (serverless functions for API endpoints)
 - **Storage**: Netlify Blobs (key-value storage for data persistence)
 - **Authentication**: JWT-based sessions with role-based access control
-- **Deployment**: Netlify with platform-specific features (Edge Functions, CDN, Blobs)
+- **Deployment**: Netlify (Functions, scheduled functions, Blobs, Forms, CDN)
 - **Font**: Inter Variable (modern sans-serif)
 - **CSV Processing**: PapaParse v5.5.3
+- **Other**: `web-push` (notifications), `@anthropic-ai/sdk` (Rules Assistant), `puppeteer-core` + `@sparticuz/chromium` (live-score scraper), Vitest + Playwright (tests)
 
 ## Project Structure
 
 ```
 goldenstatecc/
 ├── src/
-│   ├── pages/                      # Route-based pages (file-based routing)
-│   │   ├── index.astro             # Homepage with carousel
-│   │   ├── about.astro             # About GSCC page
-│   │   ├── gallery.astro           # Photo gallery with lightbox
-│   │   ├── contact.astro           # Contact form
-│   │   ├── fixtures.astro          # Public fixtures display
-│   │   ├── non-profit.astro        # Non-profit info & donation
-│   │   ├── admin/                  # Admin panel (protected)
-│   │   │   ├── index.astro         # Admin dashboard (inquiries)
-│   │   │   ├── login.astro         # Admin login
-│   │   │   ├── users.astro         # User management
-│   │   │   ├── seasons.astro       # Season management
-│   │   │   ├── fixtures.astro      # Fixture management
-│   │   │   ├── players.astro       # Player management
-│   │   │   ├── players/
-│   │   │   │   └── import.astro    # Player import wizard
-│   │   │   ├── roster.astro        # Team roster management
-│   │   │   ├── availability.astro  # Availability tracking
-│   │   │   ├── statistics.astro    # Statistics dashboard
-│   │   │   └── audit-logs.astro    # Audit log viewer (super admin)
-│   │   └── api/                    # API endpoints
-│   ├── layouts/
-│   │   ├── Layout.astro            # Main public layout
-│   │   └── AdminLayout.astro       # Admin panel layout
-│   ├── components/                 # Reusable components
-│   │   ├── HeroSection.astro       # Hero banner
-│   │   ├── Section.astro           # Content sections
-│   │   ├── StatsGrid.astro         # Stats display
-│   │   ├── Card.astro              # Card component
-│   │   ├── MemberCard.astro        # Team member cards
-│   │   ├── NonProfitBadge.astro    # 501(c)(3) badge
-│   │   ├── ZeffyDonation.astro     # Zeffy donation widget
-│   │   └── [other components]
-│   ├── styles/
-│   │   └── globals.css             # Global styles, Tailwind config, custom classes
-│   ├── middleware/
-│   │   └── auth.ts                 # Authentication helpers
-│   ├── types/
-│   │   └── player.ts               # TypeScript interfaces (Season, Player, Fixture, etc.)
-│   ├── config.ts                   # Site-wide configuration
-│   └── utils.ts                    # Helper functions
-├── public/                         # Static assets
-│   ├── media/                      # Photo gallery images (add images here!)
-│   └── favicon.svg
+│   ├── pages/                      # File-based routes (all server-rendered: prerender = false)
+│   │   ├── index.astro             # Homepage
+│   │   ├── aboutus/                # club.astro, non-profit.astro, sponsorships.astro
+│   │   ├── teams.astro, members.astro, gallery.astro, contact.astro, documents.astro
+│   │   ├── fixtures.astro          # Public schedule + umpiring duties
+│   │   ├── feed.astro              # Club Feed (player app home)
+│   │   ├── login, logout, register, forgot-password, app.astro   # Member auth + player PWA entry
+│   │   ├── profile, myfixtures, mypractice.astro                 # Member self-service
+│   │   ├── players/                # index.astro (directory), [id].astro (profile)
+│   │   ├── winter-checkin.astro    # Winter Check-In + Summer feedback form (direct URL only)
+│   │   ├── scoreboard.astro        # CricClubs live-score tester (unlisted)
+│   │   ├── styleguide.astro        # Design reference (unlisted)
+│   │   └── admin/                  # Admin panel (see Admin System)
+│   ├── layouts/                    # Layout.astro (public + member), AdminLayout.astro
+│   ├── components/                 # Header/Footer, PWA top/bottom navs (player + admin),
+│   │   │                           # sponsor cards, SocialFeedViewer, UmpiringDutyCard, ...
+│   │   ├── feed/FeedItemCard.astro
+│   │   └── profile/                # BadgeList, PlayerAvatar, ProfileSummary
+│   ├── data/                       # documents.ts, ncca-rules.json (Rules Assistant)
+│   ├── middleware/auth.ts          # Sessions, password hashing, role helpers
+│   ├── types/                      # player.ts, profile.ts, social.ts, umpiring.ts, winter.ts
+│   ├── utils/                      # badges, feed, duty-suggestions, umpiring, teamColors, auditLog, ...
+│   ├── styles/                     # globals.css, components.css, admin.css, themes/, ...
+│   ├── config.ts                   # SITE_CONFIG (contact, socials, sponsors, Winter Check-In switches)
+│   └── utils.ts
+├── public/
+│   ├── media/                      # Gallery photos (add images here!)
+│   ├── documents/                  # gscc/ and ncca/ PDFs for /documents
+│   ├── overlay/                    # Streaming overlays (team logos, combined, generator)
+│   ├── sponsors/, icons/, images/, install-guide/, screenshots/
+│   ├── manifest.json               # Player PWA (start_url /app)
+│   ├── manifest-admin.json         # Admin PWA (start_url /admin/app, scope /admin/)
+│   └── sw.js                       # Service worker (push notifications)
 ├── netlify/
-│   ├── functions/                  # Serverless API functions (40+ functions)
-│   │   ├── admin-login.ts          # Authentication
-│   │   ├── admin-users-*.ts        # User management
-│   │   ├── seasons-*.ts            # Season CRUD
-│   │   ├── fixtures-*.ts           # Fixture CRUD
-│   │   ├── players-*.ts            # Player CRUD
-│   │   ├── roster-*.ts             # Roster management
-│   │   ├── availability-*.ts       # Availability tracking
-│   │   ├── statistics-*.ts         # Statistics calculation
-│   │   ├── audit-logs-*.ts         # Audit logging
-│   │   └── [other functions]
-│   └── edge-functions/             # Edge function handlers
-├── docs/                           # Project documentation
-│   ├── scripts/                    # Production-safe maintenance scripts
-│   │   └── generate-session-secret.cjs
-│   ├── guides/                     # User guides
-│   │   └── PLAYER_MANAGEMENT_GUIDE.md
-│   ├── assets/                     # Documentation assets
-│   ├── PLAYER_MANAGEMENT_PLAN.md   # Implementation plan
-│   ├── IMPLEMENTATION_STATUS.md    # Current status
-│   └── [other docs]
+│   ├── functions/                  # ~117 functions; `_*.ts` are shared helpers, not endpoints
+│   └── edge-functions/rewrite.js   # Starter-template demo on /edge only
+├── tests/                          # unit/, integration/ (Vitest), e2e/ (Playwright)
+├── docs/                           # Project docs, guides, scripts/ (see Documentation)
 ├── local-debug/                    # 🚨 GIT-IGNORED: Debug/migration scripts (NEVER commit)
 │   ├── netlify-functions/          # Debug functions (security risk if deployed)
-│   │   ├── check-user.ts
-│   │   ├── fix-admin-role.ts
-│   │   ├── migrate-admins.ts
-│   │   └── debug-availability.ts
-│   ├── scripts/                    # Standalone debug/migration scripts
-│   │   ├── check-*.js
-│   │   ├── migrate-*.js
-│   │   └── migrate-*.mjs
+│   ├── scripts/                    # Standalone debug/migration/restore scripts
 │   └── README.md                   # Security warnings and usage guidelines
-├── astro.config.mjs                # Astro configuration
-├── package.json                    # Dependencies
-├── tsconfig.json                   # TypeScript config
+├── netlify.toml                    # Build, function bundling, headers
+├── astro.config.mjs, package.json, tsconfig.json, vitest.config.ts, playwright.config.ts
 └── CLAUDE.md                       # This file
 ```
 
@@ -140,129 +105,108 @@ export const SITE_CONFIG = {
 
 ## Teams
 
-**Four competitive teams:**
-
-1. **Bengal Tigers** - White Ball Division 2 (WB-D2)
-2. **Bengal Bulls** - White Ball Division 3 (WB-D3)
-3. **Bengal Thunder Cats** - Pink Ball Division 1 (PB-D1)
-4. **Bengal Strikers** - (Division TBD)
+- Four teams: **Tigers**, **Bulls**, **Thunder Cats**, **Bears** (full names like "Bengal Tigers" live in season data)
+- Teams and divisions are set per season in `/admin/seasons`; don't hard-code them. Watch the casing of `fixture.team` (e.g. ThunderCats vs Thunder Cats) when matching
+- Team pill colors: `src/utils/teamColors.ts`
 
 **Recent Achievement:** 🏆 2025 Summer League – T20 Division 1 Champions (Bengal Tigers)
 
 ## Public Website Features
 
-### 1. Homepage (`/`)
-- Hero banner with latest championship announcement
-- Quick highlights (Founded, Active Members, Teams, Counties)
-- About GSCC section
-- Recent achievements grid
-- Where we play (locations)
-- Media gallery carousel (horizontal scroll, first 8 images)
-- Link to full gallery
+| Route | What it shows |
+| :-- | :-- |
+| `/` | Hero, club in numbers, recent achievements, where we play, "From the ground" strip (newest Instagram posts from the social feed, hidden if it's empty), sponsors |
+| `/aboutus/club` | Story, culture and values, leadership, non-profit link |
+| `/aboutus/non-profit` | 501(c)(3) mission, impact, programs, board, Zeffy donation |
+| `/aboutus/sponsorships` | Tiers, current and previous sponsors |
+| `/teams` | Teams with this season's divisions (`seasons-get-active`, `fixtures-list`) |
+| `/members` | Membership overview and how to join |
+| `/gallery` | Instagram/YouTube carousel (`social-feed-get`) + `public/media/` photo grid with lightbox |
+| `/fixtures` | Upcoming weekend, upcoming and past fixtures, plus umpiring duties. Umpire names only for signed-in members |
+| `/feed` | Club Feed (see below). Public; umpire names only for signed-in members |
+| `/documents` | Club and NCCA PDFs (see Documents and Rules Assistant) |
+| `/contact` | Contact form (Netlify Forms), contact info, socials |
 
-### 2. About Page (`/about`)
-- Club history and mission
-- Team information with color-coded badges
-- Board members
-- Values and community focus
+## Member Portal (player self-service)
 
-### 3. Gallery (`/gallery`)
-- Responsive grid layout (2/3/4 columns)
-- Automatic image detection from `/public/media/`
-- Lightbox modal for full-size viewing
-- Keyboard navigation (arrows, ESC)
-- Social media links to Instagram/YouTube
+Roles: `member`, `admin`, `super_admin`. Members sign in at `/login`; admins too.
 
-### 4. Fixtures (`/fixtures`)
-- Upcoming fixtures display
-- Filter by team
-- Match details (date, time, venue, opponent, division)
+- **Register** (`/register` → `member-register`): reCAPTCHA, emergency contact required, account starts `pending`. Login is refused while pending, rejected or suspended
+- **Approve / reject / suspend / reactivate** in `/admin/users` (`members-*`, super admin only). Approval links the registration to an existing player or creates one
+- **Password reset** is admin-handled: `/forgot-password` → `password-reset-request`; a super admin issues a temporary password in `/admin/users` (`password-reset-complete`, then `-close` or `-reject`)
+- **`/profile`**: player card, badges, edit phone/USAC ID/role/batting and bowling style/CricClubs link/emergency contact/job, privacy (show phone, show company), password, photo (cropped in browser; 400px + 240px copies via `profile-photo`)
+- **`/myfixtures`**: club fixtures in the next 7 days for all teams, with who's available. Members can vote (available yes/no) only for their own roster teams (`member-fixtures-list`, `member-availability-update`)
+- **`/mypractice`**: practices in the next 30 days; reply yes / bowling only / not available, plus extra players (`practice-list`, `practice-availability-update`)
+- **`/players`** directory and **`/players/[id]`** profiles: members only; privacy applied server-side (`players-directory`, `player-profile-get`, photos via `player-avatar`)
+- **Badges** (`src/utils/badges.ts`): captain, vice-captain, POTM, matches, ever-present, duty, umpired, practice regular. Stats are stored; badges are derived on every read, so thresholds can change without recalculating
 
-### 5. Contact (`/contact`)
-- Contact form (stores in Netlify Blobs)
-- Contact information
-- Social media links
+## Player PWA vs Admin PWA
 
-### 6. Non-Profit (`/non-profit`)
-- 501(c)(3) information and badge
-- Mission and impact stats
-- Board of Directors
-- Zeffy donation integration
-- Tax deduction information
-- Programs and community engagement
+- **Player app**: `public/manifest.json`, start URL `/app` → `/feed` if signed in, else `/login`. Bottom nav (`PWABottomNav.astro`): Feed, Fixtures, My Fixtures, Practice, Players, Profile
+- **Admin app**: `public/manifest-admin.json`, start URL `/admin/app`, scope `/admin/` → `/admin/availability` for admins. Bottom nav (`AdminPWABottomNav.astro`): Availability, Players, Practices, Statistics, Notifications, Rules
+- Both share `public/sw.js` (push handling). `/sw.js` is served `no-cache`
 
-## Admin System (Comprehensive Player Management)
+## Club Feed (`/feed`)
 
-**Access:** `/admin` (password-protected)
+- Results, Player of the Match, milestones, new badges, upcoming fixtures and umpiring duties, Instagram/YouTube posts
+- `/feed` only reads the stored copy at `player-profiles/club-feed`, rebuilt every 6h by `schedule-club-feed` (15 min after `sync-social-feed`). If a source can't be read, the previous copy stays. Don't build the feed per request
+- `club-feed-get` builds it live; used by Admin → Club Feed and profile "Recent activity"
+- Admins hide/unhide any post at `/admin/feed` (`feed-hide`); that patches the stored copy straight away
 
-**Authentication:**
-- JWT-based sessions stored in Netlify Blobs
-- Two roles: `super_admin` and `admin`
-- Session expiry: 15 days
+## Push Notifications
 
-**Admin Features:**
+- Web Push via VAPID keys (`web-push`). Members subscribe (`push-subscribe`, `push-unsubscribe`); subscriptions in `push-subscriptions`
+- `/admin/notifications`: presets, title/body/link, preview, subscriber count (`push-send`, `push-subscriber-count`). Can target specific player IDs
+- Players newly assigned to an upcoming umpiring duty get a push (`umpiring-duties-update`)
 
-### 1. Dashboard (`/admin`)
-- View and manage contact form inquiries
-- Bulk operations (mark as reviewed, delete)
+## Scheduled Jobs (`schedule()` in `netlify/functions/`)
 
-### 2. User Management (`/admin/users`)
-- Create/edit/delete admin users
-- Role assignment (super_admin / admin)
-- Password changes
-- **Super admin only:** Change user roles
+Netlify only runs these on the published deploy. Times are Pacific (cron is UTC).
 
-### 3. Season Management (`/admin/seasons`)
-- Create and manage cricket seasons
-- Set active season
-- Configure teams per season (flexible team names/divisions)
-- Season date ranges
+| Function | When | What |
+| :-- | :-- | :-- |
+| `schedule-saturday` | Sat 3 PM | Creates next week's Net Practice (Wed 7 PM) and Field Practice (Fri 5 PM) if missing |
+| `schedule-sunday` | Sun 8 PM | One combined push (practice votes, game votes, the week's umpiring duties) + personal reminders to assigned umpires |
+| `backup-weekly` | Sun 11 PM | Snapshots the main stores to one JSON file committed to a private backups repo (`BACKUP_GITHUB_TOKEN`). Restore script is in `local-debug/scripts/` |
+| `schedule-statistics` | Mon 3 AM | Recalculates admin statistics + profile stats/badges (past fixtures only) |
+| `sync-social-feed` | Every 6h (:00 UTC) | Pulls Instagram + YouTube into `social-feed`; refreshes the Instagram token itself |
+| `schedule-club-feed` | Every 6h (:15 UTC) | Rebuilds the stored Club Feed |
 
-### 4. Fixture Management (`/admin/fixtures`)
-- Create/edit/delete fixtures per season
-- Bulk import from CSV
-- Export fixtures to CSV
-- Match result tracking (score, result, notes)
-- Fixture details (home/away, ground, umpiring team)
-- YouTube video links and scoring app links
+`backup-weekly` has its own store list; `player-profiles`, `winter-checkin` and `social-feed` aren't in it. Add new stores there.
 
-### 5. Player Management (`/admin/players`)
-- Global player pool management
-- Add/edit/delete individual players
-- Bulk import from CSV
-- Export players to CSV
-- Player details (name, email, USAC ID, position, jersey number)
-- Active/inactive status
-- Search and filter (by season, team, status, position)
+## Live Score and Streaming Overlays
 
-### 6. Roster Management (`/admin/roster`)
-- Assign players to teams per season
-- Track player roles (captain, vice-captain, player)
-- Jersey number management
-- Multiple team assignments possible
-- Historical roster tracking across seasons
+- **`cricclubs-live-score`** (public, `?matchId=`): CricClubs blocks direct API calls, so it renders the public overlay page in headless Chromium (`@sparticuz/chromium` + `puppeteer-core`, kept out of other bundles in `netlify.toml`) and reads score, wickets, overs and target from the DOM
+- **`/scoreboard`**: unlisted tester page for that endpoint
+- **`public/overlay/`**: OBS/streaming browser sources. Per-team logo + sponsor overlays (`tigers`, `bulls`, `cats`, `bears`), `combined.html` (team overlay + CricClubs score ticker in one source), `generator.html` (builds the URLs). `/overlay/*` may be framed (`SAMEORIGIN`); everything else is `DENY`
 
-### 7. Availability Tracking (`/admin/availability`)
-- Admin-managed availability records
-- Two-step tracking: Available → Selected
-- Link availability to specific fixtures
-- Player duties tracking
-- Availability statistics per fixture
+## Admin System
 
-### 8. Statistics Dashboard (`/admin/statistics`)
-- Player statistics (games played, availability rates)
-- Team-level statistics per season
-- Season-level aggregations
-- Career statistics across all seasons
-- Advanced statistics with filters
-- Export statistics to CSV
-- Automatic calculation system
+**Access:** `/admin` (redirects to `/admin/availability`). Pages check the role server-side; functions must also call `isCurrentAdmin` (see Add New Admin Function).
 
-### 9. Audit Logs (`/admin/audit-logs`)
-- **Super admin only**
-- Complete log of all admin actions
-- Filter by date range, action type, username
-- Export logs to CSV
+| Page | What it does |
+| :-- | :-- |
+| `/admin/availability` | Fixtures & Availability: per-season fixture list, results |
+| `/admin/availability/[seasonId]` | Availability editor: available → selected, duties, "Suggest Duties" panel (`availability-duty-history`) |
+| `/admin/fixtures` | Fixture CRUD, CSV import/export, results |
+| `/admin/umpiring` | Umpiring duties: CSV import from the league sheet (upsert by Game#), up to 2 umpires, outcome and club payment tracking |
+| `/admin/practices` | Practice sessions: view responses, add/remove players, extras, lock |
+| `/admin/players`, `/admin/players/import` | Player pool CRUD, CSV import/export, photos |
+| `/admin/roster` | Core roster: mark players as core to a team per season |
+| `/admin/seasons` | Seasons, teams and divisions, active season |
+| `/admin/statistics` | Season/team/career stats, CSV export, "Recalculate" (also refreshes profile badges) |
+| `/admin/users` | Admins and members: promote/change role, delete, approve/suspend registrations, password resets. Most actions super admin only |
+| `/admin/notifications` | Send push notifications |
+| `/admin/feed` | Club Feed with hide/unhide |
+| `/admin/inquiries` | Contact form submissions (Netlify Forms API) with review status (`submission-metadata`) |
+| `/admin/winter-checkin`, `/admin/summer-feedback` | Winter Check-In responses and Summer feedback: list, CSV export, delete. Hidden from admins on a restricted list in `src/config.ts` |
+| `/admin/rules` | Rules Assistant (see below) |
+| `/admin/audit-logs` | Super admin only: browse by month, search, delete old logs |
+
+### Winter Check-In / Summer feedback
+
+- `/winter-checkin` (not in nav, direct URL): guests and members. Members' form includes Summer feedback (submitted together); members see and update their own response (`winter-checkin-mine`)
+- Switches in `SITE_CONFIG.winterCheckIn`: `acceptingResponses` (everyone), `acceptingMemberResponses` (fallback for members). Env var `WINTER_CHECKIN_MEMBERS_OPEN=true|false` overrides the member switch without a deploy. Guests are never affected by the member switch
 
 ## Documents and Rules Assistant
 
@@ -282,68 +226,34 @@ export const SITE_CONFIG = {
 
 ## Data Storage Architecture
 
-**Storage:** Netlify Blobs (key-value storage)
-
-**Current Usage:** ~79 KB / 1 GB free tier (0.0075%)
+**Storage:** Netlify Blobs. Every function calls `getStore({ name, siteID: process.env.SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN })`.
 
 **Stores:**
 
-1. **admin-users** - Admin user accounts
-2. **admin-sessions** - Active JWT sessions
-3. **seasons** - Cricket seasons data
-4. **fixtures** - Match fixtures per season
-5. **players** - Global player pool with season history
-6. **fixture-availability** - Availability tracking per fixture
-7. **player-statistics** - Calculated statistics (multi-season + career)
-8. **audit-logs** - Admin action audit trail
-9. **contact-submissions** - Contact form submissions
+| Store | Holds |
+| :-- | :-- |
+| `players` | `players-all`: every person, members and admins included (login, roles, registration status, profile, season assignments). Write via `_players-store.ts` |
+| `admin-users` | Legacy admin records, still mirrored on promote/role change/delete. Login and role checks use `players` |
+| `seasons` | Seasons, teams, divisions, active flag |
+| `fixtures` | Fixtures per season |
+| `fixture-availability` | Availability and selection per fixture |
+| `core-roster` | Core players per team per season (`core-roster-<seasonId>`) |
+| `practice-sessions` | Practices (`practice-<id>`) + per-season index |
+| `umpiring-duties` | Umpiring duties per season (`src/utils/umpiring.ts`) |
+| `player-statistics` | Calculated admin statistics (season, team, career) |
+| `player-profiles` | Profile stats, feed milestones/events/hidden posts, stored Club Feed (`club-feed`) |
+| `social-feed` | Merged Instagram + YouTube feed and the Instagram token |
+| `push-subscriptions` | One `subscriptions` list, each tagged with its player ID |
+| `password-reset-requests` | Reset requests for super admins |
+| `winter-checkin` | Winter Check-In + Summer feedback responses |
+| `submission-metadata` | Review status for contact form submissions (the submissions themselves are in Netlify Forms) |
+| `audit-logs` | Admin action audit trail, by month |
 
-**Key Data Models:**
+Sessions aren't stored: they're signed JWTs in a cookie.
 
-```typescript
-// Season (from src/types/player.ts)
-interface Season {
-  id: string;
-  name: string;              // "2025-2026"
-  startDate: string;
-  endDate: string;
-  isActive: boolean;
-  teams: TeamDefinition[];
-  createdAt: string;
-  createdBy: string;
-}
+**Concurrent writes:** use `updateJSON` / `setJSONIf` from `netlify/functions/_blobs.ts`. `@netlify/blobs` 10.5's `setJSON` ignores `onlyIfMatch`/`onlyIfNew`.
 
-// Player
-interface Player {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone?: string;
-  position?: string;
-  dateJoined: string;
-  isActive: boolean;
-  seasonAssignments: SeasonAssignment[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-// Fixture
-interface Fixture {
-  id: string;
-  seasonId: string;
-  gameNumber: string;
-  date: string;
-  time: string;
-  team: string;
-  opponent: string;
-  venue: string;
-  division: string;
-  createdAt: string;
-}
-
-// See src/types/player.ts for complete interfaces
-```
+**Key Data Models:** `src/types/player.ts` (Season, Player, Fixture, availability, roster, practice), `profile.ts`, `umpiring.ts`, `social.ts`, `winter.ts`.
 
 ## Gallery System Implementation
 
@@ -362,7 +272,7 @@ interface Fixture {
 - **DO NOT use CSS `aspect-ratio` property** - causes black box rendering issues
 - **USE inline styles with explicit dimensions** and `object-fit: cover`
 
-**Working Pattern (index.astro and gallery.astro):**
+**Working Pattern (gallery.astro; the homepage strip now uses the Instagram feed instead):**
 
 ```typescript
 // Frontmatter - Dynamic image loading
@@ -410,7 +320,7 @@ try {
 **To Add New Images:**
 1. Simply drop images into `/public/media/`
 2. Supported formats: jpg, jpeg, png (case-insensitive)
-3. Images automatically appear on homepage carousel and gallery page
+3. Images automatically appear in the gallery page grid
 4. No code changes needed
 
 ## Design System
@@ -420,10 +330,7 @@ try {
 - **Secondary:** `#355c7d` (blue) - complementary color
 - **Accent:** `#E5C878` (gold) - highlights
 
-**Team Colors (used in badges):**
-- Bengal Tigers: `orange-100/300/800`
-- Bengal Bulls: `blue-100/300/800`
-- Bengal Thunder Cats: `purple-100/300/800`
+**Team Colors:** `src/utils/teamColors.ts` (Tigers amber, Bulls blue, Thunder Cats purple, Bears green)
 
 **Typography:**
 - Font: Inter Variable
@@ -456,12 +363,14 @@ try {
 | `npm run build`           | Build your production site to `./dist/`          |
 | `npm run preview`         | Preview your build locally, before deploying     |
 | `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
+| `npm test`                | Vitest (unit + integration)                      |
+| `npm run test:e2e`        | Playwright end-to-end tests                      |
 
 ## Common Tasks
 
 ### Add New Gallery Images
 1. Add image files to `/public/media/`
-2. Images automatically appear on homepage carousel and gallery page
+2. Images automatically appear in the gallery page grid
 3. No code changes needed
 
 ### Update Site Configuration
@@ -530,10 +439,10 @@ touch local-debug/scripts/check-data-integrity.js
 - Carousel has horizontal scroll with snap points
 
 ### Authentication
-- JWT tokens stored in Netlify Blobs
-- Cookie-based session management
+- Signed JWT in a cookie (`src/middleware/auth.ts`); nothing stored server-side
+- Roles: `member`, `admin`, `super_admin`. The token carries the role from login time, so admin functions re-check the current role in `players-all` (`isCurrentAdmin`)
 - 15-day session expiry
-- Secure password hashing with salt
+- Passwords hashed with bcrypt
 
 ### Data Integrity
 - Audit logging for all admin actions
@@ -562,29 +471,29 @@ touch local-debug/scripts/check-data-integrity.js
 **Netlify Features Used:**
 - Functions (serverless API)
 - Blobs (data storage)
-- Edge Functions (geo-location, caching)
-- Forms (contact form backup)
+- Scheduled functions (see Scheduled Jobs)
+- Forms (contact form submissions)
 - CDN (image delivery)
 
 ## Documentation
 
-**Key docs in `/docs/`:**
-- `PLAYER_MANAGEMENT_PLAN.md` - Complete implementation plan
-- `IMPLEMENTATION_STATUS.md` - Current feature status
-- `guides/PLAYER_MANAGEMENT_GUIDE.md` - Admin user guide
-- `MOBILE_TESTING_GUIDE.md` - Mobile testing checklist
+**Key docs in `/docs/`** (many predate the member portal; check against the code):
+- `README.md` - Index of the docs folder
+- `implementation/PLAYER_MANAGEMENT_PLAN.md`, `implementation/STATUS.md` - Original player-management plan and status
+- `guides/` - `PLAYER_MANAGEMENT_GUIDE.md`, `AVAILABILITY_ADMIN_GUIDE.md`, `MOBILE_TESTING_GUIDE.md`, `TESTING_GUIDE.md`, `CODING_STANDARDS.md`, `DEPLOYMENT_CHECKLIST.md`, ...
+- `PASSWORD_RESET_FEATURE.md`, `ADMIN_ROLE_FIXES.md`, `AUTHENTICATION_FLOW_ANALYSIS.md`, `SPONSORSHIP_IMPLEMENTATION.md`
+- `scripts/` - `generate-session-secret.cjs`, `extract-ncca-rules.py`, `bootstrap-instagram-token.cjs`, `generate-admin-icons.py`, `sync-player-names.js`
+- `archived/` - Superseded docs (old status, theme guides)
 
 ## Development Notes
 
 ### File Routing
 - Each `.astro` file in `pages/` becomes a route
 - Server-rendered pages: Add `export const prerender = false;` in frontmatter
-- API endpoints: Place in `pages/api/` directory
+- API endpoints: Netlify Functions in `netlify/functions/`, called at `/.netlify/functions/<name>` (some comments say `/api/<name>`)
 
 ### Component Structure
-- Mix Astro (`.astro`) and React (`.tsx`) components
-- Astro components for static content
-- React components for interactive features
+- All components are Astro (`.astro`); interactivity is inline `<script>` in pages. React is installed but no `.tsx` components exist
 
 ### Styling Approach
 - Tailwind utility classes for most styling
@@ -660,10 +569,8 @@ ls netlify/functions/ | grep -E "(check|fix|debug|migrate)"
 
 - Media gallery with Cloudinary integration
 - Email notifications for fixtures/availability
-- Player portal (self-service availability updates)
 - Advanced statistics with charts/graphs
-- Mobile app/PWA
-- Enhanced match result tracking
+- Physical scoreboard (ESP32 + LED strip polling `cricclubs-live-score`)
 
 ## Support
 
@@ -671,6 +578,6 @@ For questions or issues, contact: gsbengalsinc@gmail.com
 
 ---
 
-**Last Updated:** February 2026
+**Last Updated:** October 2026
 **Current Version:** 1.0 (Production)
 **Astro Version:** 5.17.1
