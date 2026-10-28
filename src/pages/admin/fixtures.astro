@@ -303,7 +303,7 @@ if (!isAdminUser) {
               name="gameNumber"
               required
               class="form-input"
-              placeholder="e.g., Game 1"
+              placeholder="e.g., 33"
             />
           </div>
           <div class="form-group">
@@ -987,7 +987,7 @@ if (!isAdminUser) {
           <div class="fixture-card-header">
             <div class="fixture-card-title">
               <input type="checkbox" class="fixture-card-checkbox fixture-checkbox" value="${fixture.id}" />
-              <span class="fixture-card-game-number">${escapeHtml(fixture.gameNumber)}</span>
+              <span class="fixture-card-game-number">Game #${escapeHtml(fixture.gameNumber)}</span>
               ${mobileVotingBadge}
             </div>
             <div style="font-size: 0.8125rem; color: #6b7280;">${formatDate(fixture.date)}</div>
@@ -1324,7 +1324,7 @@ if (!isAdminUser) {
     const fixture = fixtures.find((f) => f.id === fixtureId);
     if (!fixture) return;
 
-    if (!confirm(`Delete ${fixture.gameNumber}?`)) return;
+    if (!confirm(`Delete Game #${fixture.gameNumber}?`)) return;
 
     try {
       const response = await fetch('/.netlify/functions/fixtures-delete', {
@@ -1351,7 +1351,7 @@ if (!isAdminUser) {
 
     const newValue = !fixture.availabilityOpen;
     const action = newValue ? 'open voting early' : 'close early voting';
-    if (!confirm(`${newValue ? 'Open' : 'Close'} availability voting for ${fixture.gameNumber}?`)) return;
+    if (!confirm(`${newValue ? 'Open' : 'Close'} availability voting for Game #${fixture.gameNumber}?`)) return;
 
     try {
       const response = await fetch('/.netlify/functions/fixtures-update', {
@@ -1634,7 +1634,7 @@ if (!isAdminUser) {
     const fixtureInfo = document.getElementById('result-fixture-info');
     const homeAway = fixture.isHomeTeam ? 'HOME' : 'AWAY';
     fixtureInfo.innerHTML = `
-      <div style="font-weight: 600; margin-bottom: 0.5rem;">${escapeHtml(fixture.gameNumber)}</div>
+      <div style="font-weight: 600; margin-bottom: 0.5rem;">Game #${escapeHtml(fixture.gameNumber)}</div>
       <div style="font-size: 0.875rem; color: #6b7280;">
         ${formatDate(fixture.date)} • ${escapeHtml(fixture.time)}<br>
         ${escapeHtml(fixture.team)} <span style="font-weight: 600;">(${homeAway})</span> vs ${escapeHtml(fixture.opponent)}<br>

@@ -9,7 +9,7 @@ import UmpiringDutyCard from '../components/UmpiringDutyCard.astro';
 import type { PublicUmpiringDuty, UmpiringDuty } from '../types/umpiring';
 import { DUTY_STORE, dutiesKey, toPublicDuty } from '../utils/umpiring';
 import { teamPillStyle } from '../utils/teamColors';
-import { weekStart } from '../utils/feed';
+import { weekStart, weekendOf } from '../utils/feed';
 import { validateAdminSession, isMember } from '../middleware/auth';
 import type { Season, Fixture as PlayerFixture } from '../types/player';
 import { loadSeasonsInPlay } from '../../netlify/functions/_seasons';
@@ -282,8 +282,8 @@ function withHeadings(items: ScheduleItem[]): Array<{ item: ScheduleItem; headin
         const week = mondayOf(item.sortDate);
         if (!prev || mondayOf(prev.sortDate) !== week) {
             const league = leagueWeeks.get(week)?.join(' / ');
-            const monday = new Date(`${week}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
-            headings.push({ kind: 'week', label: `${league ? `${league} · ` : ''}Week of ${monday}` });
+            const saturday = new Date(`${weekendOf(week)}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+            headings.push({ kind: 'week', label: `${league ? `${league} · ` : ''}Weekend of ${saturday}` });
         }
         return { item, headings };
     });
@@ -586,7 +586,7 @@ function getResultBadge(result: string): { text: string; color: string } {
                                 {/* Footer */}
                                 <div class="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
                                     <div class="flex justify-between items-center">
-                                        <span>Game #{fixture.gameNumber} • {fixture.week}</span>
+                                        <span>Game #{fixture.gameNumber}{fixture.week && <> • {fixture.week}</>}</span>
                                         <span>Umpire: {fixture.umpire}</span>
                                     </div>
                                 </div>
@@ -715,7 +715,7 @@ function getResultBadge(result: string): { text: string; color: string } {
                                     {/* Footer */}
                                     <div class="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
                                         <div class="flex justify-between items-center">
-                                            <span>Game #{fixture.gameNumber} • {fixture.week}</span>
+                                            <span>Game #{fixture.gameNumber}{fixture.week && <> • {fixture.week}</>}</span>
                                             <span>Umpire: {fixture.umpire}</span>
                                         </div>
                                     </div>

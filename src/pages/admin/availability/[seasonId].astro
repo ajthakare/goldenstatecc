@@ -530,7 +530,7 @@ const fixtureId = Astro.url.searchParams.get('fid') || '';
       }
 
       // Update header
-      document.getElementById('editor-game-number').textContent = currentFixture.gameNumber;
+      document.getElementById('editor-game-number').textContent = `Game #${currentFixture.gameNumber}`;
       document.getElementById('editor-subtitle').textContent =
         `${currentFixture.team} vs ${currentFixture.opponent} • ${formatDate(currentFixture.date)}`;
 

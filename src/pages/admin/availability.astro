@@ -1421,7 +1421,7 @@ if (!isAdminUser) {
         <div class="fixture-card" onclick="openAvailabilityEditor('${fixture.id}')">
           <div class="fixture-header">
             <div>
-              <div class="fixture-game-number">${escapeHtml(fixture.gameNumber)}</div>
+              <div class="fixture-game-number">Game #${escapeHtml(fixture.gameNumber)}</div>
               <div class="fixture-teams">${escapeHtml(fixture.team)} vs ${escapeHtml(fixture.opponent)}</div>
               <div class="fixture-date">${formatDate(fixture.date)} • ${escapeHtml(fixture.time)}</div>
             </div>
@@ -1594,7 +1594,7 @@ if (!isAdminUser) {
 
     const newValue = !currentlyOpen;
     const label = newValue ? 'Open voting early' : 'Hide early voting';
-    if (!confirm(`${label} for ${fixture.gameNumber}?`)) return;
+    if (!confirm(`${label} for Game #${fixture.gameNumber}?`)) return;
 
     try {
       const response = await fetch('/.netlify/functions/fixtures-update', {
@@ -1636,7 +1636,7 @@ if (!isAdminUser) {
       playersGridContainer.style.display = 'none';
 
       // Update modal title
-      document.getElementById('modal-title').textContent = currentFixture.gameNumber;
+      document.getElementById('modal-title').textContent = `Game #${currentFixture.gameNumber}`;
       document.getElementById('modal-subtitle').textContent =
         `${currentFixture.team} vs ${currentFixture.opponent} • ${formatDate(currentFixture.date)}`;
 
@@ -2569,7 +2569,7 @@ if (!isAdminUser) {
       // Determine home/away
       const gameType = fixture.isHomeTeam ? 'Home' : 'Away';
 
-      // Extract game number from fixture.gameNumber (e.g., "Game 8" -> "8")
+      // Older fixtures were stored as "Game 8"; newer ones are just "8"
       const gameNum = fixture.gameNumber.replace('Game ', '');
 
       // Get duties assignments - map display names to stored duty names

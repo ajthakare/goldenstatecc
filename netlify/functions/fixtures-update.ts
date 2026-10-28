@@ -1,5 +1,6 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
+import { plainGameNumber } from '../../src/utils/gameNumber';
 import { validateAdminSession } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
 import type { Fixture } from '../../src/types/player';
@@ -114,6 +115,7 @@ export const handler: Handler = async (
       createdAt: existingFixture.createdAt, // Preserve creation date
       createdBy: existingFixture.createdBy, // Preserve creator
     };
+    if (typeof updates.gameNumber === 'string') updatedFixture.gameNumber = plainGameNumber(updates.gameNumber);
 
     fixtures[fixtureIndex] = updatedFixture;
 

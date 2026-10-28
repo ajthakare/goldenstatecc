@@ -1,5 +1,6 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
+import { plainGameNumber } from '../../src/utils/gameNumber';
 import { validateAdminSession } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
 import { addAuditLog } from '../../src/utils/auditLog';
@@ -127,7 +128,7 @@ export const handler: Handler = async (
         | null;
 
     const fixtures = existingFixtures || [];
-    const existingGameNumbers = new Set(fixtures.map(f => f.gameNumber.toLowerCase()));
+    const existingGameNumbers = new Set(fixtures.map(f => plainGameNumber(f.gameNumber).toLowerCase()));
 
     // Validate and process rows
     const importResult: ImportResult = {
@@ -151,7 +152,7 @@ export const handler: Handler = async (
         return;
       }
 
-      const gameNumber = `Game ${row['Game#'].trim()}`;
+      const gameNumber = plainGameNumber(row['Game#']);
       const dateStr = row['Date'].trim();
       const time = row['Start Time'].trim();
       const homeTeam = row['Home Team'].trim();
@@ -205,7 +206,7 @@ export const handler: Handler = async (
         importResult.errors.push({
           row: rowNum,
           field: 'Game Number',
-          message: `Fixture with game number "${gameNumber}" already exists`,
+          message: `Fixture Game #${gameNumber} already exists`,
         });
         return;
       }
