@@ -925,14 +925,42 @@ if (!isAdminUser) {
       width: 100%;
     }
 
-    /* Fixtures grid - single column on mobile */
+    /* Fixtures grid - single column on mobile; minmax(0, 1fr) stops a
+       wide card from stretching the column past the screen */
     .fixtures-grid {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
+      padding: 1rem;
     }
 
     /* Fixture card adjustments */
     .fixture-card {
       padding: 1rem;
+      min-width: 0;
+    }
+
+    /* Stack the title block above the badges/buttons, like the schedule cards */
+    .fixture-header {
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .fixture-header > div {
+      min-width: 0;
+      width: 100%;
+      align-items: flex-start !important;
+    }
+
+    .fixture-teams {
+      overflow-wrap: anywhere;
+    }
+
+    .availability-badge {
+      white-space: normal;
+    }
+
+    .availability-stats {
+      flex-wrap: wrap;
+      gap: 0.75rem 1.25rem;
     }
 
     /* Player grid - make horizontally scrollable if needed */
