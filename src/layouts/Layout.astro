@@ -15,9 +15,15 @@ interface Props {
     title: string;
     /** Keep the page out of search engines (e.g. public player profiles) */
     noindex?: boolean;
+    /** Which installable app this page belongs to (the admin login page uses this layout) */
+    app?: 'player' | 'admin';
 }
 
-const { title, noindex = false } = Astro.props;
+const { title, noindex = false, app = 'player' } = Astro.props;
+
+const pwa = app === 'admin'
+    ? { manifest: '/manifest-admin.json', touchIcon: '/icons/admin-apple-touch-icon.png', icon: '/icons/admin-icon-192.png', name: 'GSCC Admin', themeColor: '#1A1614' }
+    : { manifest: '/manifest.json', touchIcon: '/icons/apple-touch-icon.png', icon: '/icons/icon-192.png', name: 'GSCC', themeColor: '#8c1d18' };
 
 // Used to conditionally render PWA nav (only for authenticated members)
 const cookieHeader = Astro.request.headers.get('cookie');
@@ -80,13 +86,13 @@ const vapidPublicKey = import.meta.env.PUBLIC_VAPID_PUBLIC_KEY || '';
         </script>
 
         <link rel="icon" type="image/svg+xml" href={logo.src} />
-        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href={pwa.touchIcon} />
+        <link rel="manifest" href={pwa.manifest} />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="GSCC" />
-        <meta name="theme-color" content="#8c1d18" />
+        <meta name="apple-mobile-web-app-title" content={pwa.name} />
+        <meta name="theme-color" content={pwa.themeColor} />
         <link rel="preload" as="font" type="font/woff2" href={interWoff2} crossorigin />
 
         <!-- Allow pages to inject additional head content -->
@@ -111,8 +117,8 @@ const vapidPublicKey = import.meta.env.PUBLIC_VAPID_PUBLIC_KEY || '';
 
         <!-- PWA Install Banner -->
         <div id="pwa-install-banner" style="display:none;" role="banner" aria-label="Install app">
-          <img src="/icons/icon-192.png" alt="GSCC" width="36" height="36" class="pwa-install-icon" />
-          <span class="pwa-install-text">Install the GSCC app</span>
+          <img src={pwa.icon} alt={pwa.name} width="36" height="36" class="pwa-install-icon" />
+          <span class="pwa-install-text">Install the {pwa.name} app</span>
           <button id="pwa-install-btn" class="pwa-install-action">Install</button>
           <button id="pwa-install-dismiss" class="pwa-install-close" aria-label="Dismiss">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
