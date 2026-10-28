@@ -226,7 +226,7 @@ if (!isAdminUser) return Astro.redirect('/');
   </div>
 
   <script>
-    import { weekStart } from '../../utils/feed';
+    import { weekStart, weekendOf } from '../../utils/feed';
 
     type Slot = {
       playerId?: string; externalName?: string; externalClub?: string; externalPhone?: string;
@@ -407,7 +407,7 @@ if (!isAdminUser) return Astro.redirect('/');
       list.innerHTML = [...groups.entries()].map(([key, items]) => {
         const [week, monday] = key.split('|');
         return `<section class="week">
-          <h2 class="week-title">${week ? `${esc(week)} · ` : ''}Week of ${fmtDate(monday, { month: 'short', day: 'numeric' })}</h2>
+          <h2 class="week-title">${week ? `${esc(week)} · ` : ''}Weekend of ${fmtDate(weekendOf(monday), { month: 'short', day: 'numeric' })}</h2>
           <ul class="duties">${items.map(row).join('')}</ul>
         </section>`;
       }).join('') || '<p class="empty">Nothing matches this filter.</p>';

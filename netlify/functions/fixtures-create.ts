@@ -1,5 +1,6 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
+import { plainGameNumber } from '../../src/utils/gameNumber';
 import { validateAdminSession } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
 import type { Fixture, Season } from '../../src/types/player';
@@ -47,7 +48,8 @@ export const handler: Handler = async (
 
     // Parse request body
     const body = JSON.parse(event.body || '{}');
-    const { seasonId, gameNumber, date, time, team, opponent, venue, division } = body;
+    const { seasonId, date, time, team, opponent, venue, division } = body;
+    const gameNumber = plainGameNumber(String(body.gameNumber || ''));
 
     // Validate required fields
     if (!seasonId || !gameNumber || !date || !time || !team || !opponent || !venue || !division) {
@@ -122,7 +124,7 @@ export const handler: Handler = async (
 
     // Check for duplicate game number
     const duplicate = fixtures.find(
-      f => f.gameNumber.toLowerCase() === gameNumber.toLowerCase()
+      f => plainGameNumber(f.gameNumber).toLowerCase() === gameNumber.toLowerCase()
     );
     if (duplicate) {
       return {
@@ -162,7 +164,7 @@ export const handler: Handler = async (
       await addAuditLog(
         session.username,
         'fixture_create',
-        `Created fixture ${gameNumber} for ${team} vs ${opponent}`,
+        `Created fixture Game #${gameNumber} for ${team} vs ${opponent}`,
         gameNumber,
         { seasonId, team, opponent, date, venue }
       );

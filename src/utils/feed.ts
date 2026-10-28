@@ -60,6 +60,12 @@ export function weekStart(dateStr: string): string {
   return dt.toISOString().slice(0, 10);
 }
 
+/** Saturday of the week starting `monday` (YYYY-MM-DD), for "Weekend of" headings. */
+export function weekendOf(monday: string): string {
+  const [y, m, d] = monday.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + 5)).toISOString().slice(0, 10);
+}
+
 export function addDays(dateStr: string, days: number): string {
   const [y, m, d] = dateStr.split('-').map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d + days));
