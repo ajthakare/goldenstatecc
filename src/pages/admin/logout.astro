@@ -1,11 +1,12 @@
 ---
 export const prerender = false;
 
-// Clear session cookie using Astro's cookie API
-Astro.cookies.delete('bengals_admin_session', {
-  path: '/'
-});
+import { logoutCookies } from '../../middleware/auth';
 
-// Redirect to login page
-return Astro.redirect('/admin/login');
+// Clear the session cookie (shared and host-only) and go to the login page
+const headers = new Headers({ Location: '/admin/login' });
+for (const cookie of logoutCookies(import.meta.env.PROD, Astro.url.host)) {
+  headers.append('Set-Cookie', cookie);
+}
+return new Response(null, { status: 302, headers });
 ---

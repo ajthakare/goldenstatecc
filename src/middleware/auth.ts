@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { serialize, parse } from 'cookie';
+import { sessionCookieDomain } from './hosts';
 
 const SESSION_SECRET = process.env.SESSION_SECRET || '';
 const SESSION_COOKIE_NAME = 'bengals_admin_session';
@@ -96,7 +97,8 @@ export function validateSession(token: string): SessionPayload | null {
  */
 export function createSessionCookie(
   token: string,
-  isProduction: boolean = false
+  isProduction: boolean = false,
+  domain?: string
 ): string {
   return serialize(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
@@ -104,22 +106,45 @@ export function createSessionCookie(
     sameSite: 'lax',
     maxAge: 60 * 60 * 24 * 15, // 15 days
     path: '/',
+    domain,
   });
 }
 
 /**
  * Clear the session cookie
  * @param isProduction - Whether running in production
+ * @param domain - Cookie domain to clear (omit for the host-only cookie)
  * @returns Serialized cookie string that clears the cookie
  */
-export function clearSessionCookie(isProduction: boolean = false): string {
+export function clearSessionCookie(isProduction: boolean = false, domain?: string): string {
   return serialize(SESSION_COOKIE_NAME, '', {
     httpOnly: true,
     secure: isProduction,
     sameSite: 'strict',
     maxAge: 0,
     path: '/',
+    domain,
   });
+}
+
+/**
+ * Set-Cookie headers for a login. On goldenstatecc.org hosts the cookie is
+ * shared with the admin subdomain, and any older host-only cookie is cleared
+ * so the browser doesn't keep sending a stale session alongside it.
+ */
+export function loginCookies(token: string, isProduction: boolean, host: string | undefined): string[] {
+  const domain = sessionCookieDomain(host);
+  const cookies = [createSessionCookie(token, isProduction, domain)];
+  if (domain) cookies.push(clearSessionCookie(isProduction));
+  return cookies;
+}
+
+/** Set-Cookie headers for a logout: both the shared and the host-only cookie */
+export function logoutCookies(isProduction: boolean, host: string | undefined): string[] {
+  const domain = sessionCookieDomain(host);
+  const cookies = [clearSessionCookie(isProduction)];
+  if (domain) cookies.push(clearSessionCookie(isProduction, domain));
+  return cookies;
 }
 
 /**

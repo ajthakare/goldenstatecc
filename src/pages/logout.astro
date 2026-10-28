@@ -1,12 +1,14 @@
 ---
 export const prerender = false;
 
-// Clear session cookie using Astro's cookie API
-Astro.cookies.delete('bengals_admin_session', {
-  path: '/'
-});
+import { logoutCookies } from '../middleware/auth';
 
-// Redirect to login if ?from=pwa, otherwise home page
+// Clear the session cookie (shared and host-only), then go to login if
+// ?from=pwa, otherwise the home page
 const from = Astro.url.searchParams.get('from');
-return Astro.redirect(from === 'pwa' ? '/login' : '/');
+const headers = new Headers({ Location: from === 'pwa' ? '/login' : '/' });
+for (const cookie of logoutCookies(import.meta.env.PROD, Astro.url.host)) {
+  headers.append('Set-Cookie', cookie);
+}
+return new Response(null, { status: 302, headers });
 ---

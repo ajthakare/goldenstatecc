@@ -7,6 +7,7 @@ import logo from '../assets/GSCC.svg';
 import AdminPWATopBar from '../components/AdminPWATopBar.astro';
 import AdminPWABottomNav from '../components/AdminPWABottomNav.astro';
 import { validateAdminSession } from '../middleware/auth';
+import { mainSiteHref } from '../middleware/hosts';
 import { isWinterCheckInAdminRestricted } from '../config';
 
 interface Props {
@@ -238,7 +239,7 @@ const hideWinterCheckInNav = isWinterCheckInAdminRestricted(adminSession?.email)
 
           <div class="nav-divider"></div>
 
-          <a href="/" class="nav-item nav-external" target="_blank">
+          <a href={mainSiteHref(Astro.url)} class="nav-item nav-external" target="_blank">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M18 13v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
               <path d="M15 3h6v6"/>

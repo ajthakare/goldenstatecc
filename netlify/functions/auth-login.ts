@@ -3,7 +3,7 @@ import { getStore } from '@netlify/blobs';
 import {
   verifyPassword,
   createSession,
-  createSessionCookie,
+  loginCookies,
   AdminUser,
   AuthRole,
 } from '../../src/middleware/auth';
@@ -121,8 +121,8 @@ export const handler: Handler = async (
     // Create session token
     const token = createSession(player.id, player.email!, role, displayName);
 
-    // Create session cookie
-    const cookie = createSessionCookie(token, isProduction);
+    // Session cookie, shared with the admin subdomain on goldenstatecc.org
+    const cookies = loginCookies(token, isProduction, event.headers.host);
 
     // Redirect to home page after login (PWA overrides this client-side to /fixtures)
     const redirectTo = '/';
@@ -130,8 +130,10 @@ export const handler: Handler = async (
     return {
       statusCode: 200,
       headers: {
-        'Set-Cookie': cookie,
         'Content-Type': 'application/json',
+      },
+      multiValueHeaders: {
+        'Set-Cookie': cookies,
       },
       body: JSON.stringify({
         success: true,

@@ -2,6 +2,7 @@
 export const prerender = false;
 
 import Layout from '../../layouts/Layout.astro';
+import { mainSiteHref } from '../../middleware/hosts';
 
 // Check if already logged in
 const cookieHeader = Astro.request.headers.get('cookie');
@@ -25,7 +26,7 @@ if (cookieHeader) {
 }
 ---
 
-<Layout title="Admin Login - Golden State Cricket Club">
+<Layout title="Admin Login - Golden State Cricket Club" app="admin">
   <div class="min-h-screen flex items-start justify-center px-4 pb-6 pt-8">
     <div class="max-w-md w-full space-y-8">
       <div class="text-center">
@@ -82,7 +83,7 @@ if (cookieHeader) {
       </div>
 
       <div class="text-center text-sm text-gray-600">
-        <a href="/" class="hover:text-[#8C1D18] transition-colors">
+        <a href={mainSiteHref(Astro.url)} class="hover:text-[#8C1D18] transition-colors">
           &larr; Back to Website
         </a>
       </div>
