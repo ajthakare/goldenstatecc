@@ -4,7 +4,7 @@
  * or umpiring duty, in the order given. Rows carry the same data-* attributes
  * as the cards, so the page's team / game type filters apply to both.
  * Kept to a few columns so it fits a phone: date over time, division under
- * the team, then the game type. Past matches show their result under the match; `showLinks` one for YouTube/scorecard.
+ * the team, then the game type. Past matches show their result under the match.
  */
 import { teamPillStyle } from '../utils/teamColors';
 
@@ -21,9 +21,6 @@ interface Row {
     isHome?: boolean;
     umpire?: string;
     result?: string;
-    playerOfMatchName?: string;
-    youtubeVideoUrl?: string;
-    scoringAppUrl?: string;
     // Duties
     umpiringTeam?: string;
     homeTeam?: string;
@@ -34,11 +31,10 @@ interface Row {
 interface Props {
     items: Row[];
     isPast: boolean;
-    showLinks: boolean;
     resultBadge: (result: string) => { text: string; color: string };
 }
 
-const { items, isPast, showLinks, resultBadge } = Astro.props;
+const { items, isPast, resultBadge } = Astro.props;
 // Every team in the Team column is ours, so the "GSCC" prefix is dropped there
 const shortDate = (d: Date) => d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 ---
@@ -52,7 +48,6 @@ const shortDate = (d: Date) => d.toLocaleDateString('en-US', { weekday: 'short',
                 <th>Match</th>
                 <th>Venue</th>
                 <th>Umpire</th>
-                {showLinks && <th>Links</th>}
             </tr>
         </thead>
         <tbody>
@@ -89,7 +84,6 @@ const shortDate = (d: Date) => d.toLocaleDateString('en-US', { weekday: 'short',
                             {badge && (
                                 <div class="result-line">
                                     <span class={`result-badge ${badge.color}`}>{badge.text}</span>
-                                    {item.result === 'win' && item.playerOfMatchName && <span class="sub">POTM: {item.playerOfMatchName}</span>}
                                 </div>
                             )}
                         </td>
@@ -100,13 +94,6 @@ const shortDate = (d: Date) => d.toLocaleDateString('en-US', { weekday: 'short',
                                 : item.umpires ? <span class="text-muted">To be assigned</span>
                                 : '—'}
                         </td>
-                        {showLinks && (
-                            <td class="nowrap">
-                                {item.scoringAppUrl && <a href={item.scoringAppUrl} target="_blank" rel="noopener noreferrer">Scorecard</a>}
-                                {item.scoringAppUrl && item.youtubeVideoUrl && <span class="text-subtle"> · </span>}
-                                {item.youtubeVideoUrl && <a href={item.youtubeVideoUrl} target="_blank" rel="noopener noreferrer">Video</a>}
-                            </td>
-                        )}
                     </tr>
                 );
             })}
@@ -171,7 +158,6 @@ const shortDate = (d: Date) => d.toLocaleDateString('en-US', { weekday: 'short',
         .schedule-table .match-cell { font-size: 0.72rem; min-width: 7.5rem; }
         .team-pill { padding: 0.1rem 0.45rem; font-size: 0.68rem; }
     }
-    .schedule-table a { color: var(--color-maroon-600); font-weight: 600; text-decoration: underline; }
     .team-pill {
         display: inline-block;
         padding: 0.15rem 0.6rem;
@@ -184,8 +170,7 @@ const shortDate = (d: Date) => d.toLocaleDateString('en-US', { weekday: 'short',
     .type-home { color: #15803d; }
     .type-away { color: #1d4ed8; }
     .type-umpiring { color: var(--color-muted-text); }
-    .result-line { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.5rem; margin-top: 0.35rem; font-weight: 400; }
-    .result-line .sub { margin-top: 0; }
+    .result-line { margin-top: 0.35rem; }
     .result-badge {
         display: inline-flex;
         padding: 0.2rem 0.6rem;

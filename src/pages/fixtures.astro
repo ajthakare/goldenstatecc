@@ -290,11 +290,6 @@ function withHeadings(items: ScheduleItem[]): Array<{ item: ScheduleItem; headin
     });
 }
 
-// The Grid view's Links column, only where some game has a link
-const hasLinks = (items: ScheduleItem[]) => items.some((i) => !isDuty(i) && (i.youtubeVideoUrl || i.scoringAppUrl));
-const upcomingHasLinks = hasLinks(upcomingItems);
-const pastHasLinks = hasLinks(pastItems);
-
 // Get result badge styling
 function getResultBadge(result: string): { text: string; color: string } {
     switch (result) {
@@ -511,7 +506,7 @@ function getResultBadge(result: string): { text: string; color: string } {
             <div id="upcoming-fixtures-content">
 
             <Section>
-                        <ScheduleTable items={upcomingItems} isPast={false} showLinks={upcomingHasLinks} resultBadge={getResultBadge} />
+                        <ScheduleTable items={upcomingItems} isPast={false} resultBadge={getResultBadge} />
                         <div class="grid md:grid-cols-2 gap-6 schedule-grid">
                         {withHeadings(upcomingItems).map(({ item: fixture, headings }) => <Fragment>
                         {headings.map((h) => <h3 class={`group-heading group-heading--${h.kind}`}>{h.label}</h3>)}
@@ -630,7 +625,7 @@ function getResultBadge(result: string): { text: string; color: string } {
 
             <div id="past-fixtures-content" class="hidden">
                 <Section>
-                            <ScheduleTable items={pastItems} isPast={true} showLinks={pastHasLinks} resultBadge={getResultBadge} />
+                            <ScheduleTable items={pastItems} isPast={true} resultBadge={getResultBadge} />
                             <div class="grid md:grid-cols-2 gap-6 schedule-grid">
                             {withHeadings(pastItems).map(({ item: fixture, headings }) => {
                                 const groupHeadings = headings.map((h) => (
