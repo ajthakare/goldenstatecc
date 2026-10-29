@@ -88,7 +88,7 @@ const umpires = duty.umpires;
         <div class={`umpiring-names text-sm ${compact ? 'umpiring-names--compact mt-2' : 'mt-3'}`}>
             <Icon name="users" size={14} />
             {umpires.length > 0
-                ? <span><span class="font-semibold">{umpires.length > 1 ? 'Umpires' : 'Umpire'}:</span> {umpires.join(', ')}</span>
+                ? <span>{umpires.length > 1 ? 'Umpires' : 'Umpire'}: <strong class="font-bold">{umpires.join(', ')}</strong></span>
                 : <span class="text-muted">Umpire: to be assigned</span>}
         </div>
     )}

@@ -6,6 +6,7 @@ import Section from '../components/Section.astro';
 import PageHeader from '../components/PageHeader.astro';
 import Icon from '../components/Icon.astro';
 import UmpiringDutyCard from '../components/UmpiringDutyCard.astro';
+import ScheduleTable from '../components/ScheduleTable.astro';
 import type { PublicUmpiringDuty, UmpiringDuty } from '../types/umpiring';
 import { DUTY_STORE, dutiesKey, toPublicDuty } from '../utils/umpiring';
 import { teamPillStyle } from '../utils/teamColors';
@@ -309,9 +310,12 @@ function getResultBadge(result: string): { text: string; color: string } {
 ---
 
 <Layout title="Match Fixtures - Golden State Cricket Club">
-    {/* Apply a saved "Group by: Month" before the schedule is drawn, so week headings don't flash */}
+    {/* Apply a saved "View by" before the schedule is drawn, so week headings or cards don't flash */}
     <script is:inline>
-        try { if (localStorage.getItem('fixtures-group-by') === 'month') document.documentElement.dataset.groupBy = 'month'; } catch (e) {}
+        try {
+            var v = localStorage.getItem('fixtures-view') || localStorage.getItem('fixtures-group-by');
+            if (v === 'month' || v === 'grid') document.documentElement.dataset.view = v;
+        } catch (e) {}
     </script>
     <PageHeader
         kicker="Schedule"
@@ -449,9 +453,10 @@ function getResultBadge(result: string): { text: string; color: string } {
             )}
         </div>
         <div class="flex flex-wrap gap-2 items-center mt-3">
-            <span class="kicker mr-1">Group by</span>
-            <button class="filter-btn px-4 py-2 font-semibold text-sm active" data-group-by="week" aria-pressed="true">Week</button>
-            <button class="filter-btn px-4 py-2 font-semibold text-sm" data-group-by="month" aria-pressed="false">Month</button>
+            <span class="kicker mr-1">View by</span>
+            <button class="filter-btn px-4 py-2 font-semibold text-sm active" data-view="week" aria-pressed="true">Week</button>
+            <button class="filter-btn px-4 py-2 font-semibold text-sm" data-view="month" aria-pressed="false">Month</button>
+            <button class="filter-btn px-4 py-2 font-semibold text-sm" data-view="grid" aria-pressed="false">Grid</button>
         </div>
     </div>
 
@@ -484,7 +489,7 @@ function getResultBadge(result: string): { text: string; color: string } {
     {upcomingItems.length > 0 && (
         <div class="mb-12">
             <button id="upcoming-fixtures-toggle" class="section-toggle mb-6">
-                <div class="flex items-center gap-3">
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-2 min-w-0 text-left">
                     <h2 class="section-heading heading-margin-none">Upcoming Fixtures</h2>
                     <span class="badge badge-success">
                         <span id="upcoming-count">{upcomingFixtures.length}</span> matches
@@ -501,6 +506,7 @@ function getResultBadge(result: string): { text: string; color: string } {
             <div id="upcoming-fixtures-content">
 
             <Section>
+                        <ScheduleTable items={upcomingItems} isPast={false} resultBadge={getResultBadge} />
                         <div class="grid md:grid-cols-2 gap-6 schedule-grid">
                         {withHeadings(upcomingItems).map(({ item: fixture, headings }) => <Fragment>
                         {headings.map((h) => <h3 class={`group-heading group-heading--${h.kind}`}>{h.label}</h3>)}
@@ -603,7 +609,7 @@ function getResultBadge(result: string): { text: string; color: string } {
     {pastItems.length > 0 && (
         <div class="mb-12">
             <button id="past-fixtures-toggle" class="section-toggle mb-6">
-                <div class="flex items-center gap-3">
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-2 min-w-0 text-left">
                     <h2 class="section-heading heading-margin-none">Past Fixtures</h2>
                     <span class="badge badge-neutral">
                         <span id="past-count">{pastFixtures.length}</span> matches
@@ -619,6 +625,7 @@ function getResultBadge(result: string): { text: string; color: string } {
 
             <div id="past-fixtures-content" class="hidden">
                 <Section>
+                            <ScheduleTable items={pastItems} isPast={true} resultBadge={getResultBadge} />
                             <div class="grid md:grid-cols-2 gap-6 schedule-grid">
                             {withHeadings(pastItems).map(({ item: fixture, headings }) => {
                                 const groupHeadings = headings.map((h) => (
@@ -757,6 +764,8 @@ function getResultBadge(result: string): { text: string; color: string } {
         transition: background-color var(--dur-base) var(--ease-out);
     }
     .section-toggle:hover { background: var(--color-hairline); }
+    .section-toggle > svg { flex-shrink: 0; }
+    @media (max-width: 639px) { .section-toggle { gap: 0.75rem; padding: 1rem; } }
 
     /* Three rows of filters: keep them compact on phones */
     @media (max-width: 639px) {
@@ -771,7 +780,10 @@ function getResultBadge(result: string): { text: string; color: string } {
         }
     }
 
-    /* Week / month headings inside the card grid; the "Group by" toggle shows one kind */
+    /* Grid view: the table replaces the cards */
+    :global(html[data-view="grid"]) .schedule-grid { display: none; }
+
+    /* Week / month headings inside the card grid; the "View by" toggle shows one kind */
     .group-heading { grid-column: 1 / -1; }
     /* Space above a heading that follows a card (a hidden month heading can come first) */
     .schedule-grid > :global(.fixture-card) + .group-heading:not(.is-lead),
@@ -802,8 +814,8 @@ function getResultBadge(result: string): { text: string; color: string } {
         border-left: 3px solid var(--color-gold-500);
     }
     .group-heading--past { color: var(--color-muted-text); border-left-color: var(--color-hairline-strong); }
-    :global(html[data-group-by="month"]) .group-heading--month { display: block; }
-    :global(html[data-group-by="month"]) .group-heading--week { display: none; }
+    :global(html[data-view="month"]) .group-heading--month { display: block; }
+    :global(html[data-view="month"]) .group-heading--week { display: none; }
     .group-heading.is-empty { display: none !important; }
 
     .result-badge {
@@ -864,20 +876,24 @@ function getResultBadge(result: string): { text: string; color: string } {
             });
         }
 
-        // Group by week (default) or month, remembered per browser
-        const groupButtons = document.querySelectorAll<HTMLButtonElement>('[data-group-by]');
-        const setGroupBy = (mode: string) => {
-            document.documentElement.dataset.groupBy = mode;
-            groupButtons.forEach((btn) => {
-                btn.classList.toggle('active', btn.dataset.groupBy === mode);
-                btn.setAttribute('aria-pressed', btn.dataset.groupBy === mode ? 'true' : 'false');
+        // View by week (default), month or grid (a table), remembered per
+        // browser. An older saved "Group by: Month" still counts.
+        const viewButtons = document.querySelectorAll<HTMLButtonElement>('.filter-btn[data-view]');
+        const setView = (mode: string) => {
+            document.documentElement.dataset.view = mode;
+            viewButtons.forEach((btn) => {
+                btn.classList.toggle('active', btn.dataset.view === mode);
+                btn.setAttribute('aria-pressed', btn.dataset.view === mode ? 'true' : 'false');
             });
-            try { localStorage.setItem('fixtures-group-by', mode); } catch {}
+            try { localStorage.setItem('fixtures-view', mode); } catch {}
         };
-        let savedGroupBy = 'week';
-        try { savedGroupBy = localStorage.getItem('fixtures-group-by') === 'month' ? 'month' : 'week'; } catch {}
-        setGroupBy(savedGroupBy);
-        groupButtons.forEach((btn) => btn.addEventListener('click', () => setGroupBy(btn.dataset.groupBy || 'week')));
+        let savedView = 'week';
+        try {
+            const saved = localStorage.getItem('fixtures-view') || localStorage.getItem('fixtures-group-by');
+            if (saved === 'month' || saved === 'grid') savedView = saved;
+        } catch {}
+        setView(savedView);
+        viewButtons.forEach((btn) => btn.addEventListener('click', () => setView(btn.dataset.view || 'week')));
 
         // Check for team parameter in URL
         const urlParams = new URLSearchParams(window.location.search);
@@ -920,6 +936,7 @@ function getResultBadge(result: string): { text: string; color: string } {
         const selectedTeams = new Set<string>();
         const selectedTypes = new Set<string>();
         const typeButtons = document.querySelectorAll<HTMLButtonElement>('.filter-btn[data-type]');
+        const tableRows = document.querySelectorAll('.schedule-row');
 
         const typeOf = (card: Element) =>
             card.getAttribute('data-kind') === 'umpiring' ? 'umpiring' : card.getAttribute('data-is-home') === 'true' ? 'home' : 'away';
@@ -1021,6 +1038,14 @@ function getResultBadge(result: string): { text: string; color: string } {
             if (upcomingDutyEl) upcomingDutyEl.textContent = String(upcomingDutyCount);
             if (pastDutyEl) pastDutyEl.textContent = String(pastDutyCount);
 
+            // Grid view rows follow the same filters; a table with no rows left is hidden
+            tableRows.forEach(row => row.classList.toggle('hidden', !(teamMatches(row) && typeMatches(row))));
+            document.querySelectorAll('.schedule-table-wrap').forEach(wrap => {
+                const shown = wrap.querySelectorAll('.schedule-row:not(.hidden)');
+                shown.forEach((row, i) => row.classList.toggle('is-alt', i % 2 === 1));
+                wrap.classList.toggle('is-empty', shown.length === 0);
+            });
+
             updateFilterCounts();
             hideEmptyGroups();
         }
@@ -1034,7 +1059,7 @@ function getResultBadge(result: string): { text: string; color: string } {
         };
         filterButtons.forEach(button => button.addEventListener('click', () => pick(selectedTeams, button.getAttribute('data-team') || 'all')));
         typeButtons.forEach(button => button.addEventListener('click', () => pick(selectedTypes, button.dataset.type || 'all')));
-        updateFilterCounts();
+        applyFilters();
 
         // Auto-apply team filter from URL parameter
         if (teamFromUrl) {
@@ -1048,7 +1073,8 @@ function getResultBadge(result: string): { text: string; color: string } {
 
                 // Scroll to the fixtures section
                 setTimeout(() => {
-                    const fixturesSection = document.querySelector('.schedule-grid');
+                    // The cards, or the table in Grid view (the cards are hidden there)
+                    const fixturesSection = document.querySelector(document.documentElement.dataset.view === 'grid' ? '.schedule-table-wrap' : '.schedule-grid');
                     if (fixturesSection) {
                         fixturesSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     }
@@ -1057,4 +1083,3 @@ function getResultBadge(result: string): { text: string; color: string } {
         }
     });
 </script>
-// Trigger reload
