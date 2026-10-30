@@ -27,7 +27,7 @@ try {
     error = 'Could not load players. Please try again.';
 }
 
-// Filter chips. Roles are free-ish text in the data ("Wicket Keeper", "Wicket-keeper"…)
+// Filter chips. Older data may hold other spellings ("Wicket Keeper", "Wicket-keeper"…)
 function roleGroup(role?: string): string {
     const r = (role || '').toLowerCase();
     if (r.includes('keeper')) return 'keeper';

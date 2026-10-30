@@ -3,7 +3,7 @@ import { getStore } from '@netlify/blobs';
 import { validateAdminSession, isMember, verifyPassword, hashPassword } from '../../src/middleware/auth';
 import { addAuditLog } from '../../src/utils/auditLog';
 import type { Player } from '../../src/types/player';
-import { BATTING_STYLES, BOWLING_STYLES } from '../../src/types/player';
+import { BATTING_STYLES, BOWLING_STYLES, PLAYER_ROLES } from '../../src/types/player';
 import { readPlayersForUpdate, writePlayers } from './_players-store';
 
 /**
@@ -150,8 +150,7 @@ export const handler: Handler = async (
 
     // Update player role if provided
     if (playerRole) {
-      const validRoles = ['Batsman', 'Bowler', 'All-rounder', 'Wicket Keeper', 'Wicket Keeper Batsman'];
-      if (!validRoles.includes(playerRole)) {
+      if (!(PLAYER_ROLES as readonly string[]).includes(playerRole)) {
         return {
           statusCode: 400,
           body: JSON.stringify({ error: 'Invalid player role' }),

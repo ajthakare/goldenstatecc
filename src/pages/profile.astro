@@ -7,7 +7,7 @@ import ProfileSummary from '../components/profile/ProfileSummary.astro';
 import PlayerAvatar from '../components/profile/PlayerAvatar.astro';
 import Icon from '../components/Icon.astro';
 import { validateAdminSession, isMember } from '../middleware/auth';
-import { BATTING_STYLES, BOWLING_STYLES, PRIVACY_DEFAULTS } from '../types/player';
+import { BATTING_STYLES, BOWLING_STYLES, PLAYER_ROLES, PRIVACY_DEFAULTS } from '../types/player';
 import type { Player } from '../types/player';
 import type { PublicPlayerProfile } from '../types/profile';
 
@@ -156,7 +156,7 @@ const countryCodes = [
                 <label for="player-role" class="form-label">Playing Role</label>
                 <select id="player-role" name="playerRole" class="form-input">
                   <option value="">-- Select your role --</option>
-                  {['Batsman', 'Bowler', 'All-rounder', 'Wicket Keeper', 'Wicket Keeper Batsman'].map((r) => (
+                  {PLAYER_ROLES.map((r) => (
                     <option value={r} selected={player!.role === r}>{r}</option>
                   ))}
                 </select>

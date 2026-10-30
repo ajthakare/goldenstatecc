@@ -64,7 +64,7 @@ export interface Player {
   email?: string;                // Optional - can be added later (required for members, lowercase, unique)
   phone?: string;                // Contact number, format "+1 1234567890" - Optional
   usacId?: string;               // USAC ID - Optional
-  role?: string;                 // Batsman, Bowler, All-rounder, Wicket-keeper - Optional
+  role?: string;                 // One of PLAYER_ROLES - Optional
   isActive: boolean;             // Currently active in club
   isFullTimeMember?: boolean;    // Full time (paid) member
   createdAt: string;
@@ -140,7 +140,7 @@ export const PLAYER_ROLES = [
   'Batsman',
   'Bowler',
   'All-rounder',
-  'Wicket-keeper'
+  'Wicket-keeper batsman'
 ] as const;
 
 export type PlayerRole = typeof PLAYER_ROLES[number];

@@ -84,7 +84,7 @@ if (!authenticated) {
             <p class="info-title">CSV Format Required</p>
             <p class="info-text"><strong>Required Columns:</strong> First Name, Last Name</p>
             <p class="info-text"><strong>Optional Columns:</strong> Email, USAC ID, Role, Status</p>
-            <p class="info-text"><strong>Valid Roles:</strong> Batsman, Bowler, All-rounder, Wicket-keeper</p>
+            <p class="info-text"><strong>Valid Roles:</strong> Batsman, Bowler, All-rounder, Wicket-keeper batsman</p>
             <p class="info-text"><strong>Status:</strong> Active or Inactive (defaults to Active if not specified)</p>
           </div>
         </div>
@@ -673,7 +673,7 @@ if (!authenticated) {
 
     // Only First Name and Last Name are required
     const requiredFields = ['First Name', 'Last Name'];
-    const validRoles = ['Batsman', 'Bowler', 'All-rounder', 'Wicket-keeper'];
+    const validRoles = ['Batsman', 'Bowler', 'All-rounder', 'Wicket-keeper batsman'];
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     parsedData.forEach((row, index) => {
