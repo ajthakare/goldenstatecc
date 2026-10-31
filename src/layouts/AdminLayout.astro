@@ -14,7 +14,7 @@ interface Props {
   title: string;
   username: string;
   userRole?: 'super_admin' | 'admin';
-  activePage: 'inquiries' | 'users' | 'seasons' | 'fixtures' | 'umpiring' | 'players' | 'roster' | 'availability' | 'statistics' | 'logs' | 'practices' | 'notifications' | 'winter-checkin' | 'summer-feedback' | 'feed' | 'rules';
+  activePage: 'inquiries' | 'users' | 'seasons' | 'fixtures' | 'umpiring' | 'players' | 'roster' | 'availability' | 'statistics' | 'logs' | 'practices' | 'notifications' | 'winter-checkin' | 'summer-feedback' | 'feed' | 'rules' | 'stream';
 }
 
 const { title, username, userRole = 'admin', activePage } = Astro.props;
@@ -122,6 +122,14 @@ const hideWinterCheckInNav = isWinterCheckInAdminRestricted(adminSession?.email)
               <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
             </svg>
             <span>Rules Assistant</span>
+          </a>
+
+          <a href="/admin/stream" class:list={['nav-item', { active: activePage === 'stream' }]}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="6" width="14" height="12" rx="2"/>
+              <path d="M16 10l6-3v10l-6-3"/>
+            </svg>
+            <span>Live Stream</span>
           </a>
 
           <!-- Season Setup Section -->

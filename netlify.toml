@@ -33,7 +33,7 @@
     Referrer-Policy = "strict-origin-when-cross-origin"
     X-XSS-Protection = "1; mode=block"
 
-# Overlay pages must be embeddable in iframes (combined.html loads team overlays as iframes)
+# Overlay files may be framed by our own pages (DENY elsewhere)
 [[headers]]
   for = "/overlay/*"
   [headers.values]

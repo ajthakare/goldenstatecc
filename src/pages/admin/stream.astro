@@ -1,0 +1,551 @@
+---
+export const prerender = false;
+
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { ADMIN_HOST, MAIN_HOST } from '../../middleware/hosts';
+import { OVERLAY_TEAMS, OVERLAY_TEAM_NAMES } from '../../utils/streamOverlay';
+
+const cookieHeader = Astro.request.headers.get('cookie');
+let authenticated = false;
+let username = '';
+let userRole = 'admin';
+let isAdminUser = false;
+
+if (cookieHeader) {
+  try {
+    const response = await fetch(
+      `${Astro.url.origin}/.netlify/functions/auth-check`,
+      { headers: { cookie: cookieHeader } }
+    );
+    const data = await response.json();
+    authenticated = data.authenticated;
+    username = data.user?.firstName || data.user?.username || '';
+    userRole = data.user?.role_auth || data.user?.role || 'admin';
+    isAdminUser = userRole === 'admin' || userRole === 'super_admin';
+  } catch {
+    authenticated = false;
+  }
+}
+
+if (!authenticated) return Astro.redirect('/admin/login');
+if (!isAdminUser) return Astro.redirect('/');
+
+// Overlay links point at the main site, also when this page is on the admin subdomain
+const siteOrigin = Astro.url.hostname === ADMIN_HOST ? `https://${MAIN_HOST}` : Astro.url.origin;
+const teams = OVERLAY_TEAMS.map((id) => ({
+  id,
+  name: OVERLAY_TEAM_NAMES[id],
+  label: OVERLAY_TEAM_NAMES[id].replace('GSCC ', ''),
+  link: `${siteOrigin}/overlay/${id}`,
+}));
+---
+
+<AdminLayout title="Live Stream - GSCC Admin" username={username} userRole={userRole} activePage="stream">
+  <div class="stream-page">
+
+    <div class="page-header">
+      <h1 class="page-title">Live Stream</h1>
+      <p class="page-description">
+        Set the CricClubs match ID once scoring starts; the ticker shows on that team's overlay within 30 seconds. Cleared Sundays at 11 PM.
+      </p>
+    </div>
+
+    <!-- Step 1 -->
+    <section class="step-card">
+      <p class="step-title">Step 1 — Select team</p>
+      <div class="team-grid">
+        {teams.map((t) => (
+          <button type="button" class={`team-btn ${t.id}`} data-team={t.id} data-link={t.link} aria-pressed="false" aria-label={t.name}>
+            <span class="team-line">
+              <span class="dot"></span>
+              <span class="team-name">{t.label}</span>
+            </span>
+            <span class="team-match" data-role="status">Loading…</span>
+          </button>
+        ))}
+      </div>
+    </section>
+
+    <!-- Step 2 -->
+    <section class="step-card">
+      <p class="step-title">Step 2 — CricClubs match ID</p>
+      <div class="input-row">
+        <input
+          id="match-input"
+          class="match-input"
+          type="text"
+          inputmode="numeric"
+          autocomplete="off"
+          placeholder="Select a team first"
+          aria-label="CricClubs match ID or link"
+          disabled
+        />
+        <button type="button" class="save-btn" id="save-btn" disabled>Save</button>
+        <button type="button" class="clear-btn" id="clear-btn" disabled>Clear</button>
+      </div>
+      <p class="message" id="message" hidden></p>
+    </section>
+
+    <!-- Step 3 -->
+    <section class="step-card" id="links-card" hidden>
+      <p class="step-title">Step 3 — Links</p>
+
+      <div class="link-block">
+        <div class="link-label">Overlay link (add once as a browser/web source)</div>
+        <div class="link-row">
+          <code class="link-text" id="overlay-link"></code>
+          <button type="button" class="copy-btn" id="overlay-copy">Copy</button>
+        </div>
+      </div>
+
+      <div class="link-block" id="ticker-block" hidden>
+        <div class="link-label">Score ticker link</div>
+        <div class="link-row">
+          <code class="link-text" id="ticker-link"></code>
+          <button type="button" class="copy-btn" id="ticker-copy">Copy</button>
+        </div>
+        <p class="field-hint">
+          If the ticker doesn't show with the overlay link, add this as an extra source. Remember to remove it after the game.
+        </p>
+      </div>
+    </section>
+  </div>
+</AdminLayout>
+
+<style>
+  .stream-page {
+    width: 100%;
+    max-width: 680px;
+  }
+
+  .page-header {
+    margin-bottom: 0.875rem;
+  }
+
+  .page-title {
+    font-size: 1.375rem;
+    font-weight: 700;
+    color: var(--color-text-heading);
+    margin: 0 0 0.25rem;
+  }
+
+  .page-description {
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--color-text-muted);
+    margin: 0;
+  }
+
+  .step-card {
+    background: white;
+    border: 1px solid var(--color-border);
+    border-radius: 0.875rem;
+    padding: 0.875rem 1rem;
+    margin-bottom: 0.625rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .step-card[hidden] {
+    display: none;
+  }
+
+  .step-title {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 0;
+  }
+
+  /* ── Team buttons ── */
+  .team-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+  }
+
+  .team-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.125rem;
+    padding: 0.5rem 0.625rem;
+    border-radius: 0.625rem;
+    border: 2px solid var(--color-border);
+    background: white;
+    cursor: pointer;
+    text-align: left;
+    min-width: 0;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .team-btn:hover {
+    border-color: #d1d5db;
+  }
+
+  .team-line {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .team-name {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--color-text-heading);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .team-match {
+    font-size: 0.6875rem;
+    color: var(--color-text-muted);
+    padding-left: calc(8px + 0.375rem);
+    white-space: nowrap;
+  }
+
+  .team-match.live {
+    color: #15803d;
+    font-weight: 600;
+  }
+
+  .tigers .dot { background: #f97316; }
+  .bulls .dot  { background: #2563eb; }
+  .cats .dot   { background: #9333ea; }
+  .bears .dot  { background: #16a34a; }
+
+  .tigers.selected { border-color: #f97316; background: #fff7f0; }
+  .bulls.selected  { border-color: #2563eb; background: #eff6ff; }
+  .cats.selected   { border-color: #9333ea; background: #faf5ff; }
+  .bears.selected  { border-color: #16a34a; background: #f0fdf4; }
+
+  /* ── Match ID ── */
+  .input-row {
+    display: flex;
+    gap: 0.375rem;
+  }
+
+  .match-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.5rem 0.625rem;
+    border: 1px solid var(--color-border);
+    border-radius: 0.5rem;
+    font-size: 1rem; /* 16px keeps iOS from zooming in on focus */
+    color: var(--color-text-body);
+    background: white;
+  }
+
+  .match-input:disabled {
+    background: #f9fafb;
+  }
+
+  .save-btn,
+  .clear-btn,
+  .copy-btn {
+    border-radius: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0.5rem 0.75rem;
+    white-space: nowrap;
+    transition: background 0.15s;
+  }
+
+  .save-btn {
+    background: #1A1614;
+    color: white;
+    border: none;
+  }
+
+  .save-btn:hover:not(:disabled) {
+    background: #2a4a65;
+  }
+
+  .clear-btn,
+  .copy-btn {
+    background: white;
+    color: var(--color-text-body);
+    border: 1px solid var(--color-border);
+  }
+
+  .clear-btn:hover:not(:disabled),
+  .copy-btn:hover {
+    background: #f9fafb;
+  }
+
+  .save-btn:disabled,
+  .clear-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .field-hint {
+    font-size: 0.6875rem;
+    line-height: 1.4;
+    color: var(--color-text-muted);
+    margin: 0;
+  }
+
+  .message {
+    font-size: 0.6875rem;
+    margin: 0;
+    padding: 0.3125rem 0.625rem;
+    border-radius: 0.5rem;
+  }
+
+  .message[hidden] {
+    display: none;
+  }
+
+  .message.success {
+    background: #f0fdf4;
+    color: #166534;
+  }
+
+  .message.error {
+    background: #fef2f2;
+    color: #991b1b;
+  }
+
+  /* ── Links ── */
+  .link-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .link-block[hidden] {
+    display: none;
+  }
+
+  .link-block + .link-block {
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .link-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+  }
+
+  .link-row {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
+
+  /* One line; Copy copies the full link */
+  .link-text {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.75rem;
+    padding: 0.4375rem 0.5rem;
+    background: #f9fafb;
+    border-radius: 0.5rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--color-text-body);
+  }
+
+  .copy-btn {
+    padding: 0.375rem 0.625rem;
+  }
+
+  .copy-btn.copied {
+    background: #f0fdf4;
+    border-color: #86efac;
+    color: #166534;
+  }
+
+  @media (max-width: 768px) {
+    /* Title sits beside the fixed menu button instead of below it */
+    .page-header {
+      margin-top: -46px;
+    }
+
+    .page-title {
+      padding: 8px 0 0 56px;
+    }
+
+    /* Keep the admin gold underline under the title, a bit closer */
+    .page-title::after {
+      margin-top: 0.5rem;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .team-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+</style>
+
+<script>
+  const TICKER_BASE = 'https://static.cricclubs.com/overlay-cc/CC_1712/ccindex.html';
+
+  type TeamMatch = { matchId: string | null; updatedAt: string | null };
+
+  const teamButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.team-btn'));
+  const input = document.getElementById('match-input') as HTMLInputElement;
+  const saveBtn = document.getElementById('save-btn') as HTMLButtonElement;
+  const clearBtn = document.getElementById('clear-btn') as HTMLButtonElement;
+  const message = document.getElementById('message')!;
+  const linksCard = document.getElementById('links-card')!;
+  const tickerBlock = document.getElementById('ticker-block')!;
+
+  const matches: Record<string, TeamMatch> = {};
+  let selected: HTMLButtonElement | null = null;
+
+  function timeAgo(iso: string): string {
+    const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins} min ago`;
+    const hours = Math.round(mins / 60);
+    if (hours < 24) return `${hours} h ago`;
+    return new Date(iso).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+
+  function renderStatus(btn: HTMLButtonElement) {
+    const match = matches[btn.dataset.team!];
+    const status = btn.querySelector<HTMLElement>('[data-role="status"]')!;
+    if (match?.matchId) {
+      status.textContent = `Match ${match.matchId}`;
+      status.title = match.updatedAt ? `Set ${timeAgo(match.updatedAt)}` : '';
+      status.classList.add('live');
+    } else {
+      status.textContent = match ? 'No match' : 'Could not load';
+      status.title = '';
+      status.classList.remove('live');
+    }
+  }
+
+  function renderSelected() {
+    if (!selected) return;
+    const match = matches[selected.dataset.team!];
+    input.value = match?.matchId ?? '';
+
+    const overlayLink = selected.dataset.link!;
+    document.getElementById('overlay-link')!.textContent = overlayLink;
+    (document.getElementById('overlay-copy') as HTMLButtonElement).dataset.copy = overlayLink;
+
+    if (match?.matchId) {
+      const link = `${TICKER_BASE}?matchId=${match.matchId}&clubId=1191`;
+      document.getElementById('ticker-link')!.textContent = link;
+      (document.getElementById('ticker-copy') as HTMLButtonElement).dataset.copy = link;
+      tickerBlock.hidden = false;
+    } else {
+      tickerBlock.hidden = true;
+    }
+    linksCard.hidden = false;
+  }
+
+  function select(btn: HTMLButtonElement) {
+    selected = btn;
+    teamButtons.forEach((b) => {
+      b.classList.toggle('selected', b === btn);
+      b.setAttribute('aria-pressed', String(b === btn));
+    });
+    input.disabled = saveBtn.disabled = clearBtn.disabled = false;
+    input.placeholder = 'Match ID or CricClubs link';
+    message.hidden = true;
+    renderSelected();
+    input.focus();
+  }
+
+  function showMessage(text: string, kind: 'success' | 'error') {
+    message.textContent = text;
+    message.className = `message ${kind}`;
+    message.hidden = false;
+  }
+
+  async function loadAll() {
+    try {
+      const res = await fetch('/.netlify/functions/overlay-match-get', { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const { teams } = await res.json();
+      Object.assign(matches, teams);
+    } catch {
+      // Leave matches empty: the buttons say "Could not load"
+    }
+    teamButtons.forEach(renderStatus);
+    renderSelected();
+  }
+
+  async function save(matchId: string) {
+    if (!selected) return;
+    const btn = selected;
+    saveBtn.disabled = clearBtn.disabled = true;
+    try {
+      const res = await fetch('/.netlify/functions/overlay-match-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ team: btn.dataset.team, matchId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      matches[btn.dataset.team!] = { matchId: data.matchId, updatedAt: data.updatedAt };
+      renderStatus(btn);
+      renderSelected();
+      showMessage(
+        data.matchId
+          ? 'Saved. Shows on the stream within 30 secs.'
+          : 'Cleared. Off the stream within 30 secs.',
+        'success'
+      );
+    } catch (err) {
+      showMessage(err instanceof Error ? err.message : 'Failed to save', 'error');
+    } finally {
+      saveBtn.disabled = clearBtn.disabled = false;
+    }
+  }
+
+  teamButtons.forEach((btn) => btn.addEventListener('click', () => select(btn)));
+
+  saveBtn.addEventListener('click', () => {
+    if (!input.value.trim()) {
+      showMessage('Enter the match ID first, or use Clear.', 'error');
+      return;
+    }
+    save(input.value);
+  });
+  clearBtn.addEventListener('click', () => save(''));
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveBtn.click();
+  });
+
+  document.querySelectorAll<HTMLButtonElement>('.copy-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const text = btn.dataset.copy;
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        btn.textContent = 'Copied';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'Copy';
+          btn.classList.remove('copied');
+        }, 2000);
+      } catch {
+        window.prompt('Copy this link:', text);
+      }
+    });
+  });
+
+  loadAll();
+</script>

@@ -52,7 +52,7 @@ goldenstatecc/
 ├── public/
 │   ├── media/                      # Gallery photos (add images here!)
 │   ├── documents/                  # gscc/ and ncca/ PDFs for /documents
-│   ├── overlay/                    # Streaming overlays (team logos, combined, generator)
+│   ├── overlay/                    # fit.js (scales overlays to the source size), unused index.html
 │   ├── sponsors/, icons/, images/, install-guide/, screenshots/
 │   ├── manifest.json               # Player PWA (start_url /app)
 │   ├── manifest-admin.json         # Admin PWA (start_url /admin/app, scope /admin/)
@@ -143,7 +143,7 @@ Roles: `member`, `admin`, `super_admin`. Members sign in at `/login`; admins too
 ## Player PWA vs Admin PWA
 
 - **Player app**: `public/manifest.json`, start URL `/app` → `/feed` if signed in, else `/login`. Bottom nav (`PWABottomNav.astro`): Feed, Fixtures, My Fixtures, Practice, Players, Profile
-- **Admin app**: `public/manifest-admin.json`, start URL `/admin/app`, scope `/admin/` → `/admin/availability` for admins. Bottom nav (`AdminPWABottomNav.astro`): Availability, Players, Practices, Statistics, Notifications, Rules
+- **Admin app**: `public/manifest-admin.json`, start URL `/admin/app`, scope `/admin/` → `/admin/availability` for admins. Bottom nav (`AdminPWABottomNav.astro`): Availability, Players, Practices, Statistics, Notifications, Rules, Stream
 - Both share `public/sw.js` (push handling). `/sw.js` is served `no-cache`
 
 ## Club Feed (`/feed`)
@@ -171,14 +171,18 @@ Netlify only runs these on the published deploy. Times are Pacific (cron is UTC)
 | `schedule-statistics` | Mon 3 AM | Recalculates admin statistics + profile stats/badges (past fixtures only) |
 | `sync-social-feed` | Every 6h (:00 UTC) | Pulls Instagram + YouTube into `social-feed`; refreshes the Instagram token itself |
 | `schedule-club-feed` | Every 6h (:15 UTC) | Rebuilds the stored Club Feed |
+| `schedule-overlay-clear` | Sun 11 PM | Clears the stream overlay match IDs so next weekend's streams start without a ticker |
 
-`backup-weekly` has its own store list; `player-profiles`, `winter-checkin` and `social-feed` aren't in it. Add new stores there.
+`backup-weekly` has its own store list; `player-profiles`, `winter-checkin`, `social-feed` and `stream-overlay` (match-day state) aren't in it. Add new stores there.
 
 ## Live Score and Streaming Overlays
 
 - **`cricclubs-live-score`** (public, `?matchId=`): CricClubs blocks direct API calls, so it renders the public overlay page in headless Chromium (`@sparticuz/chromium` + `puppeteer-core`, kept out of other bundles in `netlify.toml`) and reads score, wickets, overs and target from the DOM
 - **`/scoreboard`**: unlisted tester page for that endpoint
-- **`public/overlay/`**: OBS/streaming browser sources. Per-team logo + sponsor overlays (`tigers`, `bulls`, `cats`, `bears`), `combined.html` (team overlay + CricClubs score ticker in one source), `generator.html` (builds the URLs). `/overlay/*` may be framed (`SAMEORIGIN`); everything else is `DENY`
+- **Stream overlays** (`src/pages/overlay/[team].astro`): one fixed link per team, `/overlay/tigers`, `bulls`, `cats` (or `thundercats`), `bears`, added once as a browser/web source in Streamlabs, Prism, OBS, ... Club/team logo, sponsors (list in that file), and the CricClubs ticker embedded once an admin sets the team's match ID at `/admin/stream`. The page polls `overlay-match-get` every 30s (one function call each, ~480 per 4-hour stream) and adds, swaps or removes the ticker without reloading
+- Drawn at 1920×1080 and scaled by `public/overlay/fit.js` (CSS zoom on Android, transform elsewhere; `?debug=1` shows the measured size). The viewport is locked to `device-width`, zoom 1, or Android web views report the wrong size
+- Prism on iPhone doesn't show the embedded ticker; `/admin/stream` shows the direct CricClubs link to add as a separate source there
+- Match IDs: `stream-overlay` store, current state only (no history or audit), set by `overlay-match-update` (admin), cleared Sundays by `schedule-overlay-clear`
 
 ## Admin System
 
@@ -201,6 +205,7 @@ Netlify only runs these on the published deploy. Times are Pacific (cron is UTC)
 | `/admin/inquiries` | Contact form submissions (Netlify Forms API) with review status (`submission-metadata`) |
 | `/admin/winter-checkin`, `/admin/summer-feedback` | Winter Check-In responses and Summer feedback: list, CSV export, delete. Hidden from admins on a restricted list in `src/config.ts` |
 | `/admin/rules` | Rules Assistant (see below) |
+| `/admin/stream` | Live Stream: set or clear each team's CricClubs match ID for its stream overlay, copy the overlay and ticker links |
 | `/admin/audit-logs` | Super admin only: browse by month, search, delete old logs |
 
 ### Winter Check-In / Summer feedback
@@ -243,6 +248,7 @@ Netlify only runs these on the published deploy. Times are Pacific (cron is UTC)
 | `player-statistics` | Calculated admin statistics (season, team, career) |
 | `player-profiles` | Profile stats, feed milestones/events/hidden posts, stored Club Feed (`club-feed`) |
 | `social-feed` | Merged Instagram + YouTube feed and the Instagram token |
+| `stream-overlay` | Current CricClubs match ID per team for the stream overlays (`match-ids`) |
 | `push-subscriptions` | One `subscriptions` list, each tagged with its player ID |
 | `password-reset-requests` | Reset requests for super admins |
 | `winter-checkin` | Winter Check-In + Summer feedback responses |
