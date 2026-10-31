@@ -1,0 +1,208 @@
+---
+/**
+ * Stream overlay for one team: /overlay/tigers, /overlay/bulls, /overlay/cats, /overlay/bears
+ * Add it as a browser/web source in Streamlabs, Prism, OBS, ... (any size; fit.js scales it).
+ *
+ * Club + team logo (left) and sponsors (right), plus the CricClubs score ticker
+ * once an admin sets the team's match ID at /admin/stream. The page checks every
+ * 30s and adds, swaps or removes the ticker without reloading.
+ */
+export const prerender = false;
+
+import { OVERLAY_TEAM_NAMES, toOverlayTeam } from '../../utils/streamOverlay';
+
+const team = toOverlayTeam(Astro.params.team);
+if (!team) return new Response('Unknown team. Use /overlay/tigers, /overlay/bulls, /overlay/cats or /overlay/bears.', { status: 404 });
+
+const teamName = OVERLAY_TEAM_NAMES[team];
+
+// Same list for every team
+const sponsors = [
+  { src: '/sponsors/dimple-seth.png', alt: 'Dimple Seth' },
+  { src: '/sponsors/parktown.png', alt: 'Parktown Pizza' },
+];
+
+Astro.response.headers.set('Cache-Control', 'no-store');
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!-- Zoom locked at 1 so Android web views report the layer's real size to fit.js -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>GSCC {teamName.replace('GSCC ', '')} Stream Overlay</title>
+  <style is:inline>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      overflow: hidden;
+    }
+
+    /* Drawn at 1920×1080; fit.js scales it to the source size */
+    body {
+      width: 1920px;
+      height: 1080px;
+      background: transparent !important;
+      overflow: hidden;
+    }
+
+    .top-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 150px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 60px;
+      background: transparent;
+      z-index: 3;
+    }
+
+    .logo-slot {
+      position: relative;
+      width: 312px;
+      height: 132px;
+    }
+
+    .rotating-logo,
+    .sponsor-logo {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      opacity: 0;
+      transition: opacity 0.8s ease-in-out;
+    }
+
+    .rotating-logo {
+      object-position: left center;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,0.6));
+    }
+
+    .sponsor-logo {
+      filter: drop-shadow(0 1px 4px rgba(0,0,0,0.5));
+    }
+
+    .rotating-logo.active,
+    .sponsor-logo.active {
+      opacity: 1;
+    }
+
+    .sponsor-area {
+      display: flex;
+      align-items: center;
+      gap: 26px;
+    }
+
+    .presented-by {
+      font-family: 'Arial', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.35);
+      white-space: nowrap;
+    }
+
+    .sponsor-slot {
+      position: relative;
+      width: 312px;
+      height: 120px;
+    }
+
+    /* CricClubs ticker: its own 1920×1080 page, scaled with the rest */
+    #score-frame {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 1920px;
+      height: 1080px;
+      border: none;
+      background: transparent;
+      pointer-events: none;
+      z-index: 2;
+    }
+  </style>
+</head>
+<body data-team={team}>
+
+  <div class="top-bar">
+    <!-- Left: club logo and team logo take turns -->
+    <div class="logo-slot">
+      <img src="/GSCC_png.png" alt="Golden State Cricket Club" class="rotating-logo" />
+      <img src={`/${team}.png`} alt={teamName} class="rotating-logo" />
+    </div>
+
+    <!-- Right: sponsor logos take turns -->
+    <div class="sponsor-area">
+      <span class="presented-by">Sponsored by</span>
+      <div class="sponsor-slot">
+        {sponsors.map((s) => <img src={s.src} alt={s.alt} class="sponsor-logo" />)}
+      </div>
+    </div>
+  </div>
+
+  <script is:inline>
+    function rotate(selector, everyMs) {
+      const logos = document.querySelectorAll(selector);
+      if (!logos.length) return;
+      let current = 0;
+      logos[current].classList.add('active');
+      if (logos.length < 2) return;
+      setInterval(() => {
+        logos[current].classList.remove('active');
+        current = (current + 1) % logos.length;
+        logos[current].classList.add('active');
+      }, everyMs);
+    }
+    rotate('.rotating-logo', 7000);
+    rotate('.sponsor-logo', 10000);
+
+    // Ticker: follow the match ID an admin sets at /admin/stream
+    const TEAM = document.body.dataset.team;
+    // One small function call per check; 30s keeps a 4-hour stream to ~480 calls
+    const POLL_MS = 30000;
+    const tickerUrl = (id) =>
+      'https://static.cricclubs.com/overlay-cc/CC_1712/ccindex.html?matchId=' + id + '&clubId=1191';
+
+    function setTicker(matchId) {
+      let frame = document.getElementById('score-frame');
+      if (!matchId) {
+        if (frame) frame.remove();
+        return;
+      }
+      if (!frame) {
+        frame = document.createElement('iframe');
+        frame.id = 'score-frame';
+        frame.setAttribute('allowtransparency', 'true');
+        document.body.appendChild(frame);
+      }
+      frame.src = tickerUrl(matchId);
+    }
+
+    let currentMatchId = null;
+    // A failed check keeps whatever is showing
+    async function checkMatch() {
+      try {
+        const res = await fetch('/.netlify/functions/overlay-match-get?team=' + TEAM, { cache: 'no-store' });
+        if (!res.ok) return;
+        const { matchId } = await res.json();
+        if (matchId === currentMatchId) return;
+        currentMatchId = matchId;
+        setTicker(matchId);
+      } catch (e) {
+        console.error('Failed to check the match ID:', e);
+      }
+    }
+    checkMatch();
+    setInterval(checkMatch, POLL_MS);
+  </script>
+  <script is:inline src="/overlay/fit.js"></script>
+</body>
+</html>

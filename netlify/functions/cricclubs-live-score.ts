@@ -2,7 +2,7 @@ import { Handler, HandlerEvent } from '@netlify/functions';
 import chromium from '@sparticuz/chromium';
 import puppeteer from 'puppeteer-core';
 
-// GSCC's fixed CricClubs club ID (see public/overlay/generator.html CRICCLUBS_BASE)
+// GSCC's fixed CricClubs club ID (see cricclubsTickerUrl in src/utils/streamOverlay.ts)
 const CLUB_ID = '1191';
 const OVERLAY_BASE = 'https://static.cricclubs.com/overlay-cc/CC_1712/ccindex.html';
 
