@@ -502,7 +502,7 @@
           <a class="btn-outline-primary" id="openBtnCombined" href="#" target="_blank">Preview</a>
         </div>
         <div class="hint">
-          Add as a single browser source at <strong>1920 × 1080</strong>. In OBS check <strong>"Allow transparency"</strong> or add <code>body { background: transparent !important; }</code> under Custom CSS.
+          Add as a single browser source. Any size works: the overlay scales to fit. Use <strong>1920 × 1080</strong> (or your canvas size) for the sharpest result. In OBS check <strong>"Allow transparency"</strong> or add <code>body { background: transparent !important; }</code> under Custom CSS.
         </div>
       </div>
     </div>
@@ -530,7 +530,7 @@
       </div>
       <div style="height:12px;"></div>
       <div class="hint">
-        Add both sources at <strong>1920 × 1080</strong> and stretch each to fill the canvas. Keep Source 2 above Source 1 in the layer order.
+        Add both sources at your canvas size (e.g. <strong>1920 × 1080</strong>); each scales to fit. Keep Source 2 above Source 1 in the layer order.
       </div>
     </div>
   </div>
@@ -603,11 +603,13 @@
         document.getElementById('resultBoxSeparate').classList.remove('visible');
       } else {
         generatedUrls.logos = topFull;
-        generatedUrls.score = scoreVal;
+        // Wrap the CricClubs page so it scales with the source like the logo overlay
+        const scoreWrapped = BASE + '/overlay/combined.html?score=' + encodeURIComponent(scoreVal);
+        generatedUrls.score = scoreWrapped;
 
         document.getElementById('resultUrlLogos').textContent = topFull;
         document.getElementById('openBtnLogos').href = topFull;
-        document.getElementById('resultUrlScore').textContent = scoreVal;
+        document.getElementById('resultUrlScore').textContent = scoreWrapped;
         ['copyBtnLogos', 'copyBtnScore'].forEach(id => {
           document.getElementById(id).textContent = 'Copy URL';
           document.getElementById(id).classList.remove('copied');
