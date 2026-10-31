@@ -1,9 +1,15 @@
 // Scales the 1920×1080 overlay to whatever size the browser source is
 // (Streamlabs defaults to 800×600; phone apps use their own canvas size).
 // Add &debug=1 to the URL to show the measured size on screen.
+// Android uses CSS zoom: its web view shrinks a transform-scaled overlay as a
+// finished picture, which looks pixelated. iOS stays on transform (sharp there).
+// &mode=zoom or &mode=transform overrides the choice for testing.
 (function () {
   const W = 1920, H = 1080;
-  const debug = new URLSearchParams(window.location.search).get('debug') === '1';
+  const params = new URLSearchParams(window.location.search);
+  const debug = params.get('debug') === '1';
+  const mode = params.get('mode')
+    || (/Android/i.test(navigator.userAgent) && 'zoom' in document.body.style ? 'zoom' : 'transform');
   let box;
 
   function size() {
@@ -21,7 +27,14 @@
     const x = (w - W * s) / 2;
     const y = (h - H * s) / 2;
     document.body.style.transformOrigin = '0 0';
-    document.body.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+    if (mode === 'zoom') {
+      document.body.style.zoom = s;
+      // Lengths on a zoomed element are zoomed too, so divide the offset back out.
+      // The transform also keeps body the containing block for fixed children.
+      document.body.style.transform = `translate(${x / s}px, ${y / s}px)`;
+    } else {
+      document.body.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+    }
 
     if (debug) {
       if (!box) {
@@ -37,7 +50,7 @@
         `client ${document.documentElement.clientWidth}×${document.documentElement.clientHeight}`,
         `visual ${vv ? Math.round(vv.width) + '×' + Math.round(vv.height) + ' @' + vv.scale.toFixed(2) : 'n/a'}`,
         `screen ${screen.width}×${screen.height}  dpr ${window.devicePixelRatio}`,
-        `scale ${s.toFixed(3)}`,
+        `scale ${s.toFixed(3)}  mode ${mode}`,
         navigator.userAgent.slice(0, 60),
       ].join('\n');
     }
