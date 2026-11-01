@@ -9,6 +9,7 @@ import { spawn } from 'child_process';
 import { appendFeedEvents, todayString } from './_profile-stats';
 import { isUmpireUpgrade } from '../../src/utils/badges';
 import { readPlayersForUpdate, writePlayers } from './_players-store';
+import { checkCricclubsId, checkCricclubsUrl, findCricclubsIdOwner } from '../../src/utils/cricclubs';
 
 /**
  * Update player details
@@ -251,6 +252,25 @@ export const handler: Handler = async (
     if (cleanUpdates.email) cleanUpdates.email = cleanUpdates.email.trim().toLowerCase();
     if (cleanUpdates.phone) cleanUpdates.phone = cleanUpdates.phone.trim();
     if (cleanUpdates.usacId) cleanUpdates.usacId = cleanUpdates.usacId.trim();
+
+    // CricClubs link and ID (empty clears); the ID can't be on two players
+    if ('cricclubsUrl' in updates) {
+      const result = checkCricclubsUrl(updates.cricclubsUrl);
+      if (!result.ok) return { statusCode: 400, body: JSON.stringify({ error: result.error }) };
+      cleanUpdates.cricclubsUrl = result.value;
+    }
+    if ('cricclubsId' in updates) {
+      const result = checkCricclubsId(updates.cricclubsId);
+      if (!result.ok) return { statusCode: 400, body: JSON.stringify({ error: result.error }) };
+      const owner = result.value ? findCricclubsIdOwner(players, result.value, id) : undefined;
+      if (owner) {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({ error: `CricClubs ID ${result.value} is already on ${owner.firstName} ${owner.lastName}` }),
+        };
+      }
+      cleanUpdates.cricclubsId = result.value;
+    }
 
     // Update player
     const updatedPlayer: Player = {

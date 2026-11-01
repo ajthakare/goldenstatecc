@@ -81,6 +81,7 @@ export interface PublicPlayerProfile {
   battingStyle?: BattingStyle;
   bowlingStyle?: BowlingStyle;
   cricclubsUrl?: string;
+  cricclubsId?: string;
   umpireStatus?: UmpireStatus;
   photoUrl?: string;
   memberSince?: string;          // ISO date

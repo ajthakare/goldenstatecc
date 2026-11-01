@@ -93,6 +93,7 @@ export interface Player {
   battingStyle?: BattingStyle;
   bowlingStyle?: BowlingStyle;
   cricclubsUrl?: string;          // Link to the player's CricClubs profile
+  cricclubsId?: string;           // "CC Player ID" on that profile (digits); unique across players
   photoUpdatedAt?: string;        // Set when a profile photo exists (ISO date); also the avatar cache-buster
   umpireStatus?: UmpireStatus;    // Admin-set only
   privacy?: ProfilePrivacy;

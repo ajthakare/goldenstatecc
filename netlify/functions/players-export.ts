@@ -87,6 +87,8 @@ export const handler: Handler = async (
       'Last Name': player.lastName,
       'Email': player.email,
       'USAC ID': player.usacId,
+      'CricClubs ID': player.cricclubsId,
+      'CricClubs Link': player.cricclubsUrl,
       'Role': player.role,
       'Status': player.isActive ? 'Active' : 'Inactive',
     }));

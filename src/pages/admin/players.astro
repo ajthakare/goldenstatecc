@@ -75,7 +75,7 @@ if (!isAdminUser) {
         <input
           type="text"
           id="search-input"
-          placeholder="Search by name, email, or USAC ID..."
+          placeholder="Search by name, email, USAC ID or CricClubs ID..."
           class="search-input"
         />
       </div>
@@ -341,6 +341,33 @@ if (!isAdminUser) {
             />
           </div>
           <div class="form-group">
+            <label for="cricclubs-id" class="form-label">CricClubs ID (Optional)</label>
+            <input
+              type="text"
+              id="cricclubs-id"
+              name="cricclubsId"
+              inputmode="numeric"
+              pattern="\d{1,10}"
+              maxlength="10"
+              class="form-input"
+              placeholder="e.g., 123456"
+            />
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="cricclubs-url" class="form-label">CricClubs Profile Link (Optional)</label>
+            <input
+              type="url"
+              id="cricclubs-url"
+              name="cricclubsUrl"
+              maxlength="500"
+              class="form-input"
+              placeholder="https://cricclubs.com/NCCA/user/XXXXXXXX?playerName=Your+Name"
+            />
+          </div>
+          <div class="form-group">
             <label for="role" class="form-label">Role (Optional)</label>
             <select id="role" name="role" class="form-input">
               <option value="">Select role...</option>
@@ -439,6 +466,17 @@ if (!isAdminUser) {
           <div class="form-group">
             <label class="form-label">USAC ID</label>
             <div id="view-usac-id" class="view-field"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">CricClubs ID</label>
+            <div id="view-cricclubs-id" class="view-field"></div>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">CricClubs Profile</label>
+            <div id="view-cricclubs-url" class="view-field"></div>
           </div>
           <div class="form-group">
             <label class="form-label">Role</label>
@@ -929,6 +967,7 @@ if (!isAdminUser) {
         player.lastName.toLowerCase().includes(search) ||
         (player.email && player.email.toLowerCase().includes(search)) ||
         (player.usacId && player.usacId.toLowerCase().includes(search)) ||
+        (player.cricclubsId && player.cricclubsId.includes(search)) ||
         `${player.firstName} ${player.lastName}`.toLowerCase().includes(search);
 
       const matchesStatus =
@@ -1154,6 +1193,8 @@ if (!isAdminUser) {
     document.getElementById('job-title').value = player.jobTitle || '';
 
     document.getElementById('usac-id').value = player.usacId || '';
+    document.getElementById('cricclubs-id').value = player.cricclubsId || '';
+    document.getElementById('cricclubs-url').value = player.cricclubsUrl || '';
     document.getElementById('role').value = player.role || '';
     document.getElementById('is-active').checked = player.isActive;
     document.getElementById('is-full-time-member').checked = player.isFullTimeMember ?? false;
@@ -1226,6 +1267,8 @@ if (!isAdminUser) {
       jobCompany: formData.get('jobCompany'),
       jobTitle: formData.get('jobTitle'),
       usacId: formData.get('usacId'),
+      cricclubsId: formData.get('cricclubsId'),
+      cricclubsUrl: formData.get('cricclubsUrl'),
       role: formData.get('role'),
       isActive: document.getElementById('is-active').checked,
       isFullTimeMember: document.getElementById('is-full-time-member').checked,
@@ -1318,6 +1361,19 @@ if (!isAdminUser) {
     document.getElementById('view-emergency-contact-name').textContent = player.emergencyContactName || '-';
     document.getElementById('view-emergency-contact-number').textContent = player.emergencyContactNumber || '-';
     document.getElementById('view-usac-id').textContent = player.usacId || '-';
+    document.getElementById('view-cricclubs-id').textContent = player.cricclubsId || '-';
+    const viewCricclubsUrl = document.getElementById('view-cricclubs-url');
+    viewCricclubsUrl.textContent = '';
+    if (player.cricclubsUrl) {
+      const link = document.createElement('a');
+      link.href = player.cricclubsUrl;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = 'Open on CricClubs';
+      viewCricclubsUrl.appendChild(link);
+    } else {
+      viewCricclubsUrl.textContent = '-';
+    }
     document.getElementById('view-role').textContent = player.role || '-';
 
     viewPlayerModal.style.display = 'flex';

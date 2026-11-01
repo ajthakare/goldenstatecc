@@ -42,12 +42,15 @@ const updated = profile.statsCalculatedAt
             {umpireLabel && <span class="ps-chip ps-chip--umpire"><Icon name="shield" size={13} /> {umpireLabel}</span>}
             {memberYear && <span class="ps-chip"><Icon name="calendar" size={13} /> Member since {memberYear}</span>}
         </div>
-        {(profile.cricclubsUrl || profile.phone || profile.jobCompany || profile.jobTitle) && (
+        {(profile.cricclubsUrl || profile.cricclubsId || profile.phone || profile.jobCompany || profile.jobTitle) && (
             <div class="ps-links">
                 {profile.cricclubsUrl && (
                     <a href={profile.cricclubsUrl} target="_blank" rel="noopener noreferrer" class="ps-link">
                         <Icon name="external-link" size={14} /> CricClubs profile
                     </a>
+                )}
+                {profile.cricclubsId && (
+                    <span class="ps-link ps-link--plain"><Icon name="cricket-bat" size={14} /> CC ID {profile.cricclubsId}</span>
                 )}
                 {profile.phone && (
                     <a href={`tel:${profile.phone.replace(/\s/g, '')}`} class="ps-link"><Icon name="phone" size={14} /> {profile.phone}</a>

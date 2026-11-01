@@ -275,6 +275,7 @@ export function toPublicProfile(
     battingStyle: p.battingStyle,
     bowlingStyle: p.bowlingStyle,
     cricclubsUrl: p.cricclubsUrl,
+    cricclubsId: p.cricclubsId,
     umpireStatus: p.umpireStatus,
     photoUrl: avatarUrl(p),
     memberSince: memberSince(p),
