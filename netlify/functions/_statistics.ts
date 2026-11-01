@@ -9,6 +9,7 @@
  *    scheduled job can share one load with profile stats), computes, and saves.
  */
 import { parseLocalDate } from './_utils';
+import { computeAdvancedStats } from './_advanced-stats';
 import { blobStore, getJSONWithRetry, loadSeasonInputs, mapLimit, todayString } from './_profile-stats';
 import type { SeasonInput } from '../../src/utils/badges';
 import type {
@@ -23,6 +24,7 @@ import type {
   SeasonStatisticsSummary,
   ActivityStats,
 } from '../../src/types/player';
+import type { UmpiringDuty } from '../../src/types/umpiring';
 
 // Concurrent Blobs writes; matches the read concurrency in _profile-stats.ts
 const SAVE_CONCURRENCY = 8;
@@ -58,6 +60,7 @@ interface SeasonData {
   fixtures: Fixture[] | null;
   availability: FixtureAvailability[];
   availabilityMap: Map<string, FixtureAvailability>;
+  umpiringDuties: UmpiringDuty[];
 }
 
 /** Load what recalculateStatistics() needs. Practices aren't used by these stats. */
@@ -89,6 +92,7 @@ export async function recalculateStatistics(
     calculatedBy: opts.calculatedBy,
     todayStr: todayString(),
     now: new Date(),
+    allPlayers: data.players,
   });
 
   const store = blobStore('player-statistics');
@@ -118,12 +122,18 @@ export async function recalculateStatistics(
 
 /**
  * Calculate every statistics blob for these players and seasons. No I/O.
- * `now`/`todayStr` decide which fixtures are in the past.
+ * `now`/`todayStr` decide which fixtures are in the past. `allPlayers` (inactive
+ * too) names past award winners and fee payers; defaults to playersToProcess.
  */
 export function computeStatistics(
   playersToProcess: Player[],
   inputs: SeasonInput[],
-  { calculatedBy, todayStr, now }: { calculatedBy: string; todayStr: string; now: Date }
+  {
+    calculatedBy,
+    todayStr,
+    now,
+    allPlayers,
+  }: { calculatedBy: string; todayStr: string; now: Date; allPlayers?: Player[] }
 ): { playerStats: PlayerStatistics[]; summaries: Array<[string, unknown]> } {
   const seasonsToProcess = inputs.map((i) => i.season);
   const seasonDataMap = new Map<string, SeasonData>();
@@ -134,6 +144,7 @@ export function computeStatistics(
       fixtures: input.fixtures,
       availability: input.availability,
       availabilityMap: new Map(input.availability.map((a) => [a.fixtureId, a])),
+      umpiringDuties: input.umpiringDuties || [],
     });
   }
 
@@ -625,193 +636,20 @@ export function computeStatistics(
       summaries.push([`statistics-summary-${season.id}`, completeSummary]);
     }
 
-    // PRE-CALCULATE ADVANCED STATISTICS for instant loading
-    try {
-      const seasonData = seasonDataMap.get(season.id);
-      if (!seasonData?.fixtures?.length) {
-        console.log(`No fixtures found for ${season.name}, skipping advanced stats`);
-        continue;
-      }
-
-      const fixtures = seasonData.fixtures;
-
-      // 1. Player of Match Leaderboard
-      const playerOfMatchCounts: { [playerId: string]: { name: string; count: number } } = {};
-      fixtures.forEach(fixture => {
-        if (fixture.result === 'win' && fixture.playerOfMatch) {
-          const player = playersToProcess.find(p => p.id === fixture.playerOfMatch);
-          if (player) {
-            if (!playerOfMatchCounts[fixture.playerOfMatch]) {
-              playerOfMatchCounts[fixture.playerOfMatch] = {
-                name: `${player.firstName} ${player.lastName}`,
-                count: 0
-              };
-            }
-            playerOfMatchCounts[fixture.playerOfMatch].count++;
-          }
-        }
-      });
-
-      const playerOfMatchLeaderboard = Object.values(playerOfMatchCounts)
-        .sort((a, b) => b.count - a.count);
-
-      // 2. Umpire Fees Summary
-      let totalUmpireFeesPaid = 0;
-      const umpireFeesByPlayer: { [playerId: string]: { name: string; timesPaid: number; totalAmount: number } } = {};
-
-      fixtures.forEach(fixture => {
-        if (fixture.paidUmpireFee && fixture.umpireFeePaidBy && fixture.umpireFeeAmount) {
-          const player = playersToProcess.find(p => p.id === fixture.umpireFeePaidBy);
-          if (player) {
-            totalUmpireFeesPaid += fixture.umpireFeeAmount;
-            if (!umpireFeesByPlayer[fixture.umpireFeePaidBy]) {
-              umpireFeesByPlayer[fixture.umpireFeePaidBy] = {
-                name: `${player.firstName} ${player.lastName}`,
-                timesPaid: 0,
-                totalAmount: 0
-              };
-            }
-            umpireFeesByPlayer[fixture.umpireFeePaidBy].timesPaid++;
-            umpireFeesByPlayer[fixture.umpireFeePaidBy].totalAmount += fixture.umpireFeeAmount;
-          }
-        }
-      });
-
-      const umpireFeesList = Object.values(umpireFeesByPlayer)
-        .sort((a, b) => b.totalAmount - a.totalAmount);
-
-      // 3. Win/Loss Analysis by Team
-      const teamWinLoss: any = {};
-      const teams = ['Bengal Tigers', 'Bengal Bulls', 'Bengal Thunder Cats'];
-
-      teams.forEach(team => {
-        const teamFixtures = fixtures.filter(f => f.team === team && f.result);
-        const wins = teamFixtures.filter(f => f.result === 'win').length;
-        const losses = teamFixtures.filter(f => f.result === 'loss').length;
-        const ties = teamFixtures.filter(f => f.result === 'tie').length;
-        const total = teamFixtures.length;
-
-        const homeFixtures = teamFixtures.filter(f => f.isHomeTeam);
-        const awayFixtures = teamFixtures.filter(f => !f.isHomeTeam);
-
-        const homeWins = homeFixtures.filter(f => f.result === 'win').length;
-        const awayWins = awayFixtures.filter(f => f.result === 'win').length;
-
-        teamWinLoss[team] = {
-          total,
-          wins,
-          losses,
-          ties,
-          winRate: total > 0 ? ((wins / total) * 100).toFixed(1) : '0.0',
-          homeWinRate: homeFixtures.length > 0 ? ((homeWins / homeFixtures.length) * 100).toFixed(1) : '0.0',
-          awayWinRate: awayFixtures.length > 0 ? ((awayWins / awayFixtures.length) * 100).toFixed(1) : '0.0',
-        };
-      });
-
-      // 4. Venue Performance
-      const venuePerformance: { [venue: string]: { played: number; won: number; lost: number; winRate: number } } = {};
-      fixtures.forEach(fixture => {
-        if (fixture.result && (fixture.result === 'win' || fixture.result === 'loss')) {
-          if (!venuePerformance[fixture.venue]) {
-            venuePerformance[fixture.venue] = { played: 0, won: 0, lost: 0, winRate: 0 };
-          }
-          venuePerformance[fixture.venue].played++;
-          if (fixture.result === 'win') venuePerformance[fixture.venue].won++;
-          else venuePerformance[fixture.venue].lost++;
-        }
-      });
-
-      Object.keys(venuePerformance).forEach(venue => {
-        const perf = venuePerformance[venue];
-        perf.winRate = perf.played > 0 ? Math.round((perf.won / perf.played) * 100 * 10) / 10 : 0;
-      });
-
-      const venuePerformanceList = Object.entries(venuePerformance)
-        .map(([venue, stats]) => ({ venue, ...stats }))
-        .sort((a, b) => b.played - a.played);
-
-      // 5. Availability records for Duty Analysis and Playing Time Report
-      const availabilityRecords: any[] = seasonData.availability;
-
-      // 6. Duty Analysis
-      const dutyMap: { [playerId: string]: { name: string; duties: { [duty: string]: number }; totalDuties: number } } = {};
-      availabilityRecords.forEach((record: any) => {
-        record.playerAvailability?.forEach((pa: any) => {
-          if (pa.duties && pa.duties.length > 0) {
-            if (!dutyMap[pa.playerId]) {
-              dutyMap[pa.playerId] = {
-                name: pa.playerName,
-                duties: {},
-                totalDuties: 0
-              };
-            }
-            pa.duties.forEach((duty: string) => {
-              if (!dutyMap[pa.playerId].duties[duty]) {
-                dutyMap[pa.playerId].duties[duty] = 0;
-              }
-              dutyMap[pa.playerId].duties[duty]++;
-              dutyMap[pa.playerId].totalDuties++;
-            });
-          }
-        });
-      });
-
-      const dutyAnalysisList = Object.values(dutyMap)
-        .sort((a, b) => b.totalDuties - a.totalDuties);
-
-      // 7. Playing Time Report
-      const playingTimeMap: { [playerId: string]: { name: string; available: number; selected: number; selectionRate: number; meetsTarget: boolean } } = {};
-      availabilityRecords.forEach((record: any) => {
-        record.playerAvailability?.forEach((pa: any) => {
-          if (!playingTimeMap[pa.playerId]) {
-            playingTimeMap[pa.playerId] = {
-              name: pa.playerName,
-              available: 0,
-              selected: 0,
-              selectionRate: 0,
-              meetsTarget: false
-            };
-          }
-          if (pa.wasAvailable) {
-            playingTimeMap[pa.playerId].available++;
-            if (pa.wasSelected) {
-              playingTimeMap[pa.playerId].selected++;
-            }
-          }
-        });
-      });
-
-      Object.keys(playingTimeMap).forEach(playerId => {
-        const data = playingTimeMap[playerId];
-        data.selectionRate = data.available > 0 ? (data.selected / data.available) * 100 : 0;
-        data.meetsTarget = data.selectionRate >= 80;
-      });
-
-      const playingTimeReportList = Object.values(playingTimeMap)
-        .filter(p => p.available > 0)
-        .sort((a, b) => a.selectionRate - b.selectionRate);
-
-      // Save pre-calculated advanced stats
-      const advancedStats = {
-        seasonId: season.id,
-        seasonName: season.name,
-        playerOfMatchLeaderboard,
-        umpireFees: {
-          totalPaid: totalUmpireFeesPaid,
-          players: umpireFeesList
-        },
-        winLossAnalysis: teamWinLoss,
-        venuePerformance: venuePerformanceList,
-        dutyAnalysis: dutyAnalysisList,
-        playingTimeReport: playingTimeReportList,
-        calculatedAt: now.toISOString(),
-        calculatedBy,
-      };
-
-      summaries.push([`advanced-stats-${season.id}`, advancedStats]);
-    } catch (advancedError) {
-      console.error(`Failed to calculate advanced statistics for ${season.name}:`, advancedError);
-    }
+    // Advanced, Duties and Financial tabs. Always saved, even for a season with
+    // no fixtures yet, so the page never finds it missing
+    const seasonData = seasonDataMap.get(season.id);
+    summaries.push([
+      `advanced-stats-${season.id}`,
+      computeAdvancedStats(
+        season,
+        seasonData?.fixtures || [],
+        seasonData?.availability || [],
+        seasonData?.umpiringDuties || [],
+        allPlayers || playersToProcess,
+        { todayStr, calculatedAt: now.toISOString(), calculatedBy }
+      ),
+    ]);
   }
 
   return { playerStats: computedPlayerStats, summaries };

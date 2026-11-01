@@ -47,17 +47,6 @@ export const handler: Handler = async (
     const body = JSON.parse(event.body || '{}');
     const { seasonId, playerId } = body;
 
-    // Validate environment variables
-    if (!process.env.SITE_ID || !process.env.NETLIFY_AUTH_TOKEN) {
-      return {
-        statusCode: 500,
-        body: JSON.stringify({
-          error: 'Server configuration error',
-          details: 'Missing required environment variables',
-        }),
-      };
-    }
-
     const result = await recalculateStatistics({ seasonId, playerId, calculatedBy: session.username });
 
     // Return success even if some saves failed (local dev limitation)

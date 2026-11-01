@@ -2,6 +2,7 @@ import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
 import { validateAdminSession } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
+import { emptyAdvancedBlock, teamKey, type AdvancedBlock } from './_advanced-stats';
 
 /**
  * CONSOLIDATED STATISTICS ENDPOINT - Single call for all tabs
@@ -13,7 +14,8 @@ import { isCurrentAdmin } from './_admin-auth';
  *
  * This eliminates multiple HTTP requests and enables instant tab switching.
  *
- * GET /api/statistics-all?seasonId=xxx
+ * GET /api/statistics-all?seasonId=xxx[&teamName=yyy]
+ * teamName narrows the Advanced, Duties and Financial tabs to one team.
  * Requires: Valid admin session
  * Returns: Complete statistics object (~150KB)
  */
@@ -51,7 +53,7 @@ export const handler: Handler = async (
 
     // Get query parameters
     const params = event.queryStringParameters || {};
-    const { seasonId } = params;
+    const { seasonId, teamName } = params;
 
     if (!seasonId) {
       return {
@@ -79,17 +81,20 @@ export const handler: Handler = async (
       };
     }
 
-    // Load pre-calculated advanced stats
-    const advancedStats = await statisticsStore.get(`advanced-stats-${seasonId}`, { type: 'json' });
-
-    if (!advancedStats) {
-      return {
-        statusCode: 404,
-        body: JSON.stringify({
-          error: 'Advanced statistics not found',
-          details: 'Please recalculate statistics to generate advanced stats',
-        }),
-      };
+    // Advanced stats: one block for the season and one per team. A missing or
+    // pre-team-split blob still returns the other tabs instead of failing the page
+    const advancedStats: any = await statisticsStore.get(`advanced-stats-${seasonId}`, { type: 'json' });
+    let block: AdvancedBlock = emptyAdvancedBlock();
+    let advancedStatus: 'ok' | 'missing' | 'needs-recalculate' = 'missing';
+    if (advancedStats?.all) {
+      advancedStatus = 'ok';
+      block = advancedStats.all;
+      if (teamName) {
+        const match = Object.keys(advancedStats.byTeam || {}).find((t) => teamKey(t) === teamKey(teamName));
+        block = match ? advancedStats.byTeam[match] : emptyAdvancedBlock();
+      }
+    } else if (advancedStats) {
+      advancedStatus = 'needs-recalculate';
     }
 
     // Consolidate everything into single response
@@ -133,18 +138,29 @@ export const handler: Handler = async (
         },
       },
 
-      // Advanced stats (Advanced tab)
+      advancedStatus,
+      teamName: teamName || null,
+
+      // Advanced tab
       advancedStats: {
-        playerOfMatchLeaderboard: advancedStats.playerOfMatchLeaderboard || [],
-        winLossAnalysis: advancedStats.winLossAnalysis || {},
-        venuePerformance: advancedStats.venuePerformance || [],
-        playingTimeReport: advancedStats.playingTimeReport || [],
+        playerOfMatchLeaderboard: block.playerOfMatchLeaderboard,
+        winLossAnalysis: block.winLossAnalysis,
+        venuePerformance: block.venuePerformance,
+        playingTimeReport: block.playingTimeReport,
+        playingTimeAverage: block.playingTimeAverage,
+        pastFixtures: block.pastFixtures,
       },
 
-      // Financial stats (Financial tab)
+      // Duties tab
+      dutyStats: {
+        dutyAnalysis: block.dutyAnalysis,
+        umpiringAssignments: block.umpiringAssignments,
+      },
+
+      // Financial tab: captain-paid match fees and club-paid umpiring, kept apart
       financialStats: {
-        umpireFees: advancedStats.umpireFees || { totalPaid: 0, players: [] },
-        dutyAnalysis: advancedStats.dutyAnalysis || [],
+        umpireFees: block.umpireFees,
+        clubPaidUmpiring: block.clubPaidUmpiring,
       }
     };
 
@@ -152,7 +168,8 @@ export const handler: Handler = async (
       statusCode: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=300', // Cache for 5 minutes
+        // Admin-only data, and Recalculate must show straight away
+        'Cache-Control': 'private, no-store',
       },
       body: JSON.stringify(consolidatedStats),
     };
