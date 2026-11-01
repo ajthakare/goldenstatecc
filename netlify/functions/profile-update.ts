@@ -5,13 +5,14 @@ import { addAuditLog } from '../../src/utils/auditLog';
 import type { Player } from '../../src/types/player';
 import { BATTING_STYLES, BOWLING_STYLES, PLAYER_ROLES } from '../../src/types/player';
 import { readPlayersForUpdate, writePlayers } from './_players-store';
+import { checkCricclubsId, checkCricclubsUrl, findCricclubsIdOwner } from '../../src/utils/cricclubs';
 
 /**
- * Update member profile (phone, password, usacId, playerRole, cricket style, CricClubs link,
+ * Update member profile (phone, password, usacId, playerRole, cricket style, CricClubs link and ID,
  * emergency contact, job info and/or privacy)
  * POST /.netlify/functions/profile-update
  * Body: { phone?, currentPassword?, newPassword?, usacId?, playerRole?, battingStyle?, bowlingStyle?,
- *         cricclubsUrl?, emergencyContactName?, emergencyContactNumber?, jobCompany?, jobTitle?,
+ *         cricclubsUrl?, cricclubsId?, emergencyContactName?, emergencyContactNumber?, jobCompany?, jobTitle?,
  *         privacy?: { showPhone?, showCompany? } }
  */
 export const handler: Handler = async (
@@ -49,13 +50,14 @@ export const handler: Handler = async (
       battingStyle,
       bowlingStyle,
       cricclubsUrl,
+      cricclubsId,
       privacy
     } = JSON.parse(event.body || '{}');
 
     // Must provide at least one field to update
     if (!phone && !currentPassword && !newPassword && usacId === undefined && !playerRole &&
         !emergencyContactName && !emergencyContactNumber && jobCompany === undefined && jobTitle === undefined &&
-        battingStyle === undefined && bowlingStyle === undefined && cricclubsUrl === undefined && privacy === undefined) {
+        battingStyle === undefined && bowlingStyle === undefined && cricclubsUrl === undefined && cricclubsId === undefined && privacy === undefined) {
       return {
         statusCode: 400,
         body: JSON.stringify({ error: 'No fields to update' }),
@@ -248,30 +250,26 @@ export const handler: Handler = async (
       player.bowlingStyle = bowlingStyle || undefined;
     }
 
-    // Update CricClubs profile link if provided (empty string clears)
+    // Update CricClubs profile link and ID if provided (empty string clears)
     if (cricclubsUrl !== undefined) {
-      const url = String(cricclubsUrl).trim();
-      if (url) {
-        let parsed: URL;
-        try {
-          parsed = new URL(url);
-        } catch {
-          return {
-            statusCode: 400,
-            body: JSON.stringify({ error: 'CricClubs link must be a full URL (https://cricclubs.com/...)' }),
-          };
-        }
-        const host = parsed.hostname.toLowerCase();
-        if (parsed.protocol !== 'https:' || !(host === 'cricclubs.com' || host.endsWith('.cricclubs.com')) || url.length > 500) {
-          return {
-            statusCode: 400,
-            body: JSON.stringify({ error: 'Please enter a link to your profile on cricclubs.com' }),
-          };
-        }
-        player.cricclubsUrl = parsed.toString();
-      } else {
-        player.cricclubsUrl = undefined;
+      const result = checkCricclubsUrl(cricclubsUrl);
+      if (!result.ok) {
+        return { statusCode: 400, body: JSON.stringify({ error: result.error }) };
       }
+      player.cricclubsUrl = result.value;
+    }
+    if (cricclubsId !== undefined) {
+      const result = checkCricclubsId(cricclubsId);
+      if (!result.ok) {
+        return { statusCode: 400, body: JSON.stringify({ error: result.error }) };
+      }
+      if (result.value && findCricclubsIdOwner(players, result.value, player.id)) {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({ error: 'That CricClubs ID is already on another player. Please check it, or ask an admin.' }),
+        };
+      }
+      player.cricclubsId = result.value;
     }
 
     // Update privacy settings if provided
@@ -306,6 +304,7 @@ export const handler: Handler = async (
     if (battingStyle !== undefined) updates.push('batting style');
     if (bowlingStyle !== undefined) updates.push('bowling style');
     if (cricclubsUrl !== undefined) updates.push('CricClubs link');
+    if (cricclubsId !== undefined) updates.push('CricClubs ID');
     if (privacy !== undefined) updates.push('privacy');
 
     await addAuditLog(

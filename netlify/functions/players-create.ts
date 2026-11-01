@@ -7,12 +7,13 @@ import { PLAYER_ROLES } from '../../src/types/player';
 import { randomUUID } from 'crypto';
 import { addAuditLog } from '../../src/utils/auditLog';
 import { readPlayersForUpdate, writePlayers } from './_players-store';
+import { checkCricclubsId, checkCricclubsUrl, findCricclubsIdOwner } from '../../src/utils/cricclubs';
 
 /**
  * Create a new player in the global pool
  * POST /api/players-create
  * Requires: Valid admin session
- * Body: { firstName, lastName, email, phone, emergencyContactName, emergencyContactNumber, jobCompany, jobTitle, usacId, role, isActive }
+ * Body: { firstName, lastName, email, phone, emergencyContactName, emergencyContactNumber, jobCompany, jobTitle, usacId, cricclubsId, cricclubsUrl, role, isActive }
  * Returns: Created player
  */
 export const handler: Handler = async (
@@ -59,6 +60,8 @@ export const handler: Handler = async (
       jobCompany,
       jobTitle,
       usacId,
+      cricclubsId,
+      cricclubsUrl,
       role,
       isActive
     } = body;
@@ -211,6 +214,19 @@ export const handler: Handler = async (
       }
     }
 
+    // CricClubs link and ID; the ID can't be on two players
+    const ccUrl = checkCricclubsUrl(cricclubsUrl);
+    if (!ccUrl.ok) return { statusCode: 400, body: JSON.stringify({ error: ccUrl.error }) };
+    const ccId = checkCricclubsId(cricclubsId);
+    if (!ccId.ok) return { statusCode: 400, body: JSON.stringify({ error: ccId.error }) };
+    const ccIdOwner = ccId.value ? findCricclubsIdOwner(players, ccId.value, '') : undefined;
+    if (ccIdOwner) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: `CricClubs ID ${ccId.value} is already on ${ccIdOwner.firstName} ${ccIdOwner.lastName}` }),
+      };
+    }
+
     // Create new player
     const newPlayer: Player = {
       id: randomUUID(),
@@ -223,6 +239,8 @@ export const handler: Handler = async (
       jobCompany: jobCompany ? jobCompany.trim() : undefined,
       jobTitle: jobTitle ? jobTitle.trim() : undefined,
       usacId: usacId ? usacId.trim() : undefined,
+      cricclubsId: ccId.value,
+      cricclubsUrl: ccUrl.value,
       role: role || undefined,
       isActive: isActive !== undefined ? isActive : true,
       createdAt: new Date().toISOString(),

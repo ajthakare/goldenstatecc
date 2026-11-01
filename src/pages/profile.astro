@@ -185,10 +185,17 @@ const countryCodes = [
               </div>
             </div>
 
-            <div class="form-group">
-              <label for="cricclubs-url" class="form-label">CricClubs Profile Link (Optional)</label>
-              <input type="url" id="cricclubs-url" name="cricclubsUrl" class="form-input" placeholder="https://cricclubs.com/.../viewPlayer.do?playerId=..." value={player.cricclubsUrl || ''} />
-              <p class="form-hint">Open your player page on CricClubs and paste the link here</p>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="cricclubs-url" class="form-label">CricClubs Profile Link (Optional)</label>
+                <input type="url" id="cricclubs-url" name="cricclubsUrl" class="form-input" placeholder="https://cricclubs.com/NCCA/user/XXXXXXXX?playerName=Your+Name" value={player.cricclubsUrl || ''} />
+                <p class="form-hint">Open your player page on CricClubs and paste the link here</p>
+              </div>
+              <div class="form-group">
+                <label for="cricclubs-id" class="form-label">CricClubs ID (Optional)</label>
+                <input type="text" id="cricclubs-id" name="cricclubsId" class="form-input" inputmode="numeric" pattern="\d{1,10}" maxlength="10" placeholder="e.g. 123456" value={player.cricclubsId || ''} />
+                <p class="form-hint">The "CC Player ID" number under your name on that page</p>
+              </div>
             </div>
 
             <div id="player-info-error" class="alert alert-error" style="display: none;"></div>
@@ -456,6 +463,7 @@ const countryCodes = [
         battingStyle: formData.get('battingStyle'),
         bowlingStyle: formData.get('bowlingStyle'),
         cricclubsUrl: formData.get('cricclubsUrl'),
+        cricclubsId: formData.get('cricclubsId'),
       }, { idleText: 'Save Cricket Profile', successText: 'Cricket profile saved!' });
     });
 

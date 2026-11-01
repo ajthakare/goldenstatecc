@@ -8,6 +8,7 @@ import { PLAYER_ROLES } from '../../src/types/player';
 import { randomUUID } from 'crypto';
 import Papa from 'papaparse';
 import { readPlayersForUpdate, writePlayers } from './_players-store';
+import { checkCricclubsId, checkCricclubsUrl, findCricclubsIdOwner } from '../../src/utils/cricclubs';
 
 /**
  * Bulk import players from CSV
@@ -180,6 +181,31 @@ export const handler: Handler = async (
         return;
       }
 
+      // CricClubs columns are optional: a file without them leaves those fields alone
+      const ccId = 'CricClubs ID' in row ? checkCricclubsId(row['CricClubs ID']) : undefined;
+      const ccUrl = 'CricClubs Link' in row ? checkCricclubsUrl(row['CricClubs Link']) : undefined;
+      for (const [field, result] of [['CricClubs ID', ccId], ['CricClubs Link', ccUrl]] as const) {
+        if (result && !result.ok) {
+          importResult.errors.push({ row: rowNum, field, message: result.error });
+          return;
+        }
+      }
+      const ccIdTakenFor = (playerId: string) => {
+        const value = ccId?.ok ? ccId.value : undefined;
+        const owner = value ? findCricclubsIdOwner(players, value, playerId) : undefined;
+        if (!owner) return false;
+        importResult.errors.push({
+          row: rowNum,
+          field: 'CricClubs ID',
+          message: `CricClubs ID ${value} is already on ${owner.firstName} ${owner.lastName}`,
+        });
+        return true;
+      };
+      const applyCricclubs = (player: Player) => {
+        if (ccId?.ok) player.cricclubsId = ccId.value;
+        if (ccUrl?.ok) player.cricclubsUrl = ccUrl.value;
+      };
+
       // Validate status
       const isActive = status === 'active';
 
@@ -223,6 +249,8 @@ export const handler: Handler = async (
           updatedBy: session.username,
         };
 
+        if (ccIdTakenFor(newPlayer.id)) return;
+        applyCricclubs(newPlayer);
         players.push(newPlayer);
         if (email) emailMap.set(email, newPlayer);
         if (usacId) usacIdMap.set(usacId.toLowerCase(), newPlayer);
@@ -258,6 +286,8 @@ export const handler: Handler = async (
           return;
         }
 
+        if (ccIdTakenFor(existingPlayer.id)) return;
+
         // Update player
         existingPlayer.firstName = firstName;
         existingPlayer.lastName = lastName;
@@ -265,6 +295,7 @@ export const handler: Handler = async (
         existingPlayer.usacId = usacId;
         existingPlayer.role = role;
         existingPlayer.isActive = isActive;
+        applyCricclubs(existingPlayer);
         existingPlayer.updatedAt = new Date().toISOString();
         existingPlayer.updatedBy = session.username;
 
@@ -274,6 +305,8 @@ export const handler: Handler = async (
         const existingPlayer = existingByEmail || existingByUsacId;
 
         if (existingPlayer) {
+          if (ccIdTakenFor(existingPlayer.id)) return;
+
           // Update existing player
           existingPlayer.firstName = firstName;
           existingPlayer.lastName = lastName;
@@ -281,6 +314,7 @@ export const handler: Handler = async (
           existingPlayer.usacId = usacId;
           existingPlayer.role = role;
           existingPlayer.isActive = isActive;
+          applyCricclubs(existingPlayer);
           existingPlayer.updatedAt = new Date().toISOString();
           existingPlayer.updatedBy = session.username;
 
@@ -301,6 +335,8 @@ export const handler: Handler = async (
             updatedBy: session.username,
           };
 
+          if (ccIdTakenFor(newPlayer.id)) return;
+          applyCricclubs(newPlayer);
           players.push(newPlayer);
           if (email) emailMap.set(email, newPlayer);
           if (usacId) usacIdMap.set(usacId.toLowerCase(), newPlayer);
