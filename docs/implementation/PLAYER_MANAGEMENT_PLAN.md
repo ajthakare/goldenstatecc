@@ -1,5 +1,7 @@
 # Player Management System Implementation Plan
 
+> **Note (2026-10-31):** `statistics-advanced`, `statistics-summary-get`, `statistics-season-get`, `statistics-player-get` and `statistics-season-players-bulk` were removed (unused). The page now loads everything from `statistics-all`; the Advanced, Duties and Financial tabs are calculated in `netlify/functions/_advanced-stats.ts`.
+
 ## Overview
 Implement a comprehensive player management system for Bengals Cricket Club that enables admins to manage player pool, track team assignments, monitor availability for fixtures, and generate statistics at both team and club levels.
 

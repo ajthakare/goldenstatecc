@@ -198,7 +198,7 @@ Netlify only runs these on the published deploy. Times are Pacific (cron is UTC)
 | `/admin/players`, `/admin/players/import` | Player pool CRUD, CSV import/export, photos |
 | `/admin/roster` | Core roster: mark players as core to a team per season |
 | `/admin/seasons` | Seasons, teams and divisions, active season |
-| `/admin/statistics` | Season/team/career stats, CSV export, "Recalculate" (also refreshes profile badges) |
+| `/admin/statistics` | Season/team/career stats, CSV export, "Recalculate" (also refreshes profile badges). Advanced (POTM, win/loss, venues, playing time), Duties (match + umpiring duties) and Financial (captain-paid match umpire fees vs club-paid umpiring, kept separate) come from `_advanced-stats.ts`, per season and per team, teams from the season set-up |
 | `/admin/users` | Admins and members: promote/change role, delete, approve/suspend registrations, password resets. Most actions super admin only |
 | `/admin/notifications` | Send push notifications |
 | `/admin/feed` | Club Feed with hide/unhide |

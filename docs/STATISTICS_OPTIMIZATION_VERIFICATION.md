@@ -1,5 +1,7 @@
 # Statistics Page Optimization - Verification Guide
 
+> **Note (2026-10-31):** `statistics-advanced`, `statistics-summary-get`, `statistics-season-get`, `statistics-player-get` and `statistics-season-players-bulk` were removed (unused). The page now loads everything from `statistics-all`; the Advanced, Duties and Financial tabs are calculated in `netlify/functions/_advanced-stats.ts`.
+
 ## Implementation Summary
 
 ### Performance Optimization

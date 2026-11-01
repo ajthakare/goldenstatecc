@@ -98,6 +98,9 @@ if (!isAdminUser) {
         <button class="tab-btn" data-tab="advanced">
           Advanced Stats
         </button>
+        <button class="tab-btn" data-tab="duties">
+          Duties
+        </button>
         <button class="tab-btn" data-tab="financial">
           Financial
         </button>
@@ -277,6 +280,11 @@ if (!isAdminUser) {
           <div id="advanced-stats-content"></div>
         </div>
 
+        <!-- Duties Tab -->
+        <div id="tab-duties" class="tab-panel">
+          <div id="duties-stats-content"></div>
+        </div>
+
         <!-- Financial Tab -->
         <div id="tab-financial" class="tab-panel">
           <div class="tab-loading" style="display: none;">
@@ -288,69 +296,6 @@ if (!isAdminUser) {
       </div>
     </div>
 
-    <!-- Advanced Statistics Sections (will be moved to tab dynamically) -->
-    <div id="advanced-stats-container" style="display: none;">
-      <!-- Two Column Layout -->
-      <div class="advanced-stats-grid">
-        <!-- Left Column -->
-        <div class="stats-column">
-          <!-- Player of Match Leaderboard -->
-          <div class="stats-section">
-            <h2 class="section-heading">🏆 Player of the Match Awards</h2>
-            <div id="player-of-match-content" class="section-content">
-              <canvas id="player-of-match-chart" style="max-height: 400px;"></canvas>
-            </div>
-          </div>
-
-          <!-- Win/Loss Analysis -->
-          <div class="stats-section">
-            <h2 class="section-heading">📊 Win/Loss Analysis</h2>
-            <div id="win-loss-content" class="section-content">
-              <div class="team-win-loss-grid">
-                <!-- Team charts will be inserted here -->
-              </div>
-            </div>
-          </div>
-
-          <!-- Duty Analysis -->
-          <div class="stats-section">
-            <h2 class="section-heading">👔 Match Duty Distribution</h2>
-            <div id="duty-analysis-content" class="section-content">
-              <canvas id="duty-chart" style="max-height: 400px;"></canvas>
-            </div>
-          </div>
-        </div>
-
-        <!-- Right Column -->
-        <div class="stats-column">
-          <!-- Umpire Fees Tracking -->
-          <div class="stats-section">
-            <h2 class="section-heading">💰 Umpire Fees Tracking</h2>
-            <div id="umpire-fees-summary" class="fees-summary"></div>
-            <div id="umpire-fees-content" class="section-content">
-              <!-- Table will be inserted here -->
-            </div>
-          </div>
-
-          <!-- Venue Performance -->
-          <div class="stats-section">
-            <h2 class="section-heading">📍 Venue Performance</h2>
-            <div id="venue-performance-content" class="section-content">
-              <!-- Table will be inserted here -->
-            </div>
-          </div>
-
-          <!-- Playing Time Report -->
-          <div class="stats-section">
-            <h2 class="section-heading">⏱️ Playing Time Report</h2>
-            <p class="section-description">80% selection target for available players</p>
-            <div id="playing-time-content" class="section-content">
-              <!-- Table will be inserted here -->
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 </AdminLayout>
 
@@ -647,17 +592,91 @@ if (!isAdminUser) {
     background: #f3f4f6;
   }
 
-  /* Advanced Statistics Layout */
-  #advanced-stats-container {
-    margin-top: 3rem;
+  /* Advanced, Duties and Financial tabs */
+  .stats-notice {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    color: #92400e;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
   }
 
-  .advanced-stats-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 2rem;
-    margin-top: 0;
+  .mini-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
   }
+
+  .mini-card {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 0.875rem 1rem;
+  }
+
+  .mini-card-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .mini-card-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #111827;
+    margin-top: 0.25rem;
+  }
+
+  .mini-card-note {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-top: 0.125rem;
+  }
+
+  .band-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    font-size: 0.8125rem;
+    color: #374151;
+    margin-bottom: 0.75rem;
+  }
+
+  .band-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 0.375rem;
+    vertical-align: middle;
+  }
+
+  .band-dot.high { background: #10b981; }
+  .band-dot.medium { background: #f59e0b; }
+  .band-dot.low { background: #ef4444; }
+
+  .pt-sort {
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .kind-tag {
+    display: inline-block;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    padding: 0.05rem 0.4rem;
+    border-radius: 999px;
+    margin-left: 0.375rem;
+    vertical-align: middle;
+  }
+
+  .kind-tag.player { background: #dbeafe; color: #1e40af; }
+  .kind-tag.external { background: #f3f4f6; color: #374151; }
 
   .stats-column {
     display: flex;
@@ -1248,7 +1267,7 @@ if (!isAdminUser) {
     teamFilter.disabled = false;
 
     // Re-enable advanced/financial tabs in season view
-    document.querySelectorAll('[data-tab="advanced"], [data-tab="financial"]').forEach(btn => {
+    document.querySelectorAll('[data-tab="advanced"], [data-tab="duties"], [data-tab="financial"]').forEach(btn => {
       btn.style.opacity = '1';
       btn.style.pointerEvents = 'auto';
     });
@@ -1270,7 +1289,7 @@ if (!isAdminUser) {
     }
 
     // Disable advanced/financial tabs in career view
-    document.querySelectorAll('[data-tab="advanced"], [data-tab="financial"]').forEach(btn => {
+    document.querySelectorAll('[data-tab="advanced"], [data-tab="duties"], [data-tab="financial"]').forEach(btn => {
       btn.style.opacity = '0.5';
       btn.style.pointerEvents = 'none';
     });
@@ -1399,63 +1418,52 @@ if (!isAdminUser) {
     }
   }
 
-  // Populate Advanced tab with pre-loaded data
-  function populateAdvancedTab(advancedStats) {
+  // Advanced, Duties and Financial tabs, from the statistics-all response
+  // (already narrowed to the selected team, if any)
+  function populateDetailTabs(allStats) {
+    window.advancedStatsData = {
+      ...(allStats.advancedStats || {}),
+      ...(allStats.dutyStats || {}),
+      ...(allStats.financialStats || {}),
+    };
+    const notice = detailNotice(allStats.advancedStatus);
+    populateAdvancedTab(notice);
+    populateDutiesTab(notice);
+    populateFinancialTab(notice);
+  }
+
+  function detailNotice(status) {
+    if (status === 'ok') return '';
+    const text = status === 'needs-recalculate'
+      ? 'These numbers were calculated before the latest update. Click Recalculate to refresh them and enable the team filter here.'
+      : 'Not calculated for this season yet. Click Recalculate to generate them.';
+    return `<div class="stats-notice">${text}</div>`;
+  }
+
+  function section(icon, title, contentId, extra = '') {
+    return `
+      <div class="stats-section">
+        <div class="stats-section-header">
+          <div class="stats-section-icon">${icon}</div>
+          <h3 class="stats-section-title">${title}</h3>
+        </div>
+        <div id="${contentId}">${extra}</div>
+      </div>
+    `;
+  }
+
+  function populateAdvancedTab(notice) {
     const container = document.getElementById('advanced-stats-content');
-
     try {
-      // Store data globally for rendering functions
-      window.advancedStatsData = {
-        playerOfMatchLeaderboard: advancedStats.playerOfMatchLeaderboard || [],
-        winLossAnalysis: advancedStats.winLossAnalysis || {},
-        venuePerformance: advancedStats.venuePerformance || [],
-        playingTimeReport: advancedStats.playingTimeReport || [],
-        umpireFees: window.consolidatedStats?.financialStats?.umpireFees || { totalPaid: 0, players: [] },
-        dutyAnalysis: window.consolidatedStats?.financialStats?.dutyAnalysis || []
-      };
-
-
-      // Create DOM structure directly in the tab
-      container.innerHTML = `
+      container.innerHTML = `${notice}
         <div class="stats-column">
-          <div class="stats-section">
-            <div class="stats-section-header">
-              <div class="stats-section-icon">🏆</div>
-              <h3 class="stats-section-title">Player of Match Leaderboard</h3>
-            </div>
-            <div id="player-of-match-content">
-              <canvas id="player-of-match-chart" style="max-height: 400px;"></canvas>
-            </div>
-          </div>
-
-          <div class="stats-section">
-            <div class="stats-section-header">
-              <div class="stats-section-icon">📊</div>
-              <h3 class="stats-section-title">Win/Loss Analysis</h3>
-            </div>
-            <div id="win-loss-content"></div>
-          </div>
-
-          <div class="stats-section">
-            <div class="stats-section-header">
-              <div class="stats-section-icon">🏟️</div>
-              <h3 class="stats-section-title">Venue Performance</h3>
-            </div>
-            <div id="venue-performance-content"></div>
-          </div>
-
-          <div class="stats-section">
-            <div class="stats-section-header">
-              <div class="stats-section-icon">⏱️</div>
-              <h3 class="stats-section-title">Playing Time Report</h3>
-            </div>
-            <div id="playing-time-content"></div>
-          </div>
+          ${section('🏆', 'Player of Match Leaderboard', 'player-of-match-content', '<canvas id="player-of-match-chart" style="max-height: 400px;"></canvas>')}
+          ${section('📊', 'Win/Loss Analysis', 'win-loss-content')}
+          ${section('🏟️', 'Venue Performance', 'venue-performance-content')}
+          ${section('⏱️', 'Playing Time Report', 'playing-time-content')}
         </div>
       `;
-
-      // Now render data into the newly created containers
-      // Use setTimeout to ensure DOM is fully ready for chart rendering
+      // Let the DOM settle before Chart.js measures the canvases
       setTimeout(() => {
         renderPlayerOfMatchLeaderboard();
         renderWinLossAnalysis();
@@ -1468,51 +1476,39 @@ if (!isAdminUser) {
     }
   }
 
-  // Populate Financial tab with pre-loaded data
-  function populateFinancialTab(financialStats) {
-    const container = document.getElementById('financial-stats-content');
-
+  function populateDutiesTab(notice) {
+    const container = document.getElementById('duties-stats-content');
     try {
-      // Ensure data has correct structure with defaults
-      const safeUmpireFees = {
-        totalPaid: financialStats.umpireFees?.totalPaid || 0,
-        players: financialStats.umpireFees?.players || []
-      };
-      const safeDutyAnalysis = financialStats.dutyAnalysis || [];
-
-      // Update global stats object with safe data
-      if (!window.advancedStatsData) window.advancedStatsData = {};
-      window.advancedStatsData.umpireFees = safeUmpireFees;
-      window.advancedStatsData.dutyAnalysis = safeDutyAnalysis;
-
-      // Create DOM structure directly in the tab
-      container.innerHTML = `
+      container.innerHTML = `${notice}
         <div class="stats-column">
-          <div class="stats-section">
-            <div class="stats-section-header">
-              <div class="stats-section-icon">💰</div>
-              <h3 class="stats-section-title">Umpire Fees Tracking</h3>
-            </div>
-            <div id="umpire-fees-content"></div>
-          </div>
-
-          <div class="stats-section">
-            <div class="stats-section-header">
-              <div class="stats-section-icon">👔</div>
-              <h3 class="stats-section-title">Duty Analysis</h3>
-            </div>
-            <div id="duty-analysis-content">
-              <canvas id="duty-chart" style="max-height: 400px;"></canvas>
-            </div>
-          </div>
+          ${section('👔', 'Match Duties', 'duty-analysis-content', '<canvas id="duty-chart" style="max-height: 400px;"></canvas><div id="duty-table"></div>')}
+          ${section('🧑‍⚖️', 'Umpiring Duties', 'umpiring-assignments-content')}
         </div>
       `;
-
-      // Now render data into the newly created containers
-      // Use setTimeout to ensure DOM is fully ready for chart rendering
       setTimeout(() => {
-        renderUmpireFees();
         renderDutyAnalysis();
+        renderUmpiringAssignments();
+      }, 100);
+    } catch (error) {
+      console.error('Error populating duties tab:', error);
+      container.innerHTML = '<div class="alert alert-error"><p>Error loading duty statistics</p></div>';
+    }
+  }
+
+  function populateFinancialTab(notice) {
+    const container = document.getElementById('financial-stats-content');
+    try {
+      container.innerHTML = `${notice}
+        <div id="financial-totals"></div>
+        <div class="stats-column">
+          ${section('💰', 'Match Umpire Fees (paid by captains)', 'umpire-fees-content')}
+          ${section('🧾', 'Club-Paid Umpiring', 'club-paid-content')}
+        </div>
+      `;
+      setTimeout(() => {
+        renderFinancialTotals();
+        renderUmpireFees();
+        renderClubPaidUmpiring();
       }, 100);
     } catch (error) {
       console.error('Error populating financial tab:', error);
@@ -1603,7 +1599,7 @@ if (!isAdminUser) {
       // Load team stats + season-wide stats in parallel (the latter keeps Plain Stats populated)
       const [teamResponse, allResponse] = await Promise.all([
         fetch(`/.netlify/functions/statistics-team-get?seasonId=${currentSeasonId}&teamName=${encodeURIComponent(currentTeamName)}`),
-        fetch(`/.netlify/functions/statistics-all?seasonId=${currentSeasonId}`),
+        fetch(`/.netlify/functions/statistics-all?seasonId=${currentSeasonId}&teamName=${encodeURIComponent(currentTeamName)}`),
       ]);
 
       if (teamResponse.status === 404) {
@@ -1629,8 +1625,7 @@ if (!isAdminUser) {
       if (allResponse.ok) {
         const allStats = await allResponse.json();
         window.consolidatedStats = allStats;
-        populateAdvancedTab(allStats.advancedStats);
-        populateFinancialTab(allStats.financialStats);
+        populateDetailTabs(allStats);
         populatePlainStatsTab(allStats.plainStats);
       }
     } else {
@@ -1672,9 +1667,8 @@ if (!isAdminUser) {
       // Store consolidated stats globally for tab access
       window.consolidatedStats = allStats;
 
-      // Populate Advanced and Financial tabs immediately (no lazy loading!)
-      populateAdvancedTab(allStats.advancedStats);
-      populateFinancialTab(allStats.financialStats);
+      // Populate the other tabs immediately (no lazy loading!)
+      populateDetailTabs(allStats);
       populatePlainStatsTab(allStats.plainStats);
     }
   }
@@ -2007,37 +2001,47 @@ if (!isAdminUser) {
     });
   });
 
-  // Advanced Statistics
+  // Advanced, Duties and Financial rendering
   let chartInstances = {};
+  let playingTimeSort = { column: 'selectionRate', direction: 'desc' };
+
+  const money = (n) => `$${(n || 0).toFixed(2)}`;
+  // Same bands as the Overview tab: 80%+ green, 50–79% orange, below 50% red
+  const band = (rate) => (rate >= 80 ? 'high' : rate >= 50 ? 'medium' : 'low');
+
+  function insufficient(icon, text) {
+    return `
+      <div class="insufficient-data">
+        <div class="insufficient-data-icon">${icon}</div>
+        <div class="insufficient-data-title">No data yet</div>
+        <p>${text}</p>
+      </div>
+    `;
+  }
+
+  function miniCards(cards) {
+    return `<div class="mini-cards">${cards.map(([label, value, note]) => `
+      <div class="mini-card">
+        <div class="mini-card-label">${label}</div>
+        <div class="mini-card-value">${value}</div>
+        ${note ? `<div class="mini-card-note">${note}</div>` : ''}
+      </div>`).join('')}</div>`;
+  }
 
   function renderPlayerOfMatchLeaderboard() {
     const container = document.getElementById('player-of-match-content');
     const data = window.advancedStatsData?.playerOfMatchLeaderboard;
 
     if (!data || data.length === 0) {
-      container.innerHTML = `
-        <div class="insufficient-data">
-          <div class="insufficient-data-icon">📊</div>
-          <div class="insufficient-data-title">Insufficient Data</div>
-          <p>Player of Match awards need to be recorded in completed fixtures to generate this statistic.</p>
-        </div>
-      `;
+      container.innerHTML = insufficient('📊', 'Player of the Match is recorded with each win. None recorded for these games yet.');
       return;
     }
 
-    // Take top 10 players
     const topPlayers = data.slice(0, 10);
-
-    // Destroy existing chart if any
-    if (chartInstances.playerOfMatch) {
-      chartInstances.playerOfMatch.destroy();
-    }
+    if (chartInstances.playerOfMatch) chartInstances.playerOfMatch.destroy();
 
     const ctx = document.getElementById('player-of-match-chart');
-    if (!ctx) {
-      console.error('Canvas element player-of-match-chart not found');
-      return;
-    }
+    if (!ctx) return;
 
     chartInstances.playerOfMatch = new Chart(ctx, {
       type: 'bar',
@@ -2055,140 +2059,74 @@ if (!isAdminUser) {
         responsive: true,
         maintainAspectRatio: true,
         plugins: {
-          legend: {
-            display: false
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: {
-              stepSize: 1
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              footer: (items) => {
+                const p = topPlayers[items[0].dataIndex];
+                return p.gamesPlayed ? `${p.gamesPlayed} games played` : '';
+              }
             }
           }
-        }
+        },
+        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
       }
     });
   }
 
-  function renderUmpireFees() {
-    const container = document.getElementById('umpire-fees-content');
-    const data = window.advancedStatsData?.umpireFees;
-
-    if (!data || !data.players || data.players.length === 0) {
-      container.innerHTML = `
-        <div class="insufficient-data">
-          <div class="insufficient-data-icon">💰</div>
-          <div class="insufficient-data-title">Insufficient Data</div>
-          <p>Umpire fee payments need to be recorded in past fixtures to generate this statistic.</p>
-        </div>
-      `;
-      return;
-    }
-
-    container.innerHTML = `
-      <div class="stats-summary-box">
-        Total Umpire Fees Paid: $${(data.totalPaid || 0).toFixed(2)}
-      </div>
-      <div class="table-responsive">
-        <table class="data-mini-table umpire-fees-table">
-          <thead>
-            <tr>
-              <th>Player</th>
-              <th class="text-center">Times Paid</th>
-              <th class="text-right">Total Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${data.players.map(p => `
-              <tr>
-                <td><strong>${escapeHtml(p.name || '')}</strong></td>
-                <td class="text-center">${p.timesPaid || p.count || 0}</td>
-                <td class="text-right">$${(p.totalAmount || p.totalPaid || 0).toFixed(2)}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-    `;
-  }
-
   function renderWinLossAnalysis() {
     const container = document.getElementById('win-loss-content');
-    const data = window.advancedStatsData?.winLossAnalysis;
+    const data = window.advancedStatsData?.winLossAnalysis || {};
+    const teams = Object.keys(data).filter(t => data[t].played + data[t].noResult + data[t].missingResults > 0);
 
-    if (!data || Object.keys(data).length === 0) {
-      container.innerHTML = `
-        <div class="insufficient-data">
-          <div class="insufficient-data-icon">📊</div>
-          <div class="insufficient-data-title">Insufficient Data</div>
-          <p>Match results need to be recorded in fixtures to generate this statistic.</p>
-        </div>
-      `;
+    if (teams.length === 0) {
+      container.innerHTML = insufficient('📊', 'No games have been played yet.');
       return;
     }
-
-    const teams = Object.keys(data);
 
     container.innerHTML = `<div class="team-win-loss-grid"></div>`;
     const grid = container.querySelector('.team-win-loss-grid');
 
     teams.forEach((team, index) => {
-      const teamData = data[team];
+      const t = data[team];
       const chartId = `win-loss-chart-${index}`;
+      const extras = [
+        t.noResult ? `${t.noResult} abandoned/forfeit` : '',
+        t.missingResults ? `<span style="color: #b45309;">${t.missingResults} result${t.missingResults > 1 ? 's' : ''} not entered</span>` : '',
+      ].filter(Boolean).join(' • ');
 
       const teamDiv = document.createElement('div');
       teamDiv.className = 'team-chart-container';
       teamDiv.innerHTML = `
         <div class="team-chart-title">${escapeHtml(team)}</div>
-        <canvas id="${chartId}" style="max-height: 200px;"></canvas>
+        ${t.played > 0 ? `<canvas id="${chartId}" style="max-height: 200px;"></canvas>` : '<p class="empty-text">No results entered</p>'}
         <div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.5rem; text-align: center;">
-          ${teamData.total} games • ${teamData.winRate}% win rate<br/>
-          Home: ${teamData.homeWinRate}% • Away: ${teamData.awayWinRate}%
+          ${t.played} played • ${t.wins}W ${t.losses}L ${t.ties}T • ${t.winRate}% win rate<br/>
+          Home: ${t.homeWinRate}% • Away: ${t.awayWinRate}%
+          ${extras ? `<br/>${extras}` : ''}
         </div>
       `;
       grid.appendChild(teamDiv);
 
-      // Destroy existing chart if any
       const chartKey = `winLoss${index}`;
-      if (chartInstances[chartKey]) {
-        chartInstances[chartKey].destroy();
-      }
+      if (chartInstances[chartKey]) chartInstances[chartKey].destroy();
+      if (t.played === 0) return;
 
-      // Create pie chart
-      const ctx = document.getElementById(chartId);
-      chartInstances[chartKey] = new Chart(ctx, {
+      chartInstances[chartKey] = new Chart(document.getElementById(chartId), {
         type: 'pie',
         data: {
           labels: ['Wins', 'Losses', 'Ties'],
           datasets: [{
-            data: [teamData.wins, teamData.losses, teamData.ties],
-            backgroundColor: [
-              'rgba(16, 185, 129, 0.8)',
-              'rgba(239, 68, 68, 0.8)',
-              'rgba(156, 163, 175, 0.8)'
-            ],
-            borderColor: [
-              'rgba(16, 185, 129, 1)',
-              'rgba(239, 68, 68, 1)',
-              'rgba(156, 163, 175, 1)'
-            ],
+            data: [t.wins, t.losses, t.ties],
+            backgroundColor: ['rgba(16, 185, 129, 0.8)', 'rgba(239, 68, 68, 0.8)', 'rgba(156, 163, 175, 0.8)'],
+            borderColor: ['rgba(16, 185, 129, 1)', 'rgba(239, 68, 68, 1)', 'rgba(156, 163, 175, 1)'],
             borderWidth: 1
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: true,
-          plugins: {
-            legend: {
-              position: 'bottom',
-              labels: {
-                font: {
-                  size: 11
-                }
-              }
-            }
-          }
+          plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } }
         }
       });
     });
@@ -2199,13 +2137,7 @@ if (!isAdminUser) {
     const data = window.advancedStatsData?.venuePerformance;
 
     if (!data || data.length === 0) {
-      container.innerHTML = `
-        <div class="insufficient-data">
-          <div class="insufficient-data-icon">📍</div>
-          <div class="insufficient-data-title">Insufficient Data</div>
-          <p>Match results with venue information need to be recorded to generate this statistic.</p>
-        </div>
-      `;
+      container.innerHTML = insufficient('📍', 'No results entered for these games yet.');
       return;
     }
 
@@ -2218,6 +2150,7 @@ if (!isAdminUser) {
               <th class="text-center">Played</th>
               <th class="text-center">Won</th>
               <th class="text-center">Lost</th>
+              <th class="text-center">Tied</th>
               <th class="text-center">Win Rate</th>
             </tr>
           </thead>
@@ -2228,6 +2161,7 @@ if (!isAdminUser) {
                 <td class="text-center">${v.played}</td>
                 <td class="text-center">${v.won}</td>
                 <td class="text-center">${v.lost}</td>
+                <td class="text-center">${v.tied || 0}</td>
                 <td class="text-center">
                   <span class="rate-badge ${v.winRate >= 60 ? 'rate-high' : v.winRate >= 40 ? 'rate-medium' : 'rate-low'}">
                     ${v.winRate.toFixed(1)}%
@@ -2241,36 +2175,97 @@ if (!isAdminUser) {
     `;
   }
 
+  function renderPlayingTimeReport() {
+    const container = document.getElementById('playing-time-content');
+    const rows = window.advancedStatsData?.playingTimeReport;
+
+    if (!rows || rows.length === 0) {
+      container.innerHTML = insufficient('⏱️', 'Availability and selection are counted once games have been played.');
+      return;
+    }
+
+    const counts = { high: 0, medium: 0, low: 0 };
+    rows.forEach(p => counts[band(p.selectionRate)]++);
+
+    const { column, direction } = playingTimeSort;
+    const sorted = [...rows].sort((a, b) => {
+      const av = column === 'name' ? a.name.toLowerCase() : a[column];
+      const bv = column === 'name' ? b.name.toLowerCase() : b[column];
+      const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+      return direction === 'asc' ? cmp : -cmp;
+    });
+    const arrow = (c) => (column === c ? (direction === 'asc' ? ' ▲' : ' ▼') : '');
+
+    container.innerHTML = `
+      <p class="section-description">
+        Selected ÷ available, for games already played. Club average: <strong>${(window.advancedStatsData.playingTimeAverage || 0).toFixed(1)}%</strong>
+      </p>
+      <div class="band-legend">
+        <span><i class="band-dot high"></i>80%+ · ${counts.high}</span>
+        <span><i class="band-dot medium"></i>50–79% · ${counts.medium}</span>
+        <span><i class="band-dot low"></i>Below 50% · ${counts.low}</span>
+      </div>
+      <div class="table-responsive">
+        <table class="data-mini-table">
+          <thead>
+            <tr>
+              <th class="pt-sort" data-col="name">Player${arrow('name')}</th>
+              <th>Team(s)</th>
+              <th class="text-center pt-sort" data-col="available">Available${arrow('available')}</th>
+              <th class="text-center pt-sort" data-col="selected">Selected${arrow('selected')}</th>
+              <th class="pt-sort" data-col="selectionRate" style="min-width: 120px;">Selection %${arrow('selectionRate')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${sorted.map(p => `
+              <tr>
+                <td><strong>${escapeHtml(p.name)}</strong></td>
+                <td>${escapeHtml((p.teams || []).join(', '))}</td>
+                <td class="text-center">${p.available}</td>
+                <td class="text-center">${p.selected}</td>
+                <td>
+                  <div class="progress-bar-container">
+                    <div class="progress-bar ${band(p.selectionRate)}" style="width: ${Math.max(p.selectionRate, 8)}%">
+                      ${p.selectionRate.toFixed(1)}%
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    container.querySelectorAll('.pt-sort').forEach(th => {
+      th.addEventListener('click', () => {
+        const col = th.dataset.col;
+        playingTimeSort = playingTimeSort.column === col
+          ? { column: col, direction: playingTimeSort.direction === 'asc' ? 'desc' : 'asc' }
+          : { column: col, direction: col === 'name' ? 'asc' : 'desc' };
+        renderPlayingTimeReport();
+      });
+    });
+  }
+
   function renderDutyAnalysis() {
     const container = document.getElementById('duty-analysis-content');
     const data = window.advancedStatsData?.dutyAnalysis;
 
     if (!data || data.length === 0) {
-      container.innerHTML = `
-        <div class="insufficient-data">
-          <div class="insufficient-data-icon">👔</div>
-          <div class="insufficient-data-title">Insufficient Data</div>
-          <p>Match duties need to be assigned in fixtures to generate this statistic.</p>
-        </div>
-      `;
+      container.innerHTML = insufficient('👔', 'Match duties are assigned in the availability editor. None recorded for games played yet.');
       return;
-    }
-
-    // Take top 10 players with most duties
-    const topDutyPlayers = data.slice(0, 10);
-
-    // Destroy existing chart if any
-    if (chartInstances.duty) {
-      chartInstances.duty.destroy();
     }
 
     // One stacked segment per duty type, so e.g. 2× water and 3× ground set-up
     // read as two separate counts rather than one total of 5
-    const dutyColors = ['#8C1D18', '#E5C878', '#1e4f86', '#1d6b3a', '#5b3a99', '#c2410c', '#0f766e', '#6b7280'];
-    const dutyTypes = [...new Set(topDutyPlayers.flatMap(p => Object.keys(p.duties)))].sort();
+    const topDutyPlayers = data.slice(0, 10);
+    if (chartInstances.duty) chartInstances.duty.destroy();
 
-    const ctx = document.getElementById('duty-chart');
-    chartInstances.duty = new Chart(ctx, {
+    const dutyColors = ['#8C1D18', '#E5C878', '#1e4f86', '#1d6b3a', '#5b3a99', '#c2410c', '#0f766e', '#6b7280'];
+    const dutyTypes = [...new Set(data.flatMap(p => Object.keys(p.duties)))].sort();
+
+    chartInstances.duty = new Chart(document.getElementById('duty-chart'), {
       type: 'bar',
       data: {
         labels: topDutyPlayers.map(p => p.name),
@@ -2285,84 +2280,211 @@ if (!isAdminUser) {
         responsive: true,
         maintainAspectRatio: true,
         plugins: {
-          legend: {
-            display: true,
-            position: 'bottom'
-          },
+          legend: { display: true, position: 'bottom' },
           tooltip: {
             filter: (item) => item.raw > 0,
-            callbacks: {
-              footer: (items) => `Total: ${topDutyPlayers[items[0].dataIndex].totalDuties}`
-            }
+            callbacks: { footer: (items) => `Total: ${topDutyPlayers[items[0].dataIndex].totalDuties}` }
           }
         },
         interaction: { mode: 'index', intersect: false },
         scales: {
           x: { stacked: true },
-          y: {
-            stacked: true,
-            beginAtZero: true,
-            ticks: {
-              stepSize: 1
-            }
-          }
+          y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 } }
         }
       }
     });
-  }
 
-  function renderPlayingTimeReport() {
-    const container = document.getElementById('playing-time-content');
-    const data = window.advancedStatsData?.playingTimeReport;
-
-    if (!data || data.length === 0) {
-      container.innerHTML = `
-        <div class="insufficient-data">
-          <div class="insufficient-data-icon">⏱️</div>
-          <div class="insufficient-data-title">Insufficient Data</div>
-          <p>Player availability and selection data from fixtures is needed to generate this report.</p>
-        </div>
-      `;
-      return;
-    }
-
-    // Show all players, sorted by selection rate (lowest first - needs attention)
-    container.innerHTML = `
+    // Everyone, with duties per game played so a fair share is easy to spot
+    document.getElementById('duty-table').innerHTML = `
+      <p class="section-description" style="margin-top: 1.5rem;">All players, games already played. Per game = duties ÷ games played.</p>
       <div class="table-responsive">
         <table class="data-mini-table">
           <thead>
             <tr>
               <th>Player</th>
-              <th class="text-center">Available</th>
-              <th class="text-center">Selected</th>
-              <th style="min-width: 120px;">Selection Rate</th>
-              <th class="text-center">Status</th>
+              <th class="text-center">Duties</th>
+              <th class="text-center">Played</th>
+              <th class="text-center">Per game</th>
+              <th>Breakdown</th>
             </tr>
           </thead>
           <tbody>
             ${data.map(p => `
               <tr>
                 <td><strong>${escapeHtml(p.name)}</strong></td>
-                <td class="text-center">${p.available}</td>
-                <td class="text-center">${p.selected}</td>
-                <td>
-                  <div class="progress-bar-container">
-                    <div class="progress-bar ${p.selectionRate >= 80 ? 'high' : p.selectionRate >= 50 ? 'medium' : 'low'}"
-                         style="width: ${p.selectionRate}%">
-                      ${p.selectionRate.toFixed(1)}%
-                    </div>
-                  </div>
-                </td>
-                <td class="text-center">
-                  ${p.meetsTarget
-                    ? '<span class="rate-badge rate-high">✓ Target</span>'
-                    : '<span class="rate-badge rate-low">⚠ Below</span>'}
-                </td>
+                <td class="text-center">${p.totalDuties}</td>
+                <td class="text-center">${p.gamesPlayed}</td>
+                <td class="text-center">${p.gamesPlayed ? p.dutiesPerGame.toFixed(2) : '–'}</td>
+                <td>${Object.entries(p.duties).sort((a, b) => b[1] - a[1]).map(([d, n]) => `${escapeHtml(d)} ×${n}`).join(', ')}</td>
               </tr>
             `).join('')}
           </tbody>
         </table>
       </div>
+    `;
+  }
+
+  function renderUmpiringAssignments() {
+    const container = document.getElementById('umpiring-assignments-content');
+    const data = window.advancedStatsData?.umpiringAssignments;
+
+    if (!data || data.length === 0) {
+      container.innerHTML = insufficient('🧑‍⚖️', 'No club players assigned to umpiring duties this season.');
+      return;
+    }
+
+    container.innerHTML = `
+      <p class="section-description">League games our teams were assigned to umpire. Attended counts once an admin confirms it in Umpiring.</p>
+      <div class="table-responsive">
+        <table class="data-mini-table">
+          <thead>
+            <tr>
+              <th>Player</th>
+              <th class="text-center">Assigned</th>
+              <th class="text-center">Attended</th>
+              <th class="text-center">NCCA sent own</th>
+              <th class="text-center">Upcoming</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.map(p => `
+              <tr>
+                <td><strong>${escapeHtml(p.name)}</strong></td>
+                <td class="text-center">${p.assigned}</td>
+                <td class="text-center">${p.attended}</td>
+                <td class="text-center">${p.nccaSent}</td>
+                <td class="text-center">${p.upcoming}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function renderFinancialTotals() {
+    const fees = window.advancedStatsData?.umpireFees || { totalPaid: 0, players: [] };
+    const club = window.advancedStatsData?.clubPaidUmpiring || { totalPaid: 0, paidSlots: 0 };
+    const feeGames = fees.players.reduce((sum, p) => sum + (p.timesPaid || 0), 0);
+    document.getElementById('financial-totals').innerHTML = miniCards([
+      ['Match umpire fees', money(fees.totalPaid), `Paid by captains · ${feeGames} game${feeGames === 1 ? '' : 's'}`],
+      ['Club-paid umpiring', money(club.totalPaid), `Paid by the club · ${club.paidSlots} duty slot${club.paidSlots === 1 ? '' : 's'}`],
+    ]);
+  }
+
+  function renderUmpireFees() {
+    const container = document.getElementById('umpire-fees-content');
+    const data = window.advancedStatsData?.umpireFees;
+
+    if (!data || !data.players || data.players.length === 0) {
+      container.innerHTML = insufficient('💰', 'Umpire fees are recorded with each game\'s result. None recorded for these games.');
+      return;
+    }
+
+    container.innerHTML = `
+      <p class="section-description">Panel umpires at our own games, paid by the captain.</p>
+      <div class="table-responsive">
+        <table class="data-mini-table umpire-fees-table">
+          <thead>
+            <tr>
+              <th>Paid by</th>
+              <th class="text-center">Times Paid</th>
+              <th class="text-right">Total Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.players.map(p => `
+              <tr>
+                <td><strong>${escapeHtml(p.name || '')}</strong></td>
+                <td class="text-center">${p.timesPaid || 0}</td>
+                <td class="text-right">${money(p.totalAmount)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function renderClubPaidUmpiring() {
+    const container = document.getElementById('club-paid-content');
+    const data = window.advancedStatsData?.clubPaidUmpiring;
+    const c = data?.coverage;
+
+    if (!data || !c || c.totalDuties === 0) {
+      container.innerHTML = insufficient('🧾', 'No umpiring duties this season. They\'re imported in Umpiring.');
+      return;
+    }
+
+    const coverageRows = [
+      ['Our players went', c.ourPlayers],
+      ['Club paid someone to go', c.paidCover],
+      ['Someone else went, unpaid', c.othersUnpaid],
+      ['NCCA sent their own umpire', c.nccaSent],
+      ['Attendance not confirmed', c.notConfirmed],
+      ['Nobody assigned (duties)', c.unassigned],
+    ];
+
+    const teamsWithPayments = (data.byTeam || []).filter(t => t.paidSlots > 0);
+
+    container.innerHTML = `
+      <p class="section-description">What the club paid whoever covered an umpiring duty, our own players included.</p>
+      ${miniCards([
+        ['Total paid', money(data.totalPaid)],
+        ['Paid slots', data.paidSlots],
+        ['Average per slot', data.paidSlots ? money(data.averagePerSlot) : '–'],
+      ])}
+
+      <h4 class="subsection-heading">How duties were covered</h4>
+      <p class="section-description">
+        ${c.totalDuties} dut${c.totalDuties === 1 ? 'y' : 'ies'}: ${c.pastDuties} played, ${c.upcomingDuties} upcoming, ${c.cancelled} cancelled.
+        Counted per umpire slot for duties already played.
+      </p>
+      <div class="table-responsive">
+        <table class="data-mini-table">
+          <tbody>
+            ${coverageRows.map(([label, n]) => `
+              <tr><td>${label}</td><td class="text-right"><strong>${n}</strong></td></tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      ${teamsWithPayments.length > 1 ? `
+        <h4 class="subsection-heading">By umpiring team</h4>
+        <div class="table-responsive">
+          <table class="data-mini-table">
+            <thead><tr><th>Team</th><th class="text-center">Paid slots</th><th class="text-right">Total</th></tr></thead>
+            <tbody>
+              ${teamsWithPayments.map(t => `
+                <tr><td><strong>${escapeHtml(t.team)}</strong></td><td class="text-center">${t.paidSlots}</td><td class="text-right">${money(t.totalPaid)}</td></tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      ` : ''}
+
+      <h4 class="subsection-heading">Paid to</h4>
+      ${data.recipients.length === 0 ? '<p class="empty-text">No club payments recorded yet.</p>' : `
+        <div class="table-responsive">
+          <table class="data-mini-table">
+            <thead><tr><th>Name</th><th class="text-center">Times</th><th class="text-right">Total</th></tr></thead>
+            <tbody>
+              ${data.recipients.map(r => `
+                <tr>
+                  <td>
+                    <strong>${escapeHtml(r.name)}</strong>
+                    <span class="kind-tag ${r.kind}">${r.kind === 'player' ? 'GSCC player' : 'External'}</span>
+                    ${r.club ? `<div class="mini-card-note">${escapeHtml(r.club)}</div>` : ''}
+                  </td>
+                  <td class="text-center">${r.timesPaid}</td>
+                  <td class="text-right">${money(r.totalAmount)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `}
     `;
   }
 </script>
