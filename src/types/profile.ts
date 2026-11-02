@@ -126,6 +126,7 @@ export interface FeedItem {
   photoUrl?: string;
   thumbnailUrl?: string;         // Social posts
   link?: { href: string; label: string };
+  scorecardUrl?: string;         // Results with a video: the scorecard, shown after the Watch link
   tone: 'win' | 'loss' | 'neutral' | 'gold' | 'blue' | 'green';
   hidden?: boolean;              // An admin hid this post (admin view and the stored feed only)
   potm?: {                       // Results only: Player of the Match, shown under the result
