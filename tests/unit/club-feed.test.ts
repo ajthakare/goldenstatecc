@@ -123,7 +123,7 @@ describe('buildFeed', () => {
     ['guest', { id: 'guest', name: 'Guest Player', listed: false }],
   ]);
   const fixtures = [
-    fixture('w1', '2026-06-01', { result: 'win', playerOfMatch: 'star', youtubeVideoUrl: 'https://youtu.be/x' }),
+    fixture('w1', '2026-06-01', { result: 'win', playerOfMatch: 'star', youtubeVideoUrl: 'https://youtu.be/x', scoringAppUrl: 'https://cricclubs.com/s/1' }),
     fixture('w2', '2026-06-07', { result: 'win', playerOfMatch: 'star' }),
     fixture('l1', '2026-06-08', { result: 'loss', playerOfMatch: 'guest', team: 'Bulls' }),
     fixture('old', '2026-01-01', { result: 'win' }),          // outside the 8-week window
@@ -143,6 +143,7 @@ describe('buildFeed', () => {
     expect(results.map((r) => r.title)).toEqual(['Bulls lost to Rivals', 'Tigers beat Rivals', 'Tigers beat Rivals']);
     expect(results[0].tone).toBe('loss');
     expect(items.find((i) => i.id === 'result-w1')?.link).toEqual({ href: 'https://youtu.be/x', label: 'Watch' });
+    expect(items.find((i) => i.id === 'result-w1')?.scorecardUrl).toBe('https://cricclubs.com/s/1');
   });
 
   it('shows Player of the Match inside the winning result, counting awards within the season', () => {

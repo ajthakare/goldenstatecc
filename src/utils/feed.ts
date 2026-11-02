@@ -303,6 +303,7 @@ export function buildFeed({ fixtures, players, events, social, todayStr, playerI
       detail: [f.division, f.venue].filter(Boolean).join(' · '),
       team: f.team,
       link: fixtureLink(f),
+      scorecardUrl: f.youtubeVideoUrl && f.scoringAppUrl ? f.scoringAppUrl : undefined,
       tone: f.result === 'win' ? 'win' : f.result === 'loss' ? 'loss' : 'neutral',
       potm: potmPlayer && {
         playerName: potmPlayer.name,
