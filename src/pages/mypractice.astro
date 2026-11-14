@@ -386,6 +386,7 @@ if (!session || !isMember(session)) {
   </style>
 
   <script>
+    import { practiceHeading } from '../utils/practiceSlots';
     // Inline icon helpers (client-rendered cards can't use the <Icon> component)
     const _svg = (paths, sz = 16) =>
       `<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-0.18em;flex-shrink:0">${paths}</svg>`;
@@ -607,7 +608,7 @@ if (!session || !isMember(session)) {
           <div class="practice-header">
             <div class="practice-type-icon">${typeIcon}</div>
             <div class="practice-info">
-              <h3 class="practice-title">${practice.title}</h3>
+              <h3 class="practice-title">${practiceHeading(practice.title)}</h3>
               <span class="practice-type-badge ${typeBadgeClass}">${typeName}</span>${slotBadge}
             </div>
           </div>

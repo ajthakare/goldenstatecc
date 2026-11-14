@@ -348,6 +348,23 @@ if (!isAdminUser) {
     .ps-inline { display: flex; align-items: center; gap: 0.5rem; }
     .ps-number { width: 4.5rem !important; min-height: 40px; padding: 0.45rem 0.6rem; }
     .ps-date { max-width: 12rem; min-height: 40px; padding: 0.45rem 0.6rem; }
+    /* Boxes stay visible when empty and stay inside the card (iPhone date and time inputs) */
+    .ps-form .form-input {
+      box-sizing: border-box;
+      max-width: 100%;
+      border: 1px solid #D6D3D1 !important;
+      background-color: #fff;
+    }
+    .ps-form input[type="date"],
+    .ps-form input[type="time"] {
+      -webkit-appearance: none;
+      appearance: none;
+      display: block;
+      min-width: 0;
+      text-align: left;
+    }
+    .ps-form input[type="date"]::-webkit-date-and-time-value,
+    .ps-form input[type="time"]::-webkit-date-and-time-value { text-align: left; }
     .ps-row-wide .form-input { flex: 1; min-height: 40px; padding: 0.45rem 0.6rem; }
     .ps-hint { font-size: 0.78rem; color: var(--color-text-muted, #6b7280); margin: 0; }
     .ps-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-top: 0.25rem; }
@@ -576,6 +593,7 @@ if (!isAdminUser) {
   </style>
 
   <script>
+    import { practiceHeading } from '../../utils/practiceSlots';
     let currentSeasonId = '';
     let currentPractice = null;
     let editingPracticeId = null;
@@ -806,9 +824,22 @@ if (!isAdminUser) {
       updateCreateForm();
     }
 
+    // Next Wednesday (nets) or Friday (field), today included, as YYYY-MM-DD
+    let autoDate = '';
+    function nextPracticeDate(isNet) {
+      const d = new Date();
+      d.setDate(d.getDate() + (((isNet ? 3 : 5) - d.getDay() + 7) % 7));
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
     function setPracticeDefaults() {
       const form = document.getElementById('create-practice-form');
       const isNet = createFormType() === 'net';
+      // Pre-fill the date (an empty date box shows nothing on iPhone); keep a date the admin picked
+      if (!editingPracticeId && (!form.date.value || form.date.value === autoDate)) {
+        autoDate = nextPracticeDate(isNet);
+        form.date.value = autoDate;
+      }
       const location = form.location;
       // Swap the default location and time with the type, but keep anything typed in
       if (!location.value || location.value === NET_LOCATION || location.value === FIELD_LOCATION) {
@@ -980,7 +1011,7 @@ if (!isAdminUser) {
         <div class="practice-header">
           <div>
             <div class="practice-title-row">
-              <h3 class="practice-title">${practice.title}</h3>
+              <h3 class="practice-title">${practiceHeading(practice.title)}</h3>
               <span class="practice-type-badge ${typeBadgeClass}">${typeEmoji} ${typeName}</span>
               ${practice.slotNumber ? `<span class="practice-type-badge slot-badge">Slot ${practice.slotNumber}</span>` : ''}
             </div>

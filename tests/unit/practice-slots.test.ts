@@ -5,6 +5,7 @@ import {
   checkSlotVote,
   formatTimeRange,
   groupPracticeSlots,
+  practiceHeading,
   normalizePracticeSettings,
   validatePracticeSettings,
   type PracticeSettings,
@@ -171,5 +172,17 @@ describe('practice badge counting', () => {
       { id: 'c' },
     ]);
     expect(groups.map((g) => g.map((p) => p.id))).toEqual([['a', 'b'], ['c']]);
+  });
+});
+
+describe('card heading', () => {
+  it('drops what the badges already say', () => {
+    expect(practiceHeading('Net Practice (Slot 1) - Wednesday, Nov 18')).toBe('Wednesday, Nov 18');
+    expect(practiceHeading('Net Practice - Wednesday, Nov 18')).toBe('Wednesday, Nov 18');
+    expect(practiceHeading('Field Practice - Friday, Nov 20')).toBe('Friday, Nov 20');
+  });
+
+  it('leaves other titles alone', () => {
+    expect(practiceHeading('Special nets with coach')).toBe('Special nets with coach');
   });
 });

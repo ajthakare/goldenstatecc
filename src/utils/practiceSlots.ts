@@ -163,3 +163,13 @@ export function groupPracticeSlots<T extends Pick<PracticeSession, 'id' | 'slotG
   }
   return [...groups.values()];
 }
+
+/**
+ * Card heading without what the badges already say: "Net Practice (Slot 1) -
+ * Wednesday, Nov 18" → "Wednesday, Nov 18". Titles in another shape are shown
+ * as they are. The stored title is unchanged (announcements, poll, audit log).
+ */
+export function practiceHeading(title: string): string {
+  const match = /^(?:Net|Field) Practice(?: \(Slot \d+\))? - (.+)$/.exec(title || '');
+  return match ? match[1] : title;
+}
