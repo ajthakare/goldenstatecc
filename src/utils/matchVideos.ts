@@ -66,11 +66,14 @@ function sortableTime(time: string): string {
 }
 
 /**
- * Every fixture with a YouTube link, newest game first. The same video linked
- * from two fixtures shows once (on the later game).
+ * Every fixture with a YouTube link played on or before `today` (YYYY-MM-DD),
+ * newest game first. Upcoming games can already carry their stream link; they
+ * wait until match day. The same video linked from two fixtures shows once (on
+ * the later game).
  */
 export function buildMatchVideos(
   seasons: { season: Pick<Season, 'name'>; fixtures: Fixture[] }[],
+  today: string,
 ): MatchVideo[] {
   const videos: (MatchVideo & { sortKey: string })[] = [];
   for (const { season, fixtures } of seasons) {
@@ -78,6 +81,7 @@ export function buildMatchVideos(
       const videoId = youtubeVideoId(f.youtubeVideoUrl);
       if (!videoId || !f.date) continue;
       const date = f.date.slice(0, 10);
+      if (date > today) continue;
       videos.push({
         videoId,
         fixtureId: f.id,

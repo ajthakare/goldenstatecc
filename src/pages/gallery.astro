@@ -11,7 +11,7 @@ import { SITE_CONFIG } from '../config';
 import { getSocialFeedItems } from '../utils/socialFeed';
 import { buildMatchVideos, type MatchVideo } from '../utils/matchVideos';
 import type { Fixture, Season } from '../types/player';
-import { readJSON } from '../../netlify/functions/_profile-stats';
+import { readJSON, todayString } from '../../netlify/functions/_profile-stats';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -22,14 +22,14 @@ import { join } from 'node:path';
 // posts, the page falls back to the static photos in public/media.
 const VIEWER_COUNT = 30;
 
-// Match videos: every fixture with a YouTube link, from every season, ordered by
+// Match videos: every played fixture with a YouTube link, from every season, ordered by
 // when the game was played. Read live, so a link added in the admin shows up on
 // the next page load, in its game's place.
 async function loadMatchVideos(): Promise<MatchVideo[]> {
     try {
         const seasons = (await readJSON<Season[]>('seasons', 'seasons-list')) || [];
         const fixtureLists = await Promise.all(seasons.map((s) => readJSON<Fixture[]>('fixtures', `fixtures-${s.id}`)));
-        return buildMatchVideos(seasons.map((season, i) => ({ season, fixtures: fixtureLists[i] || [] })));
+        return buildMatchVideos(seasons.map((season, i) => ({ season, fixtures: fixtureLists[i] || [] })), todayString());
     } catch (error) {
         console.error('Error loading match videos:', error);
         return [];

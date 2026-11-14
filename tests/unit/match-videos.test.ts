@@ -61,7 +61,7 @@ describe('buildMatchVideos', () => {
           fixture({ id: 'pm', date: '2026-11-08', time: '1:00 PM', youtubeVideoUrl: 'https://youtu.be/CCCCCCCCCCC' }),
         ],
       },
-    ]);
+    ], '2026-11-14');
     expect(videos.map((v) => v.fixtureId)).toEqual(['pm', 'new', 'late']);
   });
 
@@ -76,8 +76,22 @@ describe('buildMatchVideos', () => {
           ],
         },
       ],
+      '2026-11-14',
     );
     expect(videos).toHaveLength(1);
     expect(videos[0]).toMatchObject({ fixtureId: 'b', seasonName: 'Winter' });
+  });
+
+  it('leaves out games not played yet, even with a stream link already set', () => {
+    const videos = buildMatchVideos([
+      {
+        season: { name: 'Winter' },
+        fixtures: [
+          fixture({ id: 'today', date: '2026-11-14', youtubeVideoUrl: 'https://youtu.be/AAAAAAAAAAA' }),
+          fixture({ id: 'next', date: '2026-11-15', youtubeVideoUrl: 'https://youtu.be/BBBBBBBBBBB' }),
+        ],
+      },
+    ], '2026-11-14');
+    expect(videos.map((v) => v.fixtureId)).toEqual(['today']);
   });
 });
