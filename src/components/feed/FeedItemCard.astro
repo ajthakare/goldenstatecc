@@ -15,11 +15,11 @@ const { item } = Astro.props;
 
 const kindIcon: Record<string, string> = {
     result: 'trophy', milestone: 'cricket-bat', debut: 'sparkles',
-    badge: 'star', upcoming: 'calendar', umpiring: 'field-rings', social: 'instagram',
+    badge: 'star', upcoming: 'calendar', umpiring: 'field-rings', social: 'instagram', video: 'youtube',
 };
 const kindLabel: Record<string, string> = {
     result: 'Result', milestone: 'Milestone', debut: 'Debut',
-    badge: 'New badge', upcoming: 'Fixture', umpiring: 'Umpiring', social: 'Social',
+    badge: 'New badge', upcoming: 'Fixture', umpiring: 'Umpiring', social: 'Social', video: 'Match video',
 };
 const splitName = (name: string) => ({ firstName: name.split(' ')[0], lastName: name.split(' ').slice(1).join(' ') });
 const [y, m, d] = item.date.split('-').map(Number);
@@ -29,7 +29,13 @@ const dateLabel = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
 ---
 <li class={`feed-item feed-item--${item.kind} feed-tone--${item.tone}`}>
     <div class="feed-media">
-        {item.thumbnailUrl ? (
+        {item.kind === 'video' && item.thumbnailUrl ? (
+            <a href={item.link?.href} target="_blank" rel="noopener noreferrer" class="feed-video" tabindex="-1" aria-hidden="true">
+                <img src={item.thumbnailUrl} alt="" width="96" height="54" loading="lazy" referrerpolicy="no-referrer"
+                    style="width: 96px; height: 54px; object-fit: cover; border-radius: 8px; display: block;" />
+                <span class="feed-video__play">▶</span>
+            </a>
+        ) : item.thumbnailUrl ? (
             <img src={item.thumbnailUrl} alt="" width="56" height="56" loading="lazy"
                 style="width: 56px; height: 56px; object-fit: cover; border-radius: 10px; display: block;" />
         ) : item.playerName ? (
@@ -96,6 +102,24 @@ const dateLabel = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
     .feed-tone--blue { border-left-color: #1e4f86; }
     .feed-tone--green { border-left-color: #5b3a99; }
     .feed-media { flex-shrink: 0; }
+    .feed-video { position: relative; display: block; }
+    .feed-video__play {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 26px;
+        height: 26px;
+        border-radius: 9999px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding-left: 2px;
+        font-size: 11px;
+        color: #fff;
+        background: rgba(0, 0, 0, 0.6);
+    }
+    .feed-video:hover .feed-video__play { background: #ff0033; }
     .feed-icon {
         width: 48px;
         height: 48px;

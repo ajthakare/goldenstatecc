@@ -6,17 +6,40 @@ import Section from '../components/Section.astro';
 import PageHeader from '../components/PageHeader.astro';
 import Icon from '../components/Icon.astro';
 import SocialFeedViewer from '../components/SocialFeedViewer.astro';
+import MatchVideos from '../components/MatchVideos.astro';
 import { SITE_CONFIG } from '../config';
 import { getSocialFeedItems } from '../utils/socialFeed';
+import { buildMatchVideos, type MatchVideo } from '../utils/matchVideos';
+import type { Fixture, Season } from '../types/player';
+import { readJSON } from '../../netlify/functions/_profile-stats';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-// Latest Instagram posts (and YouTube videos once configured), synced every 6 hours by
-// netlify/functions/sync-social-feed.ts. The viewer rotates through the newest
-// VIEWER_COUNT posts, with a thumbnail strip to jump around. If the feed is
-// unavailable, the page falls back to the static photos in public/media.
+// Latest Instagram posts, synced every 6 hours by netlify/functions/sync-social-feed.ts.
+// The viewer rotates through the newest VIEWER_COUNT posts, with a thumbnail strip to
+// jump around. The feed's YouTube uploads are left out here: match streams have their
+// own section below, and the rest are a click away on the channel. If there are no
+// posts, the page falls back to the static photos in public/media.
 const VIEWER_COUNT = 30;
-const socialItems = await getSocialFeedItems(Astro.url.origin);
+
+// Match videos: every fixture with a YouTube link, from every season, ordered by
+// when the game was played. Read live, so a link added in the admin shows up on
+// the next page load, in its game's place.
+async function loadMatchVideos(): Promise<MatchVideo[]> {
+    try {
+        const seasons = (await readJSON<Season[]>('seasons', 'seasons-list')) || [];
+        const fixtureLists = await Promise.all(seasons.map((s) => readJSON<Fixture[]>('fixtures', `fixtures-${s.id}`)));
+        return buildMatchVideos(seasons.map((season, i) => ({ season, fixtures: fixtureLists[i] || [] })));
+    } catch (error) {
+        console.error('Error loading match videos:', error);
+        return [];
+    }
+}
+
+const [socialItems, matchVideos] = await Promise.all([
+    getSocialFeedItems(Astro.url.origin).then((items) => items.filter((item) => item.source === 'instagram')),
+    loadMatchVideos(),
+]);
 
 // Read images from public/media folder
 let galleryImages: { src: string; alt: string }[] = [];
@@ -34,12 +57,17 @@ try {
 ---
 
 <Layout title="Gallery - Golden State Cricket Club">
-    <PageHeader kicker="Gallery" title="From the ground" subtitle="Match days, milestones and moments from across the season." />
+    <PageHeader kicker="Gallery" title="From the ground" subtitle="Photos from Instagram and replays of our live-streamed games." />
 
     {socialItems.length > 0 ? (
         <>
-            <Section kicker="Fresh off the feed" title="Latest from our socials">
+            <Section kicker="Fresh off the feed" title="Latest on Instagram">
                 <SocialFeedViewer items={socialItems.slice(0, VIEWER_COUNT)} seconds={5} />
+                <div class="follow-link">
+                    <a href={SITE_CONFIG.social.instagram.url} target="_blank" rel="noopener noreferrer" class="btn">
+                        <Icon name="instagram" size={18} /> Follow us on Instagram
+                    </a>
+                </div>
             </Section>
         </>
     ) : (
@@ -78,19 +106,11 @@ try {
         </>
     )}
 
-    <Section variant="alternate" kicker="Follow along" title="More on social media">
-        <p class="text-body-lg text-center mx-auto measure mb-6" style="margin-inline:auto;">
-            Latest photos, videos and match highlights on Instagram and YouTube.
-        </p>
-        <div class="flex flex-wrap gap-3 justify-center">
-            <a href={SITE_CONFIG.social.instagram.url} target="_blank" rel="noopener noreferrer" class="btn">
-                <Icon name="instagram" size={18} /> Instagram
-            </a>
-            <a href={SITE_CONFIG.social.youtube.url} target="_blank" rel="noopener noreferrer" class="btn btn-secondary">
-                <Icon name="youtube" size={18} /> YouTube
-            </a>
-        </div>
-    </Section>
+    {matchVideos.length > 0 && (
+        <Section kicker="Watch it back" title="Recent match videos">
+            <MatchVideos videos={matchVideos} />
+        </Section>
+    )}
 </Layout>
 
 <style>
@@ -98,6 +118,9 @@ try {
        header (.page-head + .section-spacing). Astro can inject the viewer's script tag in between,
        which breaks that adjacency, so use the general-sibling form here. */
     :global(.page-head ~ .section-spacing:first-of-type) { padding-top: 0; }
+
+    /* Same spacing as the YouTube channel button under the match videos */
+    .follow-link { display: flex; justify-content: center; margin-top: 1.75rem; }
 
     .gallery-grid {
         display: grid;

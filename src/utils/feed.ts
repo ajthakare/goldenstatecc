@@ -5,8 +5,8 @@
  *    they happened in (deterministic, rebuilt on every stats recalculation)
  *  - diffBadgeEvents(): newly earned badges, found by comparing this
  *    recalculation's badges with the previous snapshot
- *  - buildFeed(): results (with Player of the Match), upcoming fixtures and umpiring duties,
- *    stored player events and social posts -> one list, newest first
+ *  - buildFeed(): results (with Player of the Match), match videos, upcoming fixtures and
+ *    umpiring duties, stored player events and social posts -> one list, newest first
  */
 import { BADGE_RULES, deriveBadges } from './badges';
 import type { SeasonInput } from './badges';
@@ -15,6 +15,7 @@ import type { Badge, FeedItem, PlayerProfileStats, StoredFeedEvent } from '../ty
 import type { SocialFeedItem } from '../types/social';
 import type { UmpiringDuty } from '../types/umpiring';
 import { filledSlots } from './umpiring';
+import { youtubeThumbnail, youtubeVideoId } from './matchVideos';
 
 export const FEED_WEEKS = 8;             // How far back the feed goes
 
@@ -255,11 +256,6 @@ function resultTitle(f: Fixture): string {
   }
 }
 
-function fixtureLink(f: Fixture): FeedItem['link'] {
-  if (f.youtubeVideoUrl) return { href: f.youtubeVideoUrl, label: 'Watch' };
-  if (f.scoringAppUrl) return { href: f.scoringAppUrl, label: 'Scorecard' };
-  return undefined;
-}
 
 function withPlayer(item: FeedItem, players: Map<string, FeedPlayer>, playerId: string): FeedItem {
   const p = players.get(playerId);
@@ -302,8 +298,8 @@ export function buildFeed({ fixtures, players, events, social, todayStr, playerI
       title: resultTitle(f),
       detail: [f.division, f.venue].filter(Boolean).join(' · '),
       team: f.team,
-      link: fixtureLink(f),
-      scorecardUrl: f.youtubeVideoUrl && f.scoringAppUrl ? f.scoringAppUrl : undefined,
+      // The stream gets its own "Match video" post, so the result links the scorecard only
+      link: f.scoringAppUrl ? { href: f.scoringAppUrl, label: 'Scorecard' } : undefined,
       tone: f.result === 'win' ? 'win' : f.result === 'loss' ? 'loss' : 'neutral',
       potm: potmPlayer && {
         playerName: potmPlayer.name,
@@ -311,6 +307,27 @@ export function buildFeed({ fixtures, players, events, social, todayStr, playerI
         photoUrl: potmPlayer.listed ? potmPlayer.photoUrl : undefined,
         note: potmNumber > 1 ? `${ordinal(potmNumber)} this season` : undefined,
       },
+    });
+  }
+
+  // A post for each game with a YouTube link, dated by the game (a link added later
+  // lands in the game's place). Played games only: upcoming ones show "Live stream".
+  const matchVideoIds = new Set<string>();
+  for (const f of playerId ? [] : sortedFixtures) {
+    const videoId = youtubeVideoId(f.youtubeVideoUrl);
+    const date = dateOnly(f.date);
+    if (!videoId || !inWindow(date)) continue;
+    matchVideoIds.add(videoId);
+    items.push({
+      id: `video-${f.id}`,
+      kind: 'video',
+      date,
+      title: `Match video: ${f.team} vs ${f.opponent}`,
+      detail: [f.division, f.venue].filter(Boolean).join(' · '),
+      team: f.team,
+      thumbnailUrl: youtubeThumbnail(videoId),
+      link: { href: f.youtubeVideoUrl!.trim(), label: 'Watch on YouTube' },
+      tone: 'neutral',
     });
   }
 
@@ -331,6 +348,7 @@ export function buildFeed({ fixtures, players, events, social, todayStr, playerI
   for (const s of playerId ? [] : social) {
     const date = s.timestamp.slice(0, 10);
     if (!inWindow(date)) continue;
+    if (s.source === 'youtube' && matchVideoIds.has(s.id)) continue; // already a match video post
     items.push({
       id: `social-${s.source}-${s.id}`,
       kind: 'social',
@@ -343,9 +361,18 @@ export function buildFeed({ fixtures, players, events, social, todayStr, playerI
     });
   }
 
-  // Newest first; within a day, results, then player news, then social
-  const order: Record<string, number> = { result: 0, milestone: 1, debut: 1, badge: 2, social: 3, upcoming: 4, umpiring: 4 };
+  // Newest first; within a day, results, then their videos, then player news, then social
+  const order: Record<string, number> = { result: 0, video: 1, milestone: 2, debut: 2, badge: 3, social: 4, upcoming: 5, umpiring: 5 };
   items.sort((a, b) => b.date.localeCompare(a.date) || order[a.kind] - order[b.kind]);
+  // Each game's video right under its own result (two games on a day: result, video, result, video)
+  const itemIds = new Set(items.map((i) => i.id));
+  const videoFor = new Map(items.filter((i) => i.kind === 'video').map((i) => [i.id.slice('video-'.length), i]));
+  const paired = items.flatMap((i) => {
+    if (i.kind === 'video' && itemIds.has(`result-${i.id.slice('video-'.length)}`)) return [];
+    const video = i.kind === 'result' ? videoFor.get(i.id.slice('result-'.length)) : undefined;
+    return video ? [i, video] : [i];
+  });
+  items.splice(0, items.length, ...paired);
   const applyHidden = (list: FeedItem[]): FeedItem[] => {
     if (!hiddenIds?.size) return list;
     return includeHidden

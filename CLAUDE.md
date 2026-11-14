@@ -121,7 +121,7 @@ export const SITE_CONFIG = {
 | `/aboutus/sponsorships` | Tiers, current and previous sponsors |
 | `/teams` | Teams with this season's divisions (`seasons-get-active`, `fixtures-list`) |
 | `/members` | Membership overview and how to join |
-| `/gallery` | Instagram/YouTube carousel (`social-feed-get`) + `public/media/` photo grid with lightbox |
+| `/gallery` | Instagram carousel (`social-feed-get`; `public/media/` photo grid with lightbox if it's empty) + "Recent match videos": the 6 latest games with a YouTube link on the fixture (`src/utils/matchVideos.ts`, read live, ordered by game date) |
 | `/fixtures` | Upcoming weekend, upcoming and past fixtures, plus umpiring duties. Umpire names only for signed-in members |
 | `/feed` | Club Feed (see below). Public; umpire names only for signed-in members |
 | `/documents` | Club and NCCA PDFs (see Documents and Rules Assistant) |
@@ -148,7 +148,7 @@ Roles: `member`, `admin`, `super_admin`. Members sign in at `/login`; admins too
 
 ## Club Feed (`/feed`)
 
-- Results, Player of the Match, milestones, new badges, upcoming fixtures and umpiring duties, Instagram/YouTube posts
+- Results (linking the scorecard), Player of the Match, a "Match video" post under each played game with a YouTube link, milestones, new badges, upcoming fixtures and umpiring duties, Instagram/YouTube posts
 - `/feed` only reads the stored copy at `player-profiles/club-feed`, rebuilt every 6h by `schedule-club-feed` (15 min after `sync-social-feed`). If a source can't be read, the previous copy stays. Don't build the feed per request
 - `club-feed-get` builds it live; used by Admin → Club Feed and profile "Recent activity"
 - Admins hide/unhide any post at `/admin/feed` (`feed-hide`); that patches the stored copy straight away
