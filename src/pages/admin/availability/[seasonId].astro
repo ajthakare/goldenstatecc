@@ -93,7 +93,7 @@ const fixtureId = Astro.url.searchParams.get('fid') || '';
 
       <!-- Lock Message -->
       <div id="past-fixture-lock-message" style="display: none; background: #fef3c7; border: 1px solid #fbbf24; color: #78350f; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 14px;">
-        🔒 <strong>Past fixture is locked.</strong> Only Mr. President can edit past fixtures.
+        🔒 <strong>Past fixture is locked.</strong> Captains can edit a weekend's games until Sunday night; from Monday only Mr. President can.
       </div>
 
       <!-- Suggested duties (3 lines; opened from the header button) -->
@@ -469,7 +469,9 @@ const fixtureId = Astro.url.searchParams.get('fid') || '';
 
 <script>
   import { createDutySuggester } from '../../../utils/duty-suggestions-panel';
+  import { fixtureEditState } from '../../../utils/fixtureLock';
   const w = window as any;
+  w.fixtureEditState = fixtureEditState; // For the inline editor script below
   w.dutySuggester = createDutySuggester({
     button: document.getElementById('suggest-duties-btn') as HTMLButtonElement,
     panel: document.getElementById('duty-suggestions')!,
@@ -574,11 +576,9 @@ const fixtureId = Astro.url.searchParams.get('fid') || '';
       renderPlayers();
       updateStats();
 
-      // Determine if past fixture
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const fixtureDate = new Date(currentFixture.date.split('T')[0]);
-      isPastFixture = fixtureDate < today;
+      // Locked from the Monday after the game (Pacific dates); result section from match day
+      const editState = window.fixtureEditState(currentFixture.date);
+      isPastFixture = editState.locked;
       window.dutySuggester?.refresh();
 
       // Lock state
@@ -599,7 +599,7 @@ const fixtureId = Astro.url.searchParams.get('fid') || '';
 
       // Match result section
       const matchResultSection = document.getElementById('match-result-section');
-      if (isPastFixture) {
+      if (editState.resultOpen) {
         matchResultSection.style.display = 'block';
 
         if (currentFixture.result) {
@@ -833,7 +833,7 @@ const fixtureId = Astro.url.searchParams.get('fid') || '';
   }
 
   function isValidYouTubeUrl(url) {
-    return /^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\/.+/.test(url);
+    return /^https?:\/\/(www\.|m\.)?(youtube\.com|youtu\.be)\/.+/.test(url);
   }
   function isValidUrl(url) {
     try { new URL(url); return true; } catch { return false; }
