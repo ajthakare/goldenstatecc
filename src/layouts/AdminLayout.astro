@@ -913,6 +913,22 @@ const hideWinterCheckInNav = isWinterCheckInAdminRestricted(adminSession?.email)
         html, body {
           height: 100dvh;
           overflow: hidden;
+          /* The page behind the content never moves, so the top bar stays put */
+          overscroll-behavior: none;
+          /* iOS tints the status bar area from the page background: keep it the
+             top bar's colour, not the light page colour (that showed as a fade) */
+          background: var(--color-ink, #1A1614) !important;
+        }
+
+        /* Keep main-content 1px taller than its box so it always takes the swipe,
+           even on short pages (Stream, Rules). Otherwise the phone scrolls the page
+           behind it, top bar and all. A zero-width float doesn't move the content. */
+        .main-content::before {
+          content: '';
+          float: left;
+          width: 1px;
+          margin-right: -1px;
+          height: calc(100% + 1px);
         }
 
         /* Hide sidebar and mobile menu controls — replaced by PWA chrome */
@@ -942,6 +958,11 @@ const hideWinterCheckInNav = isWinterCheckInAdminRestricted(adminSession?.email)
           overscroll-behavior-y: contain;
           padding: 0 16px 16px !important;
           min-height: unset !important;
+          /* The page background is dark now, so the content area brings its own */
+          background-color: var(--color-bg-body, #f9fafb);
+          background-image: var(--background-image-noise);
+          background-size: cover;
+          background-position: center;
         }
       }
     </style>

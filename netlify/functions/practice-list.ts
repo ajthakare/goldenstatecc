@@ -3,6 +3,7 @@ import { validateAdminSession, isMember } from '../../src/middleware/auth';
 import type { PracticeSession } from '../../src/types/player';
 import { getPacificToday } from './_utils';
 import { loadPractices, loadSeasonsInPlay } from './_seasons';
+import { battingCount, isCommitted } from '../../src/utils/practiceSlots';
 
 /**
  * List upcoming practice sessions for authenticated member (next 30 days)
@@ -52,8 +53,9 @@ export const handler: Handler = async (
       );
     });
 
-    // Sort by date (earliest first)
-    upcomingPractices.sort((a, b) => a.date.localeCompare(b.date));
+    // Sort by date (earliest first), slots of one evening in order
+    upcomingPractices.sort((a, b) => a.date.localeCompare(b.date) || (a.slotNumber || 0) - (b.slotNumber || 0));
+    const byId = new Map(allPractices.map((p) => [p.id, p]));
 
     // Enrich practices with member's availability and team counts
     const enrichedPractices = upcomingPractices.map(practice => {
@@ -118,6 +120,16 @@ export const handler: Handler = async (
         submittedAt: myAvailability?.submittedAt || null,
         lastUpdated: myAvailability?.lastUpdated || null,
         availabilityCounts,
+        // Wednesday slots: batting places and which other slot the member is in
+        slotNumber: practice.slotNumber || null,
+        slotGroup: practice.slotGroup || null,
+        capacity: practice.capacity || null,
+        battingCount: battingCount(practice),
+        inOtherSlot:
+          (practice.linkedPracticeIds || [])
+            .map((id) => byId.get(id))
+            .find((p) => p && p.status !== 'cancelled' && p.playerAvailability.some((r) => r.playerId === playerId && isCommitted(r.response)))
+            ?.slotNumber || null,
       };
     });
 

@@ -33,8 +33,8 @@ vi.mock('../../netlify/functions/_push-utils', async (importOriginal) => ({
 import { handler as saturday } from '../../netlify/functions/schedule-saturday';
 import { handler as sunday } from '../../netlify/functions/schedule-sunday';
 
-const practice = (id: string, seasonId: string, date: string, status = 'active') => ({
-  id, seasonId, date, status, type: 'net', title: id, time: '19:00', location: 'Nets', team: 'all',
+const practice = (id: string, seasonId: string, date: string, status = 'active', type = 'net') => ({
+  id, seasonId, date, status, type, title: id, time: '19:00', location: 'Nets', team: 'all',
   playerAvailability: [],
 });
 
@@ -48,7 +48,7 @@ beforeEach(() => {
   blobs['practice-sessions'] = {
     'practice-index-summer': ['wed', 'fri'],
     'practice-wed': practice('wed', 'summer', '2026-10-28'),
-    'practice-fri': practice('fri', 'summer', '2026-10-30'),
+    'practice-fri': practice('fri', 'summer', '2026-10-30', 'active', 'field'),
   };
   blobs.fixtures = {};
   sendPushToAll.mockClear();
@@ -57,17 +57,35 @@ beforeEach(() => {
 describe('schedule-saturday', () => {
   it("doesn't recreate practices the previous season already has this week", async () => {
     now = new Date(2026, 9, 24, 15, 0);
+    blobs['practice-sessions']['practice-settings'] = { wednesdayNets: 'single', fridayField: true };
     await run(saturday);
-    expect(blobs['practice-sessions']['practice-index-winter']).toEqual([]);
+    expect(blobs['practice-sessions']['practice-index-winter'] ?? []).toEqual([]);
   });
 
-  it('creates the week\'s practices in the active season when none exist', async () => {
+  const createdThisRun = () =>
+    (blobs['practice-sessions']['practice-index-winter'] as string[]).map(
+      (id) => blobs['practice-sessions'][`practice-${id}`] as { date: string; seasonId: string; type: string; time: string; slotNumber?: number }
+    );
+
+  it('creates two Wednesday slots and no Friday practice when settings were never saved', async () => {
     blobs['practice-sessions'] = {};
     now = new Date(2026, 9, 24, 15, 0);
     await run(saturday);
-    const created = (blobs['practice-sessions']['practice-index-winter'] as string[])
-      .map((id) => blobs['practice-sessions'][`practice-${id}`] as { date: string; seasonId: string });
-    expect(created.map((p) => [p.date, p.seasonId])).toEqual([['2026-10-28', 'winter'], ['2026-10-30', 'winter']]);
+    expect(createdThisRun().map((p) => [p.date, p.seasonId, p.type, p.time, p.slotNumber])).toEqual([
+      ['2026-10-28', 'winter', 'net', '7:00 PM - 8:30 PM', 1],
+      ['2026-10-28', 'winter', 'net', '8:00 PM - 9:30 PM', 2],
+    ]);
+    expect(blobs['practice-sessions']['practices-active']).toHaveLength(2);
+  });
+
+  it('creates one Wednesday session and a Friday field practice when set that way', async () => {
+    blobs['practice-sessions'] = { 'practice-settings': { wednesdayNets: 'single', fridayField: true } };
+    now = new Date(2026, 9, 24, 15, 0);
+    await run(saturday);
+    expect(createdThisRun().map((p) => [p.date, p.seasonId, p.type])).toEqual([
+      ['2026-10-28', 'winter', 'net'],
+      ['2026-10-30', 'winter', 'field'],
+    ]);
   });
 });
 

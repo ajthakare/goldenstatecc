@@ -52,57 +52,144 @@ if (!isAdminUser) {
       </p>
     </div>
 
-    <!-- Create Practice Form (Hidden initially) -->
+    <!-- Practice settings: what the Saturday job creates for the next week -->
+    <details id="practice-settings" class="card ps-card">
+      <summary class="ps-summary">
+        <span class="ps-summary-title">⚙️ Weekly practice settings</span>
+        <span id="settings-summary-text" class="ps-summary-text">Loading…</span>
+      </summary>
+      <form id="practice-settings-form" class="ps-form">
+        <div class="ps-row">
+          <span class="ps-label">Wednesday nets</span>
+          <div class="ps-choice">
+            <label><input type="radio" name="wednesdayNets" value="single" /> One session</label>
+            <label><input type="radio" name="wednesdayNets" value="split" /> Two slots</label>
+          </div>
+        </div>
+        <div data-format="single">
+          <div class="ps-row">
+            <span class="ps-label">Time</span>
+            <div class="ps-times">
+              <input type="time" name="singleStart" class="form-input" required aria-label="Time start" />
+              <span class="ps-dash">–</span>
+              <input type="time" name="singleEnd" class="form-input" required aria-label="Time end" />
+            </div>
+          </div>
+        </div>
+        <div data-format="split">
+          <div class="ps-row">
+            <span class="ps-label">Slot 1</span>
+            <div class="ps-times">
+              <input type="time" name="slot1Start" class="form-input" required aria-label="Slot 1 start" />
+              <span class="ps-dash">–</span>
+              <input type="time" name="slot1End" class="form-input" required aria-label="Slot 1 end" />
+            </div>
+          </div>
+          <div class="ps-row">
+            <span class="ps-label">Slot 2</span>
+            <div class="ps-times">
+              <input type="time" name="slot2Start" class="form-input" required aria-label="Slot 2 start" />
+              <span class="ps-dash">–</span>
+              <input type="time" name="slot2End" class="form-input" required aria-label="Slot 2 end" />
+            </div>
+          </div>
+          <div class="ps-row">
+            <label class="ps-label" for="slot-capacity">Batting places</label>
+            <div class="ps-inline">
+              <input type="number" id="slot-capacity" name="slotCapacity" class="form-input ps-number" min="1" max="50" step="1" required />
+              <span class="ps-hint">per slot</span>
+            </div>
+          </div>
+        </div>
+        <div class="ps-row ps-row-switch">
+          <label class="ps-label" for="friday-field">Friday field practice</label>
+          <label class="ps-switch">
+            <input type="checkbox" id="friday-field" name="fridayField" role="switch" />
+            <span class="ps-switch-track" aria-hidden="true"></span>
+          </label>
+        </div>
+        <div class="ps-actions">
+          <button type="submit" id="save-settings-btn" class="btn-primary">Save settings</button>
+          <span id="settings-updated" class="ps-hint"></span>
+        </div>
+      </form>
+    </details>
+
+    <!-- Create / edit practice form (hidden initially). Net sessions follow the weekly settings -->
     <div id="create-form-container" style="display: none; margin-bottom: 2rem;">
-      <div class="card">
-        <div class="card-header">
-          <h2 class="card-title">Create New Practice Session</h2>
+      <div class="card ps-card">
+        <div class="ps-form-header">
+          <h2 id="create-form-title" class="ps-form-title">Create Practice</h2>
           <button id="cancel-create-btn" class="btn-text">Cancel</button>
         </div>
-        <form id="create-practice-form" class="form-grid">
-          <div class="form-group">
-            <label for="practice-type" class="form-label">Practice Type *</label>
-            <div class="radio-group">
-              <label class="radio-label">
-                <input type="radio" name="type" value="net" required checked />
-                <span>🎾 Net Session</span>
-                <small>Batting & bowling in cages</small>
-              </label>
-              <label class="radio-label">
-                <input type="radio" name="type" value="field" required />
-                <span>🏟️ Field Practice</span>
-                <small>Outdoor ground practice</small>
-              </label>
+        <form id="create-practice-form" class="ps-form">
+          <div class="ps-row">
+            <span class="ps-label">Type</span>
+            <div class="ps-choice">
+              <label><input type="radio" name="type" value="net" checked /> Net session</label>
+              <label><input type="radio" name="type" value="field" /> Field practice</label>
             </div>
           </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="date" class="form-label">Date *</label>
-              <input type="date" id="date" name="date" class="form-input" required />
+          <div class="ps-row">
+            <label class="ps-label" for="date">Date</label>
+            <input type="date" id="date" name="date" class="form-input ps-date" required />
+          </div>
+          <div class="ps-row" id="create-format-row">
+            <span class="ps-label">Format</span>
+            <div class="ps-choice">
+              <label><input type="radio" name="format" value="single" /> One session</label>
+              <label><input type="radio" name="format" value="split" /> Two slots</label>
             </div>
-            <div class="form-group">
-              <label for="time" class="form-label">Time *</label>
-              <input type="time" id="time" name="time" class="form-input" required />
+          </div>
+          <div data-format="single">
+            <div class="ps-row">
+            <span class="ps-label">Time</span>
+            <div class="ps-times">
+              <input type="time" id="time" name="time" class="form-input" required aria-label="Time start" />
+              <span class="ps-dash">–</span>
+              <input type="time" id="end-time" name="endTime" class="form-input" aria-label="Time end" />
             </div>
           </div>
-
-          <div class="form-group">
-            <label for="location" class="form-label">Location *</label>
-            <input type="text" id="location" name="location" class="form-input" placeholder="e.g., Fremont Central Park - Ground 1" required minlength="5" maxlength="500" />
           </div>
-
-          <div class="form-group">
-            <label for="description" class="form-label">Description (Optional)</label>
-            <textarea id="description" name="description" class="form-input" rows="3" placeholder="Additional details about the practice..."></textarea>
+          <div data-format="split">
+            <div class="ps-row">
+            <span class="ps-label">Slot 1</span>
+            <div class="ps-times">
+              <input type="time" name="slot1Start" class="form-input" required aria-label="Slot 1 start" />
+              <span class="ps-dash">–</span>
+              <input type="time" name="slot1End" class="form-input" required aria-label="Slot 1 end" />
+            </div>
           </div>
-
-          <div class="form-actions">
-            <button type="button" id="cancel-form-btn" class="btn-secondary">Cancel</button>
+            <div class="ps-row">
+            <span class="ps-label">Slot 2</span>
+            <div class="ps-times">
+              <input type="time" name="slot2Start" class="form-input" required aria-label="Slot 2 start" />
+              <span class="ps-dash">–</span>
+              <input type="time" name="slot2End" class="form-input" required aria-label="Slot 2 end" />
+            </div>
+          </div>
+            <div class="ps-row">
+              <label class="ps-label" for="create-capacity">Batting places</label>
+              <div class="ps-inline">
+                <input type="number" id="create-capacity" name="slotCapacity" class="form-input ps-number" min="1" max="50" step="1" required />
+                <span class="ps-hint">per slot</span>
+              </div>
+            </div>
+          </div>
+          <div class="ps-row ps-row-wide">
+            <label class="ps-label" for="location">Location</label>
+            <input type="text" id="location" name="location" class="form-input" required minlength="5" maxlength="500" />
+          </div>
+          <div class="ps-row ps-row-wide">
+            <label class="ps-label" for="description">Notes</label>
+            <textarea id="description" name="description" class="form-input" rows="2" placeholder="Optional"></textarea>
+          </div>
+          <div class="ps-actions">
             <button type="submit" class="btn-primary">
               <span id="submit-text">Create Practice</span>
               <span id="submit-spinner" style="display: none;" class="spinner-sm"></span>
             </button>
+            <button type="button" id="cancel-form-btn" class="btn-secondary">Cancel</button>
           </div>
         </form>
       </div>
@@ -230,7 +317,79 @@ if (!isAdminUser) {
   <!-- Toast Notifications -->
   <div id="toast-container" class="toast-container"></div>
 
+  <style>
+    /* Compact form rows shared by Weekly practice settings and Create Practice */
+    .ps-card { padding: 0; }
+    .ps-summary {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      padding: 0.875rem 2.5rem 0.875rem 1rem;
+      cursor: pointer;
+      list-style: none;
+      position: relative;
+    }
+    .ps-summary::-webkit-details-marker { display: none; }
+    .ps-summary::after { content: '▾'; position: absolute; right: 1rem; top: 0.875rem; color: var(--color-text-muted, #6b7280); }
+    .ps-card[open] .ps-summary::after { content: '▴'; }
+    .ps-summary-title { font-weight: 700; font-size: 0.95rem; }
+    .ps-summary-text { font-size: 0.8rem; color: var(--color-text-muted, #6b7280); }
+    .ps-form { padding: 0 1rem 1rem; display: flex; flex-direction: column; gap: 0.75rem; }
+    .ps-form-header { display: flex; align-items: center; justify-content: space-between; padding: 0.875rem 1rem; }
+    .ps-form-title { font-size: 1rem; font-weight: 700; margin: 0; }
+    .ps-row { display: flex; align-items: center; gap: 0.75rem; }
+    .ps-label { flex: 0 0 8.5rem; font-size: 0.85rem; font-weight: 600; margin: 0; }
+    .ps-choice { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; font-size: 0.9rem; }
+    .ps-choice label { display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; white-space: nowrap; }
+    .ps-choice input { width: 1rem; height: 1rem; margin: 0; accent-color: var(--color-primary, #8C1D18); }
+    .ps-times { display: flex; align-items: center; gap: 0.5rem; flex: 1; max-width: 22rem; }
+    .ps-times .form-input { flex: 1; min-width: 0; width: auto; min-height: 40px; padding: 0.45rem 0.6rem; }
+    .ps-dash { color: var(--color-text-muted, #6b7280); }
+    .ps-inline { display: flex; align-items: center; gap: 0.5rem; }
+    .ps-number { width: 4.5rem !important; min-height: 40px; padding: 0.45rem 0.6rem; }
+    .ps-date { max-width: 12rem; min-height: 40px; padding: 0.45rem 0.6rem; }
+    .ps-row-wide .form-input { flex: 1; min-height: 40px; padding: 0.45rem 0.6rem; }
+    .ps-hint { font-size: 0.78rem; color: var(--color-text-muted, #6b7280); margin: 0; }
+    .ps-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-top: 0.25rem; }
+    [data-format] { display: flex; flex-direction: column; gap: 0.75rem; }
+
+    /* On/off switch */
+    .ps-switch { position: relative; display: inline-flex; cursor: pointer; }
+    .ps-switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+    .ps-switch-track {
+      width: 2.75rem; height: 1.5rem; border-radius: 999px; background: #D1D5DB;
+      position: relative; transition: background 0.2s;
+    }
+    .ps-switch-track::after {
+      content: ''; position: absolute; top: 0.1875rem; left: 0.1875rem;
+      width: 1.125rem; height: 1.125rem; border-radius: 50%; background: #fff;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.25); transition: transform 0.2s;
+    }
+    .ps-switch input:checked + .ps-switch-track { background: #10B981; }
+    .ps-switch input:checked + .ps-switch-track::after { transform: translateX(1.25rem); }
+    .ps-switch input:focus-visible + .ps-switch-track { outline: 2px solid var(--color-primary, #8C1D18); outline-offset: 2px; }
+
+    @media (max-width: 640px) {
+      .ps-row { flex-direction: column; align-items: stretch; gap: 0.35rem; }
+      .ps-row-switch { flex-direction: row; align-items: center; justify-content: space-between; }
+      .ps-label { flex: none; }
+      .ps-times { max-width: none; }
+      .ps-date { max-width: none; }
+      .ps-actions .btn-primary, .ps-actions .btn-secondary { width: 100%; justify-content: center; }
+    }
+  </style>
+
   <style is:global>
+    /* Practice cards are built in the browser, so these can't be scoped */
+    .practice-type-badge.slot-badge { background: #EEF2FF; color: #3730A3; }
+    .batting-full { color: #B91C1C !important; }
+    /* Badges wrap under the title on phones instead of squeezing beside it */
+    .practice-title-row { flex-wrap: wrap; row-gap: 0.4rem; }
+    .practice-title-row .practice-type-badge { white-space: nowrap; }
+    @media (max-width: 640px) {
+      .practice-title-row .practice-title { flex-basis: 100%; }
+    }
+
     /* Mobile-specific fixes */
     @media (max-width: 768px) {
       html,
@@ -470,15 +629,137 @@ if (!isAdminUser) {
     document.addEventListener('DOMContentLoaded', () => {
       loadSeasons();
       setupEventListeners();
+      loadPracticeSettings();
     });
+
+    // ---- Weekly practice settings (read by the Saturday job) ----
+    const NET_LOCATION = 'NACL Sports Center, 1111 Felipe Ave, San Jose, CA 95122';
+    const FIELD_LOCATION = 'Ortega Park, 636 Harrow Way, Sunnyvale, CA 94087';
+    let practiceSettings = {
+      wednesdayNets: 'split',
+      singleSession: { start: '19:00', end: '21:30' },
+      slots: [{ start: '19:00', end: '20:30' }, { start: '20:00', end: '21:30' }],
+      slotCapacity: 14,
+      fridayField: false,
+    };
+    let loadedPractices = [];
+
+    // Show the rows for one format ("single" / "split") in a form; hidden rows mustn't block submitting
+    function showFormat(form, format) {
+      form.querySelectorAll('[data-format]').forEach((el) => {
+        const on = el.dataset.format === format;
+        el.style.display = on ? 'flex' : 'none';
+        el.querySelectorAll('input').forEach((input) => {
+          if (input.dataset.req === undefined) input.dataset.req = input.required ? '1' : '0';
+          input.required = on && input.dataset.req === '1';
+        });
+      });
+    }
+
+    function fillSlotFields(form, s) {
+      form.slot1Start.value = s.slots[0].start;
+      form.slot1End.value = s.slots[0].end;
+      form.slot2Start.value = s.slots[1].start;
+      form.slot2End.value = s.slots[1].end;
+      form.slotCapacity.value = s.slotCapacity;
+    }
+
+    function settingsSummary(s) {
+      const short = (t) => formatTime12Hour(t).replace(':00', '').replace(' ', '');
+      const range = (r) => `${short(r.start)}–${short(r.end)}`;
+      const wed = s.wednesdayNets === 'split'
+        ? `Wed: 2 slots · ${range(s.slots[0])}, ${range(s.slots[1])} · ${s.slotCapacity} batting`
+        : `Wed: 1 session · ${range(s.singleSession)}`;
+      return `${wed} · Fri field: ${s.fridayField ? 'on' : 'off'}`;
+    }
+
+    function fillSettingsForm(s, saved) {
+      practiceSettings = s;
+      const form = document.getElementById('practice-settings-form');
+      form.querySelector(`input[name="wednesdayNets"][value="${s.wednesdayNets}"]`).checked = true;
+      form.singleStart.value = s.singleSession.start;
+      form.singleEnd.value = s.singleSession.end;
+      fillSlotFields(form, s);
+      form.fridayField.checked = s.fridayField;
+      document.getElementById('settings-summary-text').textContent = settingsSummary(s);
+      document.getElementById('settings-updated').textContent = saved && s.updatedAt
+        ? `Saved ${new Date(s.updatedAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}`
+        : 'Defaults (not saved yet)';
+      showFormat(form, s.wednesdayNets);
+    }
+
+    async function loadPracticeSettings() {
+      const form = document.getElementById('practice-settings-form');
+      form.querySelectorAll('input[name="wednesdayNets"]').forEach((el) =>
+        el.addEventListener('change', () => showFormat(form, el.value))
+      );
+      form.addEventListener('submit', savePracticeSettings);
+      try {
+        const res = await fetch('/.netlify/functions/practice-settings', { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load settings');
+        fillSettingsForm(data.data, data.saved);
+      } catch (error) {
+        document.getElementById('settings-summary-text').textContent = 'Could not load settings';
+        console.error('Error loading practice settings:', error);
+      }
+    }
+
+    async function savePracticeSettings(e) {
+      e.preventDefault();
+      const form = e.target;
+      const body = {
+        wednesdayNets: form.querySelector('input[name="wednesdayNets"]:checked')?.value,
+        singleSession: { start: form.singleStart.value, end: form.singleEnd.value },
+        slots: [
+          { start: form.slot1Start.value, end: form.slot1End.value },
+          { start: form.slot2Start.value, end: form.slot2End.value },
+        ],
+        slotCapacity: parseInt(form.slotCapacity.value, 10),
+        fridayField: form.fridayField.checked,
+      };
+      const btn = document.getElementById('save-settings-btn');
+      btn.disabled = true;
+      try {
+        const res = await fetch('/.netlify/functions/practice-settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to save settings');
+        fillSettingsForm(data.data, true);
+        showToast('Practice settings saved', 'success');
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Failed to save settings', 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // ---- Create / edit form ----
+    function createFormType() {
+      return document.querySelector('#create-practice-form input[name="type"]:checked')?.value || 'net';
+    }
+
+    // Net sessions can be one session or two slots (new ones only); field practice is one session
+    function updateCreateForm() {
+      const form = document.getElementById('create-practice-form');
+      const isNet = createFormType() === 'net';
+      const canSplit = isNet && !editingPracticeId;
+      document.getElementById('create-format-row').style.display = canSplit ? 'flex' : 'none';
+      const format = canSplit ? (form.querySelector('input[name="format"]:checked')?.value || 'single') : 'single';
+      showFormat(form, format);
+      document.getElementById('submit-text').textContent = editingPracticeId
+        ? 'Update Practice'
+        : format === 'split' ? 'Create Both Slots' : 'Create Practice';
+    }
 
     function setupEventListeners() {
       // Create form toggle
       document.getElementById('show-create-form-btn')?.addEventListener('click', () => {
-        document.getElementById('create-form-container').style.display = 'block';
-        document.getElementById('show-create-form-btn').style.display = 'none';
-        // Set initial defaults based on selected type (net is default)
-        setPracticeDefaults();
+        openCreateForm();
       });
 
       document.getElementById('cancel-create-btn')?.addEventListener('click', hideCreateForm);
@@ -499,36 +780,42 @@ if (!isAdminUser) {
         }
       });
 
-      // Practice type change - set defaults
-      const typeRadios = document.querySelectorAll('input[name="type"]');
-      typeRadios.forEach(radio => {
-        radio.addEventListener('change', setPracticeDefaults);
+      // Type or format change: defaults and which time rows show
+      document.querySelectorAll('#create-practice-form input[name="type"]').forEach((radio) => {
+        radio.addEventListener('change', () => { setPracticeDefaults(); updateCreateForm(); });
+      });
+      document.querySelectorAll('#create-practice-form input[name="format"]').forEach((radio) => {
+        radio.addEventListener('change', updateCreateForm);
       });
     }
 
+    // A new practice starts from the weekly settings: net format, slot times, batting places
+    function openCreateForm() {
+      const form = document.getElementById('create-practice-form');
+      form.reset();
+      editingPracticeId = null;
+      form.querySelectorAll('input[name="type"]').forEach((el) => { el.disabled = false; });
+      form.querySelector('input[name="type"][value="net"]').checked = true;
+      form.querySelector(`input[name="format"][value="${practiceSettings.wednesdayNets}"]`).checked = true;
+      fillSlotFields(form, practiceSettings);
+      form.location.value = '';
+      setPracticeDefaults();
+      document.getElementById('create-form-title').textContent = 'Create Practice';
+      document.getElementById('create-form-container').style.display = 'block';
+      document.getElementById('show-create-form-btn').style.display = 'none';
+      updateCreateForm();
+    }
+
     function setPracticeDefaults() {
-      const selectedType = document.querySelector('input[name="type"]:checked')?.value;
-      const locationInput = document.getElementById('location');
-      const timeInput = document.getElementById('time');
-
-      if (!selectedType || !locationInput || !timeInput) return;
-
-      // Only set defaults if fields are empty (don't override user input)
-      if (selectedType === 'net') {
-        if (!locationInput.value || locationInput.value === 'Ortega Park, 636 Harrow Way, Sunnyvale, CA 94087') {
-          locationInput.value = 'NACL Sports Center, 1111 Felipe Ave, San Jose, CA 95122';
-        }
-        if (!timeInput.value || timeInput.value === '17:00') {
-          timeInput.value = '19:00'; // 7:00 PM
-        }
-      } else if (selectedType === 'field') {
-        if (!locationInput.value || locationInput.value === 'NACL Sports Center, 1111 Felipe Ave, San Jose, CA 95122') {
-          locationInput.value = 'Ortega Park, 636 Harrow Way, Sunnyvale, CA 94087';
-        }
-        if (!timeInput.value || timeInput.value === '19:00') {
-          timeInput.value = '17:00'; // 5:00 PM
-        }
+      const form = document.getElementById('create-practice-form');
+      const isNet = createFormType() === 'net';
+      const location = form.location;
+      // Swap the default location and time with the type, but keep anything typed in
+      if (!location.value || location.value === NET_LOCATION || location.value === FIELD_LOCATION) {
+        location.value = isNet ? NET_LOCATION : FIELD_LOCATION;
       }
+      form.time.value = isNet ? practiceSettings.singleSession.start : '17:00';
+      form.endTime.value = isNet ? practiceSettings.singleSession.end : '';
     }
 
     function hideCreateForm() {
@@ -536,8 +823,6 @@ if (!isAdminUser) {
       document.getElementById('show-create-form-btn').style.display = 'block';
       document.getElementById('create-practice-form').reset();
       editingPracticeId = null;
-      document.querySelector('.card-title').textContent = 'Create New Practice Session';
-      document.getElementById('submit-text').textContent = 'Create Practice';
     }
 
     async function loadSeasons() {
@@ -616,6 +901,7 @@ if (!isAdminUser) {
     }
 
     function renderPractices(practices) {
+      loadedPractices = practices;
       const container = document.getElementById('practices-list');
       container.innerHTML = '';
 
@@ -657,7 +943,13 @@ if (!isAdminUser) {
       // Calculate stats based on practice type
       let statsHTML = '';
       if (practice.type === 'net') {
+        const battingStat = practice.capacity ? `
+          <div class="stat-item">
+            <span class="stat-label">Batting places</span>
+            <span class="stat-value ${practice.stats.battingCount >= practice.capacity ? 'batting-full' : ''}">${practice.stats.battingCount}/${practice.capacity}${practice.stats.battingCount >= practice.capacity ? ' · Full' : ''}</span>
+          </div>` : '';
         statsHTML = `
+          ${battingStat}
           <div class="stat-item">
             <span class="stat-label">Yes</span>
             <span class="stat-value">${practice.stats.yesCount}</span>
@@ -690,6 +982,7 @@ if (!isAdminUser) {
             <div class="practice-title-row">
               <h3 class="practice-title">${practice.title}</h3>
               <span class="practice-type-badge ${typeBadgeClass}">${typeEmoji} ${typeName}</span>
+              ${practice.slotNumber ? `<span class="practice-type-badge slot-badge">Slot ${practice.slotNumber}</span>` : ''}
             </div>
             <div class="practice-details">
               <div class="practice-detail">
@@ -737,24 +1030,52 @@ if (!isAdminUser) {
       const form = e.target;
       const formData = new FormData(form);
 
-      // Format time from HH:MM to HH:MM AM/PM using utility function
-      const timeValue = formData.get('time');
-
-      if (!timeValue) {
-        showToast('Please select a time', 'error');
-        return;
-      }
-
-      const formattedTime = formatTime12Hour(timeValue);
-
+      const type = formData.get('type');
+      const date = formData.get('date');
+      const split = type === 'net' && !editingPracticeId && formData.get('format') === 'split';
       const data = {
-        type: formData.get('type'),
-        date: formData.get('date'),
-        time: formattedTime,
+        type,
+        date,
         location: formData.get('location'),
         description: formData.get('description') || '',
         seasonId: currentSeasonId,
       };
+
+      if (split) {
+        const slots = [
+          { start: formData.get('slot1Start'), end: formData.get('slot1End') },
+          { start: formData.get('slot2Start'), end: formData.get('slot2End') },
+        ];
+        if (slots.some((r) => !r.start || !r.end || r.end <= r.start)) {
+          showToast('Each slot needs an end time after its start time', 'error');
+          return;
+        }
+        data.format = 'split';
+        data.slots = slots;
+        data.slotCapacity = parseInt(formData.get('slotCapacity'), 10);
+      } else {
+        const timeValue = formData.get('time');
+        if (!timeValue) {
+          showToast('Please select a time', 'error');
+          return;
+        }
+        const endValue = formData.get('endTime');
+        if (endValue && endValue <= timeValue) {
+          showToast('End time must be after the start time', 'error');
+          return;
+        }
+        data.time = endValue
+          ? `${formatTime12Hour(timeValue)} - ${formatTime12Hour(endValue)}`
+          : formatTime12Hour(timeValue);
+      }
+
+      // Warn before a second net session on the same date
+      if (!editingPracticeId && type === 'net') {
+        const sameDay = loadedPractices.filter((p) => p.date === date && p.type === 'net' && p.status === 'active');
+        if (sameDay.length > 0 && !confirm(`There's already a net session on ${formatDateDisplay(date)} (${sameDay.map((p) => p.title).join(', ')}). Create another anyway?`)) {
+          return;
+        }
+      }
 
       // Add practiceId if editing
       if (editingPracticeId) {
@@ -843,6 +1164,17 @@ if (!isAdminUser) {
           <span class="stat-value">${practice.stats.respondedCount}/${practice.stats.totalPlayers} (${practice.stats.responseRate}%)</span>
         </div>
       `;
+
+      if (practice.capacity) {
+        const batting = practice.playerAvailability.reduce((sum, p) =>
+          sum + (p.response === 'yes' ? 1 + (p.extraPlayers || 0) : p.response === 'bowling-only' ? (p.extraPlayers || 0) : 0), 0);
+        statsHTML += `
+          <div class="stat-item">
+            <span class="stat-label">🏏 Batting places</span>
+            <span class="stat-value ${batting >= practice.capacity ? 'batting-full' : ''}">${batting}/${practice.capacity}</span>
+          </div>
+        `;
+      }
 
       if (practice.type === 'net') {
         statsHTML += `
@@ -1091,24 +1423,30 @@ if (!isAdminUser) {
         document.getElementById('show-create-form-btn').style.display = 'none';
 
         // Update form title and button
-        document.querySelector('.card-title').textContent = 'Edit Practice Session';
+        document.getElementById('create-form-title').textContent = practice.slotNumber
+          ? `Edit Slot ${practice.slotNumber} (a date change moves both slots)`
+          : 'Edit Practice';
         document.getElementById('submit-text').textContent = 'Update Practice';
 
         // Populate form fields
         const form = document.getElementById('create-practice-form');
 
-        // Set practice type
+        // Set practice type (a slot stays a net session)
         const typeRadio = form.querySelector(`input[name="type"][value="${practice.type}"]`);
         if (typeRadio) typeRadio.checked = true;
+        form.querySelectorAll('input[name="type"]').forEach((el) => { el.disabled = !!practice.slotNumber; });
+        updateCreateForm();
 
         // Set date
         form.querySelector('#date').value = practice.date;
 
         // Convert time from "2:30 PM" to "14:30" format for time input using utility function
-        const timeForInput = formatTimeForInput(practice.time);
+        const [startPart, endPart] = String(practice.time || '').split(/\s+-\s+/);
+        const timeForInput = formatTimeForInput(startPart || '') || (/^\d{2}:\d{2}$/.test(startPart) ? startPart : '');
         if (timeForInput) {
           form.querySelector('#time').value = timeForInput;
         }
+        form.querySelector('#end-time').value = endPart ? formatTimeForInput(endPart) : '';
 
         // Set location
         form.querySelector('#location').value = practice.location;

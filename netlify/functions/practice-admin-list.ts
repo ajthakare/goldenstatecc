@@ -2,6 +2,7 @@ import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
 import { validateAdminSession } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
+import { battingCount } from '../../src/utils/practiceSlots';
 import type { PracticeSession } from '../../src/types/player';
 import { loadPractices, loadSeasonsInPlay } from './_seasons';
 import { todayString } from './_profile-stats';
@@ -119,12 +120,13 @@ export const handler: Handler = async (
           notAvailableCount,
           noResponseCount,
           responseRate,
+          battingCount: battingCount(practice),
         },
       };
     });
 
     // Sort by date (newest first)
-    practicesWithStats.sort((a, b) => b.date.localeCompare(a.date));
+    practicesWithStats.sort((a, b) => b.date.localeCompare(a.date) || (a.slotNumber || 0) - (b.slotNumber || 0));
 
     return {
       statusCode: 200,

@@ -307,6 +307,17 @@ const vapidPublicKey = import.meta.env.PUBLIC_VAPID_PUBLIC_KEY || '';
     html, body {
       height: 100dvh;
       overflow: hidden;
+      /* The page behind the content never moves, so the top bar stays put */
+      overscroll-behavior: none;
+      /* iOS tints the status bar area from the page background: keep it the
+         top bar's colour, not the light page colour (that showed as a fade) */
+      background: var(--color-ink, #1A1614) !important;
+    }
+
+    /* Keep the content 1px taller than site-wrapper so it always takes the swipe,
+       even on short pages. Otherwise the phone scrolls the page behind it, top bar and all */
+    .site-wrapper > div {
+      min-height: calc(100% + 1px);
     }
 
     /* site-wrapper becomes the scroll container — it has no inline style so CSS wins cleanly */
@@ -340,6 +351,8 @@ const vapidPublicKey = import.meta.env.PUBLIC_VAPID_PUBLIC_KEY || '';
       overflow-y: auto;
       overflow-x: hidden;
       -webkit-overflow-scrolling: touch;
+      overscroll-behavior-y: contain;
+      background-color: var(--color-bg-body, #f9fafb);
       padding-left: 0 !important;
       padding-right: 0 !important;
       min-height: unset !important;

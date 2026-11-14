@@ -87,6 +87,25 @@ export const handler: Handler = async (
     // Delete practice from Blobs
     await practicesStore.delete(`practice-${practiceId}`);
 
+    // Deleting one slot of a pair: the slot left becomes an ordinary, uncapped
+    // session, so it doesn't point at a slot that's gone
+    for (const otherId of existingPractice.linkedPracticeIds || []) {
+      const other = await practicesStore.get(`practice-${otherId}`, { type: 'json' }) as PracticeSession | null;
+      if (!other) continue;
+      const remaining = (other.linkedPracticeIds || []).filter((id) => id !== practiceId);
+      if (remaining.length > 0) {
+        await practicesStore.setJSON(`practice-${otherId}`, { ...other, linkedPracticeIds: remaining });
+        continue;
+      }
+      const { slotGroup, slotNumber, linkedPracticeIds, capacity, ...plain } = other;
+      await practicesStore.setJSON(`practice-${otherId}`, {
+        ...plain,
+        title: other.title.replace(/ \(Slot \d+\)/, ''),
+        updatedAt: new Date().toISOString(),
+        updatedBy: session.username,
+      });
+    }
+
     // Remove from practice index for season
     const existingIndex = await practicesStore.get(`practice-index-${existingPractice.seasonId}`, { type: 'json' }) as string[] | null;
     if (existingIndex) {

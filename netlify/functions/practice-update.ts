@@ -122,7 +122,8 @@ export const handler: Handler = async (
         month: 'short',
         day: 'numeric'
       });
-      title = `${typeName} - ${formattedDate}`;
+      const slot = existingPractice.slotNumber ? ` (Slot ${existingPractice.slotNumber})` : '';
+      title = `${typeName}${slot} - ${formattedDate}`;
     }
 
     // Validate status if provided
@@ -163,6 +164,24 @@ export const handler: Handler = async (
 
     // Save updated practice
     await practicesStore.setJSON(`practice-${practiceId}`, updatedPractice);
+
+    // Slots of one evening stay together: a date change moves the other slots too
+    if (date && date !== existingPractice.date && existingPractice.linkedPracticeIds?.length) {
+      const display = new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+      for (const otherId of existingPractice.linkedPracticeIds) {
+        const other = await practicesStore.get(`practice-${otherId}`, { type: 'json' }) as PracticeSession | null;
+        if (!other) continue;
+        const slot = other.slotNumber ? ` (Slot ${other.slotNumber})` : '';
+        await practicesStore.setJSON(`practice-${otherId}`, {
+          ...other,
+          date,
+          title: `Net Practice${slot} - ${display}`,
+          updatedAt: updatedPractice.updatedAt,
+          updatedBy: session.username,
+        });
+      }
+      changes.otherSlotsMoved = existingPractice.linkedPracticeIds;
+    }
 
     // Create audit log
     try {
