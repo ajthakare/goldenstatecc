@@ -180,6 +180,20 @@ describe('buildFeed', () => {
     expect(feed.items.map((i) => i.id)).toEqual(['result-a', 'video-a', 'result-b', 'video-b']);
   });
 
+  it('posts a video linked from two games once, on the later game', () => {
+    const feed = buildFeed({
+      fixtures: [
+        fixture('first', '2026-06-01', { youtubeVideoUrl: 'https://youtu.be/AAAAAAAAAAA' }),
+        fixture('second', '2026-06-07', { youtubeVideoUrl: 'https://www.youtube.com/live/AAAAAAAAAAA' }),
+      ],
+      players,
+      events: [],
+      social: [],
+      todayStr: TODAY,
+    });
+    expect(feed.items.filter((i) => i.kind === 'video').map((i) => i.id)).toEqual(['video-second']);
+  });
+
   it('shows Player of the Match inside the winning result, counting awards within the season', () => {
     expect(items.find((i) => i.id === 'result-w1')?.potm).toEqual({
       playerName: 'Star Player', playerId: 'star', photoUrl: '/p.webp', note: undefined,

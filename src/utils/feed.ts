@@ -312,11 +312,13 @@ export function buildFeed({ fixtures, players, events, social, todayStr, playerI
 
   // A post for each game with a YouTube link, dated by the game (a link added later
   // lands in the game's place). Played games only: upcoming ones show "Live stream".
+  // Newest game first, so a video linked from two games is posted once, on the later
+  // one (as on /gallery).
   const matchVideoIds = new Set<string>();
-  for (const f of playerId ? [] : sortedFixtures) {
+  for (const f of playerId ? [] : [...sortedFixtures].reverse()) {
     const videoId = youtubeVideoId(f.youtubeVideoUrl);
     const date = dateOnly(f.date);
-    if (!videoId || !inWindow(date)) continue;
+    if (!videoId || !inWindow(date) || matchVideoIds.has(videoId)) continue;
     matchVideoIds.add(videoId);
     items.push({
       id: `video-${f.id}`,
