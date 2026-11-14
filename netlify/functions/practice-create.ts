@@ -6,13 +6,17 @@ import type { PracticeSession, Season } from '../../src/types/player';
 import { randomUUID } from 'crypto';
 import { addAuditLog } from '../../src/utils/auditLog';
 import { getPacificToday } from './_utils';
+import { buildNetSessions } from './_practice-schedule';
+import { DEFAULT_PRACTICE_SETTINGS, validatePracticeSettings } from '../../src/utils/practiceSlots';
 
 /**
  * Create a practice session
  * POST /.netlify/functions/practice-create
  * Requires: Valid admin session
- * Body: { type, title, date, time, location, team, seasonId, description? }
- * Returns: Created practice session
+ * Body: { type, date, time, location, seasonId, description? }
+ *   Net practice as two slots: { format: 'split', slots: [{start,end},{start,end}], slotCapacity } instead of `time`
+ *   (creates both linked slots, like the Saturday job)
+ * Returns: Created practice session (`data`), and every session created (`created`)
  */
 export const handler: Handler = async (
   event: HandlerEvent,
@@ -48,7 +52,20 @@ export const handler: Handler = async (
 
     // Parse request body
     const body = JSON.parse(event.body || '{}');
-    const { type, date, time, location, seasonId, description } = body;
+    const { type, date, location, seasonId, description, format, slots, slotCapacity } = body;
+    // Two slots: each slot's time comes from `slots`, so `time` isn't needed
+    const isSplit = type === 'net' && format === 'split';
+    const time = isSplit ? 'slots' : body.time;
+    if (isSplit) {
+      const slotError = validatePracticeSettings({
+        ...DEFAULT_PRACTICE_SETTINGS,
+        slots,
+        slotCapacity,
+      });
+      if (slotError) {
+        return { statusCode: 400, body: JSON.stringify({ error: slotError }) };
+      }
+    }
 
     // Validate required fields
     if (!type || !date || !time || !location || !seasonId) {
@@ -142,28 +159,46 @@ export const handler: Handler = async (
     // All practices are open to all players
     const team = 'all';
 
-    // Generate UUID for practice
-    const practiceId = randomUUID();
+    const nowIso = new Date().toISOString();
+    const display = practiceDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
 
-    // Create practice session
-    const newPractice: PracticeSession = {
-      id: practiceId,
-      type,
-      title,
-      date, // Store as YYYY-MM-DD string
-      time,
-      location,
-      seasonId,
-      team,
-      description: description || '',
-      status: 'active',
-      locked: false, // Members can vote by default
-      playerAvailability: [], // Members will add themselves
-      createdAt: new Date().toISOString(),
-      createdBy: session.username,
-      updatedAt: new Date().toISOString(),
-      updatedBy: session.username,
-    };
+    // Net practices go through the same builder as the Saturday job, so a pair
+    // of slots made by hand works exactly like a scheduled pair
+    const created: PracticeSession[] = type === 'net'
+      ? buildNetSessions({
+          format: isSplit ? 'split' : 'single',
+          singleTime: body.time,
+          slots: isSplit ? [{ ...slots[0] }, { ...slots[1] }] : DEFAULT_PRACTICE_SETTINGS.slots,
+          slotCapacity: isSplit ? slotCapacity : DEFAULT_PRACTICE_SETTINGS.slotCapacity,
+          date,
+          display,
+          location,
+          description,
+          seasonId,
+          by: session.username,
+          nowIso,
+          newId: randomUUID,
+        })
+      : [{
+          id: randomUUID(),
+          type,
+          title,
+          date, // Store as YYYY-MM-DD string
+          time,
+          location,
+          seasonId,
+          team: 'all', // All practices are open to all players
+          description: description || '',
+          status: 'active',
+          locked: false, // Members can vote by default
+          playerAvailability: [], // Members will add themselves
+          createdAt: nowIso,
+          createdBy: session.username,
+          updatedAt: nowIso,
+          updatedBy: session.username,
+        }];
+    const newPractice = created[0];
+    const practiceId = newPractice.id;
 
     // Save to Blobs
     const practicesStore = getStore({
@@ -172,29 +207,27 @@ export const handler: Handler = async (
       token: process.env.NETLIFY_AUTH_TOKEN || '',
     });
 
-    // Save individual practice
-    await practicesStore.setJSON(`practice-${practiceId}`, newPractice);
+    for (const practice of created) {
+      await practicesStore.setJSON(`practice-${practice.id}`, practice);
+    }
+    const ids = created.map((p) => p.id);
 
     // Update practice index for season
     const existingIndex = await practicesStore.get(`practice-index-${seasonId}`, { type: 'json' }) as string[] | null;
-    const practiceIndex = existingIndex || [];
-    practiceIndex.push(practiceId);
-    await practicesStore.setJSON(`practice-index-${seasonId}`, practiceIndex);
+    await practicesStore.setJSON(`practice-index-${seasonId}`, [...(existingIndex || []), ...ids]);
 
     // Update active practices list (next 30 days)
     const existingActive = await practicesStore.get('practices-active', { type: 'json' }) as string[] | null;
-    const activePractices = existingActive || [];
-    activePractices.push(practiceId);
-    await practicesStore.setJSON('practices-active', activePractices);
+    await practicesStore.setJSON('practices-active', [...(existingActive || []), ...ids]);
 
     // Create audit log
     try {
       await addAuditLog(
         session.username,
         'practice_created',
-        `Created ${type} practice: ${title} on ${date}`,
+        isSplit ? `Created net practice slots on ${date}` : `Created ${type} practice: ${title} on ${date}`,
         practiceId,
-        { type, title, date, time, location, seasonId }
+        { type, title: newPractice.title, date, time: created.map((p) => p.time).join(', '), location, seasonId, practiceIds: ids }
       );
     } catch (err) {
       console.error('Audit log failed:', err);
@@ -208,7 +241,8 @@ export const handler: Handler = async (
       body: JSON.stringify({
         success: true,
         data: newPractice,
-        message: 'Practice session created successfully',
+        created,
+        message: created.length > 1 ? `Created ${created.length} practice slots` : 'Practice session created successfully',
       }),
     };
   } catch (error) {

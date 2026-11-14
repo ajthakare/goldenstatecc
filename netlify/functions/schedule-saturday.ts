@@ -1,17 +1,20 @@
 /**
  * Saturday 3 PM Pacific scheduled job (runs Sat 22:00 UTC).
  *
- * Creates Net Practice (Wednesday 7 PM) + Field Practice (Friday 5 PM)
- * for the coming week, unless they already exist.
- * Notification is sent separately on Sunday at 8 PM.
+ * Creates the coming week's practices from the saved practice settings
+ * (/admin/practices → Practice settings, src/utils/practiceSlots.ts):
+ * Wednesday nets as one session or two slots, and Friday field practice
+ * only when it's switched on. A practice of the same type already on that
+ * date is left alone. Notification is sent separately on Sunday at 8 PM.
  */
 import { schedule } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
 import { randomUUID } from 'crypto';
 import { getPacificNow } from './_utils';
 import { toDateString } from './_push-utils';
-import type { PracticeSession } from '../../src/types/player';
 import { loadPractices, loadSeasonsInPlay } from './_seasons';
+import { planWeekPractices } from './_practice-schedule';
+import { PRACTICE_SETTINGS_KEY, normalizePracticeSettings } from '../../src/utils/practiceSlots';
 
 export const handler = schedule('0 22 * * 6', async () => {
   console.log('[schedule-saturday] Starting Saturday 3 PM job');
@@ -31,8 +34,7 @@ export const handler = schedule('0 22 * * 6', async () => {
     const fridayDate = new Date(today);
     fridayDate.setDate(today.getDate() + daysToFri);
 
-    const wednesdayStr = toDateString(wednesdayDate);
-    const fridayStr = toDateString(fridayDate);
+    const display = (d: Date) => d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
 
     const { active: activeSeason, seasons } = await loadSeasonsInPlay(toDateString(today));
 
@@ -47,92 +49,40 @@ export const handler = schedule('0 22 * * 6', async () => {
       token: process.env.NETLIFY_AUTH_TOKEN || '',
     });
 
-    const practiceIndex: string[] =
-      (await practicesStore.get(`practice-index-${activeSeason.id}`, { type: 'json' })) || [];
+    const settings = normalizePracticeSettings(await practicesStore.get(PRACTICE_SETTINGS_KEY, { type: 'json' }));
+    console.log(
+      `[schedule-saturday] Settings: Wednesday nets ${settings.wednesdayNets}, Friday field ${settings.fridayField ? 'on' : 'off'}`
+    );
 
     // New practices go in the active season, but one already made in the
     // season that just ended still counts
-    const existingDates = new Set((await loadPractices(seasons)).map((p) => p.date));
+    const existing = await loadPractices(seasons);
 
-    const nowIso = new Date().toISOString();
+    const { create, skipped } = planWeekPractices({
+      settings,
+      wednesday: { date: toDateString(wednesdayDate), display: display(wednesdayDate) },
+      friday: { date: toDateString(fridayDate), display: display(fridayDate) },
+      existing,
+      seasonId: activeSeason.id,
+      nowIso: new Date().toISOString(),
+      newId: randomUUID,
+    });
+    skipped.forEach((line) => console.log(`[schedule-saturday] ${line}. Skipping.`));
 
-    // Create Net Practice (Wednesday 7 PM) if not already present
-    if (!existingDates.has(wednesdayStr)) {
-      const netId = randomUUID();
-      const wednesdayDisplay = wednesdayDate.toLocaleDateString('en-US', {
-        weekday: 'long', month: 'short', day: 'numeric',
-      });
-      const netPractice: PracticeSession = {
-        id: netId,
-        type: 'net',
-        title: `Net Practice - ${wednesdayDisplay}`,
-        date: wednesdayStr,
-        time: '19:00',
-        location: 'NACL Sports Center, 1111 Felipe Ave, San Jose, CA 95122',
-        seasonId: activeSeason.id,
-        team: 'all',
-        description: '',
-        status: 'active',
-        locked: false,
-        playerAvailability: [],
-        createdAt: nowIso,
-        createdBy: 'scheduler',
-        updatedAt: nowIso,
-        updatedBy: 'scheduler',
-      } as any;
+    if (create.length > 0) {
+      for (const practice of create) {
+        await practicesStore.setJSON(`practice-${practice.id}`, practice);
+        console.log(`[schedule-saturday] Created "${practice.title}" (${practice.time})`);
+      }
 
-      await practicesStore.setJSON(`practice-${netId}`, netPractice);
-      practiceIndex.push(netId);
+      const ids = create.map((p) => p.id);
+      const practiceIndex: string[] =
+        (await practicesStore.get(`practice-index-${activeSeason.id}`, { type: 'json' })) || [];
+      await practicesStore.setJSON(`practice-index-${activeSeason.id}`, [...practiceIndex, ...ids]);
 
-      const active: string[] =
-        (await practicesStore.get('practices-active', { type: 'json' })) || [];
-      active.push(netId);
-      await practicesStore.setJSON('practices-active', active);
-
-      console.log(`[schedule-saturday] Created net practice for ${wednesdayStr}`);
-    } else {
-      console.log(`[schedule-saturday] Net practice already exists for ${wednesdayStr}. Skipping.`);
+      const active: string[] = (await practicesStore.get('practices-active', { type: 'json' })) || [];
+      await practicesStore.setJSON('practices-active', [...active, ...ids]);
     }
-
-    // Create Field Practice (Friday 5 PM) if not already present
-    if (!existingDates.has(fridayStr)) {
-      const fieldId = randomUUID();
-      const fridayDisplay = fridayDate.toLocaleDateString('en-US', {
-        weekday: 'long', month: 'short', day: 'numeric',
-      });
-      const fieldPractice: PracticeSession = {
-        id: fieldId,
-        type: 'field',
-        title: `Field Practice - ${fridayDisplay}`,
-        date: fridayStr,
-        time: '17:00',
-        location: 'Ortega Park, 636 Harrow Way, Sunnyvale, CA 94087',
-        seasonId: activeSeason.id,
-        team: 'all',
-        description: '',
-        status: 'active',
-        locked: false,
-        playerAvailability: [],
-        createdAt: nowIso,
-        createdBy: 'scheduler',
-        updatedAt: nowIso,
-        updatedBy: 'scheduler',
-      } as any;
-
-      await practicesStore.setJSON(`practice-${fieldId}`, fieldPractice);
-      practiceIndex.push(fieldId);
-
-      const active: string[] =
-        (await practicesStore.get('practices-active', { type: 'json' })) || [];
-      active.push(fieldId);
-      await practicesStore.setJSON('practices-active', active);
-
-      console.log(`[schedule-saturday] Created field practice for ${fridayStr}`);
-    } else {
-      console.log(`[schedule-saturday] Field practice already exists for ${fridayStr}. Skipping.`);
-    }
-
-    await practicesStore.setJSON(`practice-index-${activeSeason.id}`, practiceIndex);
 
     console.log('[schedule-saturday] Done.');
     return { statusCode: 200 };

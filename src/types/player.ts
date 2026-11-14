@@ -310,6 +310,11 @@ export interface PracticeSession {
   description?: string;                 // Optional details
   status: 'active' | 'cancelled' | 'completed';
   locked: boolean;                      // If true, members cannot vote or change votes
+  // Wednesday net slots (unset on ordinary sessions; see src/utils/practiceSlots.ts)
+  slotGroup?: string;                   // Shared by the slots of one evening
+  slotNumber?: number;                  // 1, 2
+  linkedPracticeIds?: string[];         // The other slots' practice IDs
+  capacity?: number;                    // Batting places (Yes + guests); members can't vote past it
   playerAvailability: PracticeAvailabilityRecord[];
   createdAt: string;
   createdBy: string;                    // Admin username

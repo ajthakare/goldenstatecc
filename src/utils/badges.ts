@@ -10,6 +10,7 @@
 import { UMPIRE_STATUSES, UMPIRE_STATUS_LABELS } from '../types/player';
 import type { UmpireStatus } from '../types/player';
 import type { UmpiringDuty } from '../types/umpiring';
+import { groupPracticeSlots } from './practiceSlots';
 import type {
   Player,
   Season,
@@ -236,7 +237,12 @@ export function computeProfileStats(
         const relevant = heldPractices.filter(
           (p) => (p.type || 'net') === type && (!p.team || p.team === 'all' || teams.has(p.team))
         );
-        a.practice[type] = { held: relevant.length, committed: relevant.filter((p) => signedUp(p, id)).length };
+        // The slots of one Wednesday count as one practice: a player can only attend one
+        const evenings = groupPracticeSlots(relevant);
+        a.practice[type] = {
+          held: evenings.length,
+          committed: evenings.filter((slots) => slots.some((p) => signedUp(p, id))).length,
+        };
       }
     };
     // Players who only signed up for practice (no roster / fixture record yet)

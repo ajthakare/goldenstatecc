@@ -338,6 +338,51 @@ if (!session || !isMember(session)) {
     }
     .practice-detail svg { color: var(--color-muted-text, #6B635C); }
     .lock-message svg { color: var(--color-gold-600, #A9821B); }
+
+    /* Wednesday slots: batting places and the one-slot note */
+    .slot-capacity {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+      font-size: 0.875rem;
+      color: var(--color-text-body, #374151);
+    }
+    .slot-capacity-bar {
+      flex: 1;
+      height: 8px;
+      border-radius: 999px;
+      background: #E5E7EB;
+      overflow: hidden;
+    }
+    .slot-capacity-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: #10B981;
+    }
+    .slot-capacity.is-full .slot-capacity-fill { background: #DC2626; }
+    .slot-capacity-text { font-weight: 600; white-space: nowrap; }
+    .slot-capacity.is-full .slot-capacity-text { color: #B91C1C; }
+    .slot-note {
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      background: #EFF6FF;
+      border: 1px solid #BFDBFE;
+      color: #1E40AF;
+      font-size: 0.875rem;
+      line-height: 1.5;
+      margin-bottom: 1.25rem;
+    }
+    .slot-note.is-full {
+      background: #FEF2F2;
+      border-color: #FECACA;
+      color: #991B1B;
+    }
+    .practice-type-badge.badge-slot {
+      background: #EEF2FF;
+      color: #3730A3;
+      margin-left: 0.25rem;
+    }
   </style>
 
   <script>
@@ -455,6 +500,7 @@ if (!session || !isMember(session)) {
 
         const typeIcon = _svg(practice.type === 'net' ? IC.bat : IC.rings, 22);
         const typeName = practice.type === 'net' ? 'Net Session' : 'Field Practice';
+        const slotBadge = practice.slotNumber ? `<span class="practice-type-badge badge-slot">Slot ${practice.slotNumber}</span>` : '';
         const typeBadgeClass = practice.type === 'net' ? 'badge-net' : 'badge-field';
 
         // Format date using utility function
@@ -464,6 +510,19 @@ if (!session || !isMember(session)) {
         const isLocked = practice.locked || false;
         const disabledAttr = isLocked ? 'disabled' : '';
 
+        // Wednesday slots: capped batting places (Yes + guests), one slot per member
+        const myPlaces = practice.myResponse === 'yes' ? 1 + (practice.myExtraPlayers || 0)
+          : practice.myResponse === 'bowling-only' ? (practice.myExtraPlayers || 0) : 0;
+        const capacity = practice.capacity || 0;
+        const placesLeftForMe = capacity ? capacity - (practice.battingCount - myPlaces) : Infinity;
+        const isFull = capacity > 0 && practice.battingCount >= capacity;
+        const inOtherSlot = practice.inOtherSlot || null;
+        // Yes needs a place unless already Yes; switching to Yes keeps any guests
+        const yesBlocked = !!inOtherSlot || (practice.myResponse !== 'yes' && placesLeftForMe < 1 + (practice.myExtraPlayers || 0));
+        const bowlingBlocked = !!inOtherSlot;
+        const yesDisabled = isLocked || yesBlocked ? 'disabled' : '';
+        const bowlingDisabled = isLocked || bowlingBlocked ? 'disabled' : '';
+
         let buttonsHTML = '';
         if (practice.type === 'net') {
           // Net sessions: Yes, Bowling Only, Not Available
@@ -472,10 +531,10 @@ if (!session || !isMember(session)) {
           const noClass = practice.myResponse === 'not-available' ? 'active-no' : '';
 
           buttonsHTML = `
-            <button class="availability-btn ${yesClass}" onclick="updateAvailability('${practice.id}', 'yes')" ${disabledAttr}>
+            <button class="availability-btn ${yesClass}" onclick="updateAvailability('${practice.id}', 'yes')" ${yesDisabled}>
               ${_svg(IC.check, 15)} Yes
             </button>
-            <button class="availability-btn ${bowlingClass}" onclick="updateAvailability('${practice.id}', 'bowling-only')" ${disabledAttr}>
+            <button class="availability-btn ${bowlingClass}" onclick="updateAvailability('${practice.id}', 'bowling-only')" ${bowlingDisabled}>
               Bowling Only
             </button>
             <button class="availability-btn ${noClass}" onclick="updateAvailability('${practice.id}', 'not-available')" ${disabledAttr}>
@@ -504,12 +563,27 @@ if (!session || !isMember(session)) {
           </div>
         ` : '';
 
+        const capacityHTML = capacity ? `
+          <div class="slot-capacity ${isFull ? 'is-full' : ''}">
+            <div class="slot-capacity-bar"><div class="slot-capacity-fill" style="width: ${Math.min(100, Math.round((practice.battingCount / capacity) * 100))}%"></div></div>
+            <span class="slot-capacity-text">${isFull ? 'Full · ' : ''}${practice.battingCount}/${capacity} batting</span>
+          </div>
+        ` : '';
+
+        let slotNoteHTML = '';
+        if (inOtherSlot) {
+          slotNoteHTML = `<div class="slot-note">You're in Slot ${inOtherSlot} this Wednesday. To switch, withdraw from Slot ${inOtherSlot} first.</div>`;
+        } else if (isFull && practice.myResponse !== 'yes') {
+          slotNoteHTML = `<div class="slot-note is-full">This slot is full for batting. You can still join as Bowling only, or pick the other slot.</div>`;
+        }
+
         // Build team status HTML based on practice type
         let teamStatusHTML = '';
         if (practice.type === 'net') {
+          // In a slot, show batting places (Yes + all guests), matching the bar above
           teamStatusHTML = `
             <span class="status-count">
-              <span class="status-count-value">${practice.availabilityCounts.totalExpected}</span> yes
+              <span class="status-count-value">${capacity ? practice.battingCount : practice.availabilityCounts.totalExpected}</span> ${capacity ? 'batting' : 'yes'}
             </span>
             <span class="status-count">
               <span class="status-count-value">${practice.availabilityCounts.bowlingOnly}</span> bowling only
@@ -534,7 +608,7 @@ if (!session || !isMember(session)) {
             <div class="practice-type-icon">${typeIcon}</div>
             <div class="practice-info">
               <h3 class="practice-title">${practice.title}</h3>
-              <span class="practice-type-badge ${typeBadgeClass}">${typeName}</span>
+              <span class="practice-type-badge ${typeBadgeClass}">${typeName}</span>${slotBadge}
             </div>
           </div>
 
@@ -551,6 +625,9 @@ if (!session || !isMember(session)) {
           </div>
 
           ${practice.description ? `<p style="color: #4b5563; margin-bottom: 1.25rem;">${practice.description}</p>` : ''}
+
+          ${capacityHTML}
+          ${slotNoteHTML}
 
           <div class="availability-section">
             <label class="availability-label">My Availability:</label>
@@ -611,6 +688,16 @@ if (!session || !isMember(session)) {
         if (extraPlayersSelect && practice.myExtraPlayers !== undefined) {
           const value = Math.min(practice.myExtraPlayers, 5).toString(); // Cap at 5 for dropdown
           extraPlayersSelect.value = value;
+        }
+        // In a slot, offer only as many guests as there are places left
+        if (extraPlayersSelect && capacity) {
+          const ownPlace = practice.myResponse === 'yes' ? 1 : 0;
+          const maxGuests = placesLeftForMe - ownPlace;
+          extraPlayersSelect.querySelectorAll('option').forEach((opt) => {
+            const n = parseInt(opt.value);
+            opt.disabled = n > 0 && n > maxGuests && n !== (practice.myExtraPlayers || 0);
+          });
+          if (inOtherSlot) extraPlayersSelect.disabled = true;
         }
       });
     }

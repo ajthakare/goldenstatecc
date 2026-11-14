@@ -1,9 +1,17 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
 import { validateAdminSession, isMember } from '../../src/middleware/auth';
-import type { PracticeSession, CoreRosterAssignment, Player } from '../../src/types/player';
+import type { PracticeSession, PracticeAvailabilityRecord, Player } from '../../src/types/player';
 import { addAuditLog } from '../../src/utils/auditLog';
 import { getPacificToday } from './_utils';
+import { updateJSON } from './_blobs';
+import { checkSlotVote } from '../../src/utils/practiceSlots';
+
+class VoteRefused extends Error {
+  constructor(message: string, public statusCode: number) {
+    super(message);
+  }
+}
 
 /**
  * Update member availability for a practice session
@@ -11,6 +19,7 @@ import { getPacificToday } from './_utils';
  * Body: { practiceId, response, extraPlayers? }
  * Response: 'yes' | 'bowling-only' | 'not-available' | null
  * extraPlayers: integer 0-10 (number of extra/guest players bringing)
+ * Wednesday slots: capped batting places and one slot per member (src/utils/practiceSlots.ts); refused with 409
  * Requires: Member session
  */
 export const handler: Handler = async (
@@ -144,41 +153,63 @@ export const handler: Handler = async (
     const playerName = `${player.firstName} ${player.lastName}`;
     const now = new Date().toISOString();
 
-    // Find or create player availability record
-    let playerAvailRecord = practice.playerAvailability.find(
-      pa => pa.playerId === playerId
-    );
+    // The other slots of this Wednesday, if this is a slot
+    const otherSlots = (
+      await Promise.all(
+        (practice.linkedPracticeIds || []).map(
+          (id) => practicesStore.get(`practice-${id}`, { type: 'json' }) as Promise<PracticeSession | null>
+        )
+      )
+    ).filter((p): p is PracticeSession => !!p && p.status !== 'cancelled');
 
-    if (playerAvailRecord) {
-      // Update existing record
-      playerAvailRecord.response = response;
-      playerAvailRecord.submittedAt = response !== null ? now : playerAvailRecord.submittedAt;
-      playerAvailRecord.lastUpdated = now;
-      // Update extraPlayers if provided, otherwise keep existing or default to 0
-      if (extraPlayers !== undefined) {
-        playerAvailRecord.extraPlayers = extraPlayers;
-      } else if (playerAvailRecord.extraPlayers === undefined) {
-        playerAvailRecord.extraPlayers = 0;
+    let playerAvailRecord: PracticeAvailabilityRecord | undefined;
+
+    // Re-check against the latest copy when saving, so two members can't both
+    // take the last batting place
+    const saved = await updateJSON<PracticeSession>(practicesStore, `practice-${practiceId}`, (current) => {
+      if (!current) throw new VoteRefused('Practice session not found', 404);
+      if (current.locked) {
+        throw new VoteRefused('This practice session is locked by admin. Please reach out to admin to check if availability change is allowed.', 403);
       }
-    } else {
-      // Create new player availability record
-      playerAvailRecord = {
-        playerId,
-        playerName,
-        response,
-        extraPlayers: extraPlayers !== undefined ? extraPlayers : 0,
-        submittedAt: response !== null ? now : undefined,
-        lastUpdated: now,
+
+      const existing = current.playerAvailability.find((pa) => pa.playerId === playerId);
+      const newExtras = extraPlayers !== undefined ? extraPlayers : existing?.extraPlayers ?? 0;
+      const refusal = checkSlotVote(current, otherSlots, playerId, response, newExtras);
+      if (refusal) throw new VoteRefused(refusal, 409);
+
+      if (existing) {
+        existing.response = response;
+        existing.submittedAt = response !== null ? now : existing.submittedAt;
+        existing.lastUpdated = now;
+        existing.extraPlayers = newExtras;
+        playerAvailRecord = existing;
+      } else {
+        playerAvailRecord = {
+          playerId,
+          playerName,
+          response,
+          extraPlayers: newExtras,
+          submittedAt: response !== null ? now : undefined,
+          lastUpdated: now,
+        };
+        current.playerAvailability.push(playerAvailRecord);
+      }
+
+      current.updatedAt = now;
+      current.updatedBy = session.email || session.username;
+      return current;
+    }).catch((error) => {
+      if (error instanceof VoteRefused) return error;
+      throw error;
+    });
+
+    if (saved instanceof VoteRefused) {
+      return {
+        statusCode: saved.statusCode,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: saved.message }),
       };
-      practice.playerAvailability.push(playerAvailRecord);
     }
-
-    // Update practice metadata
-    practice.updatedAt = now;
-    practice.updatedBy = session.email || session.username;
-
-    // Save to Blobs
-    await practicesStore.setJSON(`practice-${practiceId}`, practice);
 
     // Create audit log
     try {
@@ -204,8 +235,8 @@ export const handler: Handler = async (
       body: JSON.stringify({
         success: true,
         response,
-        extraPlayers: playerAvailRecord.extraPlayers || 0,
-        submittedAt: playerAvailRecord.submittedAt || null,
+        extraPlayers: playerAvailRecord?.extraPlayers || 0,
+        submittedAt: playerAvailRecord?.submittedAt || null,
         lastUpdated: now,
       }),
     };
