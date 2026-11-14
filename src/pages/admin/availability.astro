@@ -173,7 +173,7 @@ if (!isAdminUser) {
       <div class="modal-scrollable-content">
         <!-- Lock Message for Regular Admins -->
       <div id="past-fixture-lock-message" style="display: none; background: #fef3c7; border: 1px solid #fbbf24; color: #78350f; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 14px;">
-        🔒 <strong>Past fixture is locked.</strong> Only Mr. President can edit the past fixtures now, contact him for any help!
+        🔒 <strong>Past fixture is locked.</strong> Captains can edit a weekend's games until Sunday night; from Monday only Mr. President can, contact him for any help!
       </div>
 
       <!-- Suggested duties (3 lines; opened from the header button) -->
@@ -1193,6 +1193,7 @@ if (!isAdminUser) {
 <script>
   import { escapeHtml, populateTeamFilter as _populateTeamFilter } from '../../utils/admin-ui';
   import { createDutySuggester } from '../../utils/duty-suggestions-panel';
+  import { fixtureEditState } from '../../utils/fixtureLock';
   let seasons = [];
   let fixtures = [];
   let availabilityRecords = [];
@@ -1697,14 +1698,12 @@ if (!isAdminUser) {
       renderPlayers();
       updateStats();
 
-      // Show match result section for past fixtures
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const fixtureDate = new Date(currentFixture.date.split('T')[0]);
-      isPastFixture = fixtureDate < today; // Set global variable
+      // Locked from the Monday after the game (Pacific dates); result section from match day
+      const editState = fixtureEditState(currentFixture.date);
+      isPastFixture = editState.locked; // Set global variable
       dutySuggester.refresh();
 
-      // Disable save button for past fixtures if not super admin
+      // Disable save button for locked fixtures if not super admin
       const saveAvailabilityBtn = document.getElementById('save-availability-btn');
       const lockMessage = document.getElementById('past-fixture-lock-message');
       const isLocked = isPastFixture && !isSuperAdmin;
@@ -1722,7 +1721,7 @@ if (!isAdminUser) {
       }
 
       const matchResultSection = document.getElementById('match-result-section');
-      if (isPastFixture) {
+      if (editState.resultOpen) {
         matchResultSection.style.display = 'block';
 
         // Pre-fill existing result if available
@@ -2436,7 +2435,7 @@ if (!isAdminUser) {
 
   // Validate YouTube URL
   function isValidYouTubeUrl(url) {
-    const youtubeRegex = /^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\/.+/;
+    const youtubeRegex = /^https?:\/\/(www\.|m\.)?(youtube\.com|youtu\.be)\/.+/;
     return youtubeRegex.test(url);
   }
 

@@ -112,7 +112,7 @@ export interface DirectoryCard {
 // Club feed (/feed)
 // ============================================================================
 
-export type FeedKind = 'result' | 'milestone' | 'debut' | 'badge' | 'upcoming' | 'umpiring' | 'social';
+export type FeedKind = 'result' | 'video' | 'milestone' | 'debut' | 'badge' | 'upcoming' | 'umpiring' | 'social';
 
 export interface FeedItem {
   id: string;                    // Stable: same event -> same id across rebuilds
@@ -124,9 +124,9 @@ export interface FeedItem {
   playerId?: string;             // Link + avatar, only for members listed on /players
   playerName?: string;
   photoUrl?: string;
-  thumbnailUrl?: string;         // Social posts
+  thumbnailUrl?: string;         // Social posts and match videos
   link?: { href: string; label: string };
-  scorecardUrl?: string;         // Results with a video: the scorecard, shown after the Watch link
+  scorecardUrl?: string;         // Old stored feeds only: results now link the scorecard directly
   tone: 'win' | 'loss' | 'neutral' | 'gold' | 'blue' | 'green';
   hidden?: boolean;              // An admin hid this post (admin view and the stored feed only)
   potm?: {                       // Results only: Player of the Match, shown under the result

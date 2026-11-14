@@ -123,8 +123,10 @@ describe('buildFeed', () => {
     ['guest', { id: 'guest', name: 'Guest Player', listed: false }],
   ]);
   const fixtures = [
-    fixture('w1', '2026-06-01', { result: 'win', playerOfMatch: 'star', youtubeVideoUrl: 'https://youtu.be/x', scoringAppUrl: 'https://cricclubs.com/s/1' }),
+    fixture('w1', '2026-06-01', { result: 'win', playerOfMatch: 'star', youtubeVideoUrl: 'https://youtu.be/AAAAAAAAAAA', scoringAppUrl: 'https://cricclubs.com/s/1' }),
     fixture('w2', '2026-06-07', { result: 'win', playerOfMatch: 'star' }),
+    fixture('nr', '2026-06-06', { youtubeVideoUrl: 'https://www.youtube.com/live/BBBBBBBBBBB' }), // no result yet
+    fixture('bad', '2026-06-05', { youtubeVideoUrl: 'https://facebook.com/live/1' }), // not YouTube
     fixture('l1', '2026-06-08', { result: 'loss', playerOfMatch: 'guest', team: 'Bulls' }),
     fixture('old', '2026-01-01', { result: 'win' }),          // outside the 8-week window
     fixture('next', '2026-06-13'),                            // upcoming
@@ -134,7 +136,8 @@ describe('buildFeed', () => {
     fixtures,
     players,
     events: [{ id: 'milestone-guest-10', kind: 'milestone', date: '2026-06-08', playerId: 'guest', title: 'played their 10th match for GSCC' }],
-    social: [{ id: 'ig1', source: 'instagram', mediaType: 'image', caption: 'Match day!', thumbnailUrl: '/t.jpg', permalink: 'https://instagram.com/p/1', timestamp: '2026-06-09T18:00:00Z' }],
+    social: [{ id: 'AAAAAAAAAAA', source: 'youtube', mediaType: 'video', caption: 'Stream', thumbnailUrl: '/y.jpg', permalink: 'https://youtu.be/AAAAAAAAAAA', timestamp: '2026-06-02T18:00:00Z' },
+      { id: 'ig1', source: 'instagram', mediaType: 'image', caption: 'Match day!', thumbnailUrl: '/t.jpg', permalink: 'https://instagram.com/p/1', timestamp: '2026-06-09T18:00:00Z' }],
     todayStr: TODAY,
   });
 
@@ -142,8 +145,53 @@ describe('buildFeed', () => {
     const results = items.filter((i) => i.kind === 'result');
     expect(results.map((r) => r.title)).toEqual(['Bulls lost to Rivals', 'Tigers beat Rivals', 'Tigers beat Rivals']);
     expect(results[0].tone).toBe('loss');
-    expect(items.find((i) => i.id === 'result-w1')?.link).toEqual({ href: 'https://youtu.be/x', label: 'Watch' });
-    expect(items.find((i) => i.id === 'result-w1')?.scorecardUrl).toBe('https://cricclubs.com/s/1');
+    // The video has its own post; the result links the scorecard
+    expect(items.find((i) => i.id === 'result-w1')?.link).toEqual({ href: 'https://cricclubs.com/s/1', label: 'Scorecard' });
+    expect(items.find((i) => i.id === 'result-w1')?.scorecardUrl).toBeUndefined();
+  });
+
+  it('posts each played game with a YouTube link as a match video, right after its result', () => {
+    const videos = items.filter((i) => i.kind === 'video');
+    expect(videos.map((v) => v.id)).toEqual(['video-nr', 'video-w1']);
+    expect(videos[1]).toMatchObject({
+      date: '2026-06-01',
+      title: 'Match video: Tigers vs Rivals',
+      detail: 'D1 · Ground',
+      thumbnailUrl: 'https://i.ytimg.com/vi/AAAAAAAAAAA/hqdefault.jpg',
+      link: { href: 'https://youtu.be/AAAAAAAAAAA', label: 'Watch on YouTube' },
+    });
+    const ids = items.map((i) => i.id);
+    expect(ids.indexOf('video-w1')).toBe(ids.indexOf('result-w1') + 1);
+    // The same video from the channel sync isn't posted twice
+    expect(items.some((i) => i.id === 'social-youtube-AAAAAAAAAAA')).toBe(false);
+  });
+
+  it('keeps each video under its own result when two games share a day', () => {
+    const feed = buildFeed({
+      fixtures: [
+        fixture('a', '2026-06-01', { result: 'win', youtubeVideoUrl: 'https://youtu.be/AAAAAAAAAAA' }),
+        fixture('b', '2026-06-01', { result: 'loss', team: 'Bears', youtubeVideoUrl: 'https://youtu.be/CCCCCCCCCCC' }),
+      ],
+      players,
+      events: [],
+      social: [],
+      todayStr: TODAY,
+    });
+    expect(feed.items.map((i) => i.id)).toEqual(['result-a', 'video-a', 'result-b', 'video-b']);
+  });
+
+  it('posts a video linked from two games once, on the later game', () => {
+    const feed = buildFeed({
+      fixtures: [
+        fixture('first', '2026-06-01', { youtubeVideoUrl: 'https://youtu.be/AAAAAAAAAAA' }),
+        fixture('second', '2026-06-07', { youtubeVideoUrl: 'https://www.youtube.com/live/AAAAAAAAAAA' }),
+      ],
+      players,
+      events: [],
+      social: [],
+      todayStr: TODAY,
+    });
+    expect(feed.items.filter((i) => i.kind === 'video').map((i) => i.id)).toEqual(['video-second']);
   });
 
   it('shows Player of the Match inside the winning result, counting awards within the season', () => {
@@ -179,7 +227,8 @@ describe('buildFeed', () => {
         { id: 'milestone-star-10', kind: 'milestone', date: '2025-06-01', playerId: 'star', title: 'played their 10th match for GSCC' },
         { id: 'milestone-guest-10', kind: 'milestone', date: '2026-06-08', playerId: 'guest', title: 'x' },
       ],
-      social: [{ id: 'ig1', source: 'instagram', mediaType: 'image', caption: '', thumbnailUrl: '', permalink: '', timestamp: '2026-06-09T18:00:00Z' }],
+      social: [{ id: 'AAAAAAAAAAA', source: 'youtube', mediaType: 'video', caption: 'Stream', thumbnailUrl: '/y.jpg', permalink: 'https://youtu.be/AAAAAAAAAAA', timestamp: '2026-06-02T18:00:00Z' },
+      { id: 'ig1', source: 'instagram', mediaType: 'image', caption: '', thumbnailUrl: '', permalink: '', timestamp: '2026-06-09T18:00:00Z' }],
       todayStr: TODAY,
       playerId: 'star',
     });
@@ -225,12 +274,14 @@ describe('hidden posts and caching', () => {
   const fixtures = [
     fixture('w1', '2026-06-01', { result: 'win', playerOfMatch: 'star' }),
     fixture('w2', '2026-06-07', { result: 'win', playerOfMatch: 'star' }),
+    fixture('nr', '2026-06-06', { youtubeVideoUrl: 'https://www.youtube.com/live/BBBBBBBBBBB' }), // no result yet
+    fixture('bad', '2026-06-05', { youtubeVideoUrl: 'https://facebook.com/live/1' }), // not YouTube
     fixture('next', '2026-06-13'),
   ];
   const base = { fixtures, players, events: [], social: [], todayStr: TODAY };
 
   it('removes hidden posts for everyone, including upcoming and player activity', () => {
-    const hiddenIds = new Set(['result-w1', 'upcoming-next']);
+    const hiddenIds = new Set(['result-w1', 'video-w1', 'video-nr', 'upcoming-next']);
     const feed = buildFeed({ ...base, hiddenIds });
     expect(feed.items.map((i) => i.id)).toEqual(['result-w2']);
     expect(feed.upcoming).toEqual([]);
