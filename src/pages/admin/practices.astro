@@ -400,6 +400,34 @@ if (!isAdminUser) {
     /* Practice cards are built in the browser, so these can't be scoped */
     .practice-type-badge.slot-badge { background: #EEF2FF; color: #3730A3; }
     .batting-full { color: #B91C1C !important; }
+    /* Wednesday card: one row per slot */
+    .admin-slot-list { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.5rem; }
+    .admin-slot-row {
+      display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 0.75rem;
+      padding: 0.75rem 0.875rem; border: 1px solid var(--color-border, #E5E7EB); border-radius: 10px;
+      background: var(--color-surface, #fff);
+    }
+    .admin-slot-row.is-locked { background: #FFFBEB; border-color: #FCD34D; }
+    .admin-slot-name { font-weight: 700; }
+    .admin-slot-lock { font-size: 0.75rem; font-weight: 600; color: #92400E; margin-left: 0.25rem; }
+    .admin-slot-time { font-size: 0.85rem; color: var(--color-text-muted, #6B7280); }
+    .admin-slot-stats { display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem; }
+    .admin-slot-places { font-weight: 700; font-size: 0.9rem; white-space: nowrap; }
+    .admin-slot-counts { font-size: 0.8rem; color: var(--color-text-muted, #6B7280); white-space: nowrap; }
+    .admin-slot-actions { display: flex; gap: 0.5rem; }
+    .admin-slot-evening { font-size: 0.85rem; color: var(--color-text-muted, #6B7280); margin: 0.25rem 0 1rem; }
+    .poll-slot-tabs { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+    .poll-slot-tab {
+      padding: 0.4rem 0.75rem; border-radius: 999px; border: 1px solid var(--color-border, #E5E7EB);
+      background: var(--color-surface, #fff); font-size: 0.85rem; font-weight: 600; cursor: pointer;
+    }
+    .poll-slot-tab.is-active { background: var(--color-primary, #8C1D18); border-color: var(--color-primary, #8C1D18); color: #fff; }
+    @media (max-width: 640px) {
+      .admin-slot-row { grid-template-columns: minmax(0, 1fr) auto; }
+      .admin-slot-actions { grid-column: 1 / -1; }
+      .admin-slot-actions .btn-sm { flex: 1; justify-content: center; }
+    }
+
     /* Badges wrap under the title on phones instead of squeezing beside it */
     .practice-title-row { flex-wrap: wrap; row-gap: 0.4rem; }
     .practice-title-row .practice-type-badge { white-space: nowrap; }
@@ -767,9 +795,12 @@ if (!isAdminUser) {
       const isNet = createFormType() === 'net';
       const canSplit = isNet && !editingPracticeId;
       document.getElementById('create-format-row').style.display = canSplit ? 'flex' : 'none';
-      const format = canSplit ? (form.querySelector('input[name="format"]:checked')?.value || 'single') : 'single';
+      const format = editingEvening ? 'split'
+        : canSplit ? (form.querySelector('input[name="format"]:checked')?.value || 'single') : 'single';
       showFormat(form, format);
-      document.getElementById('submit-text').textContent = editingPracticeId
+      document.getElementById('submit-text').textContent = editingEvening
+        ? 'Save Both Slots'
+        : editingPracticeId
         ? 'Update Practice'
         : format === 'split' ? 'Create Both Slots' : 'Create Practice';
     }
@@ -812,6 +843,7 @@ if (!isAdminUser) {
       const form = document.getElementById('create-practice-form');
       form.reset();
       editingPracticeId = null;
+      editingEvening = null;
       form.querySelectorAll('input[name="type"]').forEach((el) => { el.disabled = false; });
       form.querySelector('input[name="type"][value="net"]').checked = true;
       form.querySelector(`input[name="format"][value="${practiceSettings.wednesdayNets}"]`).checked = true;
@@ -854,6 +886,7 @@ if (!isAdminUser) {
       document.getElementById('show-create-form-btn').style.display = 'block';
       document.getElementById('create-practice-form').reset();
       editingPracticeId = null;
+      editingEvening = null;
     }
 
     async function loadSeasons() {
@@ -945,9 +978,7 @@ if (!isAdminUser) {
       if (upcoming.length > 0) {
         const upcomingSection = document.createElement('div');
         upcomingSection.innerHTML = '<h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem;">Upcoming Practices</h2>';
-        upcoming.forEach(practice => {
-          upcomingSection.appendChild(createPracticeCard(practice));
-        });
+        appendCards(upcomingSection, upcoming);
         container.appendChild(upcomingSection);
       }
 
@@ -956,11 +987,96 @@ if (!isAdminUser) {
         const pastSection = document.createElement('div');
         pastSection.style.marginTop = '2rem';
         pastSection.innerHTML = '<h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem;">Past Practices</h2>';
-        past.forEach(practice => {
-          pastSection.appendChild(createPracticeCard(practice));
-        });
+        appendCards(pastSection, past);
         container.appendChild(pastSection);
       }
+    }
+
+    // The slots of one Wednesday share a single card; everything else keeps its own
+    function appendCards(section, list) {
+      const done = new Set();
+      list.forEach((practice) => {
+        if (!practice.slotGroup) {
+          section.appendChild(createPracticeCard(practice));
+          return;
+        }
+        if (done.has(practice.slotGroup)) return;
+        done.add(practice.slotGroup);
+        section.appendChild(createSlotGroupCard(eveningSlots(practice.slotGroup)));
+      });
+    }
+
+    function eveningSlots(key) {
+      return loadedPractices
+        .filter((p) => p.slotGroup === key)
+        .sort((a, b) => (a.slotNumber || 0) - (b.slotNumber || 0));
+    }
+
+    // Batting places: Yes = 1 + guests; Bowling only = its guests
+    const placesOf = (p) => p.playerAvailability.reduce((sum, r) =>
+      sum + (r.response === 'yes' ? 1 + (r.extraPlayers || 0) : r.response === 'bowling-only' ? (r.extraPlayers || 0) : 0), 0);
+
+    // Not available for the evening: said so and isn't in either slot
+    function eveningNotAvailable(slots) {
+      const records = slots.flatMap((p) => p.playerAvailability);
+      const inASlot = new Set(records.filter((r) => r.response === 'yes' || r.response === 'bowling-only').map((r) => r.playerId));
+      return new Set(records.filter((r) => r.response === 'not-available' && !inASlot.has(r.playerId)).map((r) => r.playerId)).size;
+    }
+
+    function createSlotGroupCard(slots) {
+      const first = slots[0];
+      const key = first.slotGroup;
+      const card = document.createElement('div');
+      card.className = 'practice-card';
+      card.id = `evening-${key}`;
+
+      const rows = slots.map((p) => {
+        const batting = placesOf(p);
+        const full = batting >= p.capacity;
+        return `
+          <div class="admin-slot-row ${p.locked ? 'is-locked' : ''}">
+            <div class="admin-slot-main">
+              <div class="admin-slot-name">Slot ${p.slotNumber}${p.locked ? ' <span class="admin-slot-lock">🔒 Locked</span>' : ''}</div>
+              <div class="admin-slot-time">${p.time}</div>
+            </div>
+            <div class="admin-slot-stats">
+              <span class="admin-slot-places ${full ? 'batting-full' : ''}">${full ? 'Full · ' : ''}${batting}/${p.capacity} batting</span>
+              <span class="admin-slot-counts">${p.stats.yesCount} yes · ${p.stats.bowlingOnlyCount} bowling</span>
+            </div>
+            <div class="admin-slot-actions">
+              <button class="btn-primary btn-sm" onclick="viewPoll('${p.id}')">View Poll</button>
+              <button class="btn-secondary btn-sm" onclick="toggleLock('${p.id}', ${p.locked})" title="${p.locked ? 'Unlock voting' : 'Lock voting'}">${p.locked ? '🔓 Unlock' : '🔒 Lock'}</button>
+            </div>
+          </div>`;
+      }).join('');
+
+      card.innerHTML = `
+        <div class="practice-header">
+          <div>
+            <div class="practice-title-row">
+              <h3 class="practice-title">${practiceHeading(first.title)}</h3>
+              <span class="practice-type-badge badge-net">🎾 Net Session</span>
+              <span class="practice-type-badge slot-badge">${slots.length} slots</span>
+            </div>
+            <div class="practice-details">
+              <div class="practice-detail">📅 ${formatDateDisplay(first.date)}</div>
+              <div class="practice-detail">📍 ${first.location}</div>
+            </div>
+          </div>
+        </div>
+
+        ${first.description ? `<p style="color: var(--color-text-body); margin-bottom: 1rem;">${first.description}</p>` : ''}
+
+        <div class="admin-slot-list">${rows}</div>
+        <div class="admin-slot-evening">${eveningNotAvailable(slots)} not available for the evening</div>
+
+        <div class="practice-actions">
+          <button class="btn-secondary btn-sm" onclick="generateEveningAnnouncement('${key}')" title="Generate WhatsApp announcement">📱 Generate Announcement</button>
+          <button class="btn-secondary btn-sm" onclick="editEvening('${key}')">Edit</button>
+          <button class="btn-secondary btn-sm" onclick="deleteEvening('${key}')">Delete</button>
+        </div>
+      `;
+      return card;
     }
 
     function createPracticeCard(practice) {
@@ -1060,6 +1176,24 @@ if (!isAdminUser) {
 
       const form = e.target;
       const formData = new FormData(form);
+
+      if (editingEvening) {
+        document.getElementById('submit-text').style.display = 'none';
+        document.getElementById('submit-spinner').style.display = 'inline-block';
+        try {
+          if (await saveEvening(formData)) {
+            showToast('Slots updated', 'success');
+            hideCreateForm();
+            loadPractices();
+          }
+        } catch (error) {
+          showToast('Failed to update the slots', 'error');
+        } finally {
+          document.getElementById('submit-text').style.display = 'inline';
+          document.getElementById('submit-spinner').style.display = 'none';
+        }
+        return;
+      }
 
       const type = formData.get('type');
       const date = formData.get('date');
@@ -1176,8 +1310,16 @@ if (!isAdminUser) {
       const typeEmoji = practice.type === 'net' ? '🎾' : '🏟️';
       const typeName = practice.type === 'net' ? 'Net Session' : 'Field Practice';
 
+      // A Wednesday slot: tabs to switch between the evening's slots
+      const slotTabs = practice.slotGroup
+        ? `<div class="poll-slot-tabs">${eveningSlots(practice.slotGroup).map((p) =>
+            `<button class="poll-slot-tab ${p.id === practice.id ? 'is-active' : ''}" onclick="viewPoll('${p.id}')">Slot ${p.slotNumber} · ${p.time}</button>`
+          ).join('')}</div>`
+        : '';
+
       // Practice info
       document.getElementById('modal-practice-info').innerHTML = `
+        ${slotTabs}
         <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem;">${practice.title}</h3>
         <p style="color: var(--color-text-muted);">
           ${formatDateDisplay(practice.date)} at ${practice.time} &nbsp;•&nbsp; <span class="practice-type-badge ${practice.type === 'net' ? 'badge-net' : 'badge-field'}">${typeEmoji} ${typeName}</span>
@@ -1330,6 +1472,49 @@ if (!isAdminUser) {
       currentPractice = null;
     }
 
+    // Names for an announcement: Yes, Bowling only, and each guest as "Name +1"
+    function announcementLists(practice) {
+      const byName = (a, b) => a.playerName.localeCompare(b.playerName);
+      const yes = practice.playerAvailability.filter((p) => p.response === 'yes').sort(byName);
+      const bowling = practice.type === 'net'
+        ? practice.playerAvailability.filter((p) => p.response === 'bowling-only').sort(byName)
+        : [];
+      const guests = [...yes, ...bowling].sort(byName)
+        .flatMap((p) => Array.from({ length: p.extraPlayers || 0 }, (_, i) => `${p.playerName} +${i + 1}`));
+      return { yes: yes.map((p) => p.playerName), bowling: bowling.map((p) => p.playerName), guests };
+    }
+
+    const numberedList = (names) =>
+      names.map((name, idx) => `${String(idx + 1).padStart(2, ' ')}. ${name}`).join('\n') + '\n\n';
+
+    // One message for the evening: each slot's lists under its time
+    async function generateEveningAnnouncement(key) {
+      try {
+        const slots = await Promise.all(eveningSlots(key).map(async (p) => {
+          const res = await fetch(`/.netlify/functions/practice-get?practiceId=${p.id}`);
+          const data = await res.json();
+          if (!res.ok || !data.data) throw new Error('Failed to load practice details');
+          return data.data;
+        }));
+        const first = slots[0];
+        // *text* shows as bold in WhatsApp
+        let text = `🎾 *Net Session*\n*${formatDateDisplay(first.date)}*\n${first.location}\n\n`;
+        for (const slot of slots) {
+          const lists = announcementLists(slot);
+          text += `*Slot ${slot.slotNumber} · ${slot.time}*\n`;
+          text += lists.yes.length ? numberedList(lists.yes) : 'No one yet\n\n';
+          if (lists.bowling.length) text += 'Bowling only:\n' + numberedList(lists.bowling);
+          if (lists.guests.length) text += 'Guests:\n' + numberedList(lists.guests);
+        }
+        text += 'Please be on time to ensure we all get max time to practice!';
+        document.getElementById('announcement-text').value = text;
+        document.getElementById('announcement-modal').style.display = 'flex';
+      } catch (error) {
+        console.error('Error generating announcement:', error);
+        showToast('Failed to generate announcement', 'error');
+      }
+    }
+
     async function generatePracticeAnnouncement(practiceId) {
       try {
         // Fetch the practice details
@@ -1374,8 +1559,9 @@ if (!isAdminUser) {
         const numbered = (names) =>
           names.map((name, idx) => `${String(idx + 1).padStart(2, ' ')}. ${name}`).join('\n') + '\n\n';
 
-        let announcement = `${typeEmoji} ${typeName}\n`;
-        announcement += `${formatDateDisplay(practice.date)} at ${practice.time}\n`;
+        // *text* shows as bold in WhatsApp
+        let announcement = `${typeEmoji} *${typeName}*\n`;
+        announcement += `*${formatDateDisplay(practice.date)} at ${practice.time}*\n`;
         announcement += `${practice.location}\n\n`;
 
         if (yesPlayers.length > 0) {
@@ -1491,6 +1677,89 @@ if (!isAdminUser) {
       } catch (error) {
         console.error('Error loading practice for edit:', error);
         showToast('Failed to load practice details', 'error');
+      }
+    }
+
+    // Edit a Wednesday's slots together: date, location, notes, each slot's time, batting places
+    let editingEvening = null;
+    function editEvening(key) {
+      const slots = eveningSlots(key);
+      const first = slots[0];
+      editingEvening = slots;
+      editingPracticeId = first.id;
+      const form = document.getElementById('create-practice-form');
+      form.reset();
+      form.querySelector('input[name="type"][value="net"]').checked = true;
+      form.querySelectorAll('input[name="type"]').forEach((el) => { el.disabled = true; });
+      form.date.value = first.date;
+      const toInputs = (time) => String(time || '').split(/\s+-\s+/).map((t) => formatTimeForInput(t) || '');
+      const [s1, e1] = toInputs(slots[0].time);
+      const [s2, e2] = toInputs(slots[1]?.time);
+      form.slot1Start.value = s1; form.slot1End.value = e1;
+      form.slot2Start.value = s2; form.slot2End.value = e2;
+      form.slotCapacity.value = first.capacity;
+      form.location.value = first.location;
+      form.description.value = first.description || '';
+      document.getElementById('create-form-title').textContent = 'Edit Wednesday slots';
+      document.getElementById('create-form-container').style.display = 'block';
+      document.getElementById('show-create-form-btn').style.display = 'none';
+      updateCreateForm();
+      document.getElementById('create-form-container').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    async function saveEvening(formData) {
+      const slots = editingEvening;
+      const ranges = [
+        { start: formData.get('slot1Start'), end: formData.get('slot1End') },
+        { start: formData.get('slot2Start'), end: formData.get('slot2End') },
+      ];
+      if (ranges.some((r) => !r.start || !r.end || r.end <= r.start)) {
+        showToast('Each slot needs an end time after its start time', 'error');
+        return false;
+      }
+      const capacity = parseInt(formData.get('slotCapacity'), 10);
+      const shared = { location: formData.get('location'), description: formData.get('description') || '', capacity };
+      // Slot 1 carries the date: moving its date moves the other slot too
+      const updates = slots.map((p, i) => ({
+        practiceId: p.id,
+        ...shared,
+        time: `${formatTime12Hour(ranges[i].start)} - ${formatTime12Hour(ranges[i].end)}`,
+        ...(i === 0 ? { date: formData.get('date') } : {}),
+      }));
+      for (const body of updates) {
+        const res = await fetch('/.netlify/functions/practice-update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const result = await res.json();
+        if (!result.success) {
+          showToast(result.error || 'Failed to update the slots', 'error');
+          return false;
+        }
+      }
+      return true;
+    }
+
+    async function deleteEvening(key) {
+      const slots = eveningSlots(key);
+      const label = practiceHeading(slots[0].title);
+      if (!confirm(`Delete both slots on ${label}? This removes everyone's availability for that evening.`)) return;
+      try {
+        const res = await fetch('/.netlify/functions/practice-delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ practiceId: slots[0].id, wholeEvening: true }),
+        });
+        const result = await res.json();
+        if (result.success) {
+          showToast('Both slots deleted', 'success');
+          loadPractices();
+        } else {
+          showToast(result.error || 'Failed to delete the slots', 'error');
+        }
+      } catch (error) {
+        showToast('Failed to delete the slots', 'error');
       }
     }
 
@@ -1798,6 +2067,9 @@ if (!isAdminUser) {
     window.deletePractice = deletePractice;
     window.toggleLock = toggleLock;
     window.generatePracticeAnnouncement = generatePracticeAnnouncement;
+    window.generateEveningAnnouncement = generateEveningAnnouncement;
+    window.editEvening = editEvening;
+    window.deleteEvening = deleteEvening;
     window.closeAnnouncementModal = closeAnnouncementModal;
     window.copyAnnouncement = copyAnnouncement;
     window.addPlayerToPractice = addPlayerToPractice;

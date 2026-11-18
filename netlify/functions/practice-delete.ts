@@ -46,7 +46,8 @@ export const handler: Handler = async (
 
     // Parse request body
     const body = JSON.parse(event.body || '{}');
-    const { practiceId } = body;
+    // wholeEvening: deleting one Wednesday slot deletes the other slots too
+    const { practiceId, wholeEvening } = body;
 
     // Validate practiceId is provided
     if (!practiceId) {
@@ -84,12 +85,17 @@ export const handler: Handler = async (
       playerCount: existingPractice.playerAvailability.length,
     };
 
-    // Delete practice from Blobs
-    await practicesStore.delete(`practice-${practiceId}`);
+    // Delete practice from Blobs (and, for the whole evening, its other slots)
+    const deletedIds = wholeEvening === true
+      ? [practiceId, ...(existingPractice.linkedPracticeIds || [])]
+      : [practiceId];
+    for (const id of deletedIds) {
+      await practicesStore.delete(`practice-${id}`);
+    }
 
     // Deleting one slot of a pair: the slot left becomes an ordinary, uncapped
     // session, so it doesn't point at a slot that's gone
-    for (const otherId of existingPractice.linkedPracticeIds || []) {
+    for (const otherId of wholeEvening === true ? [] : existingPractice.linkedPracticeIds || []) {
       const other = await practicesStore.get(`practice-${otherId}`, { type: 'json' }) as PracticeSession | null;
       if (!other) continue;
       const remaining = (other.linkedPracticeIds || []).filter((id) => id !== practiceId);
@@ -109,14 +115,14 @@ export const handler: Handler = async (
     // Remove from practice index for season
     const existingIndex = await practicesStore.get(`practice-index-${existingPractice.seasonId}`, { type: 'json' }) as string[] | null;
     if (existingIndex) {
-      const updatedIndex = existingIndex.filter(id => id !== practiceId);
+      const updatedIndex = existingIndex.filter(id => !deletedIds.includes(id));
       await practicesStore.setJSON(`practice-index-${existingPractice.seasonId}`, updatedIndex);
     }
 
     // Remove from active practices list
     const existingActive = await practicesStore.get('practices-active', { type: 'json' }) as string[] | null;
     if (existingActive) {
-      const updatedActive = existingActive.filter(id => id !== practiceId);
+      const updatedActive = existingActive.filter(id => !deletedIds.includes(id));
       await practicesStore.setJSON('practices-active', updatedActive);
     }
 
@@ -125,9 +131,11 @@ export const handler: Handler = async (
       await addAuditLog(
         session.username,
         'practice_deleted',
-        `Deleted practice: ${practiceDetails.title}`,
+        deletedIds.length > 1
+          ? `Deleted all ${deletedIds.length} slots of ${practiceDetails.title.replace(/ \(Slot \d+\)/, '')}`
+          : `Deleted practice: ${practiceDetails.title}`,
         practiceId,
-        practiceDetails
+        { ...practiceDetails, deletedIds }
       );
     } catch (err) {
       console.error('Audit log failed:', err);

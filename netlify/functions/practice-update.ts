@@ -46,7 +46,8 @@ export const handler: Handler = async (
 
     // Parse request body
     const body = JSON.parse(event.body || '{}');
-    const { practiceId, type, date, time, location, description, status } = body;
+    // capacity: batting places, for a Wednesday slot only
+    const { practiceId, type, date, time, location, description, status, capacity } = body;
 
     // Validate practiceId is provided
     if (!practiceId) {
@@ -101,6 +102,15 @@ export const handler: Handler = async (
       }
     }
 
+    if (capacity !== undefined) {
+      if (!existingPractice.slotGroup) {
+        return { statusCode: 400, body: JSON.stringify({ error: 'Batting places can only be set on a Wednesday slot.' }) };
+      }
+      if (!Number.isInteger(capacity) || capacity < 1 || capacity > 50) {
+        return { statusCode: 400, body: JSON.stringify({ error: 'Batting places must be a whole number from 1 to 50.' }) };
+      }
+    }
+
     // Validate location length if provided
     if (location && (location.length < 5 || location.length > 500)) {
       return {
@@ -149,6 +159,7 @@ export const handler: Handler = async (
       ...(location && { location }),
       ...(description !== undefined && { description }),
       ...(status && { status }),
+      ...(capacity !== undefined && { capacity }),
       updatedAt: new Date().toISOString(),
       updatedBy: session.username,
     };
@@ -158,6 +169,7 @@ export const handler: Handler = async (
     if (title !== existingPractice.title) changes.title = { from: existingPractice.title, to: title };
     if (date && date !== existingPractice.date) changes.date = { from: existingPractice.date, to: date };
     if (time && time !== existingPractice.time) changes.time = { from: existingPractice.time, to: time };
+    if (capacity !== undefined && capacity !== existingPractice.capacity) changes.capacity = { from: existingPractice.capacity, to: capacity };
     if (location && location !== existingPractice.location) changes.location = { from: existingPractice.location, to: location };
     if (description !== undefined && description !== existingPractice.description) changes.description = { from: existingPractice.description, to: description };
     if (status && status !== existingPractice.status) changes.status = { from: existingPractice.status, to: status };
