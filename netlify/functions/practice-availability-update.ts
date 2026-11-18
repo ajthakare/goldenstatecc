@@ -5,7 +5,7 @@ import type { PracticeSession, PracticeAvailabilityRecord, Player } from '../../
 import { addAuditLog } from '../../src/utils/auditLog';
 import { getPacificToday } from './_utils';
 import { updateJSON } from './_blobs';
-import { checkSlotVote } from '../../src/utils/practiceSlots';
+import { checkSlotVote, isCommitted } from '../../src/utils/practiceSlots';
 
 class VoteRefused extends Error {
   constructor(message: string, public statusCode: number) {
@@ -20,6 +20,8 @@ class VoteRefused extends Error {
  * Response: 'yes' | 'bowling-only' | 'not-available' | null
  * extraPlayers: integer 0-10 (number of extra/guest players bringing)
  * Wednesday slots: capped batting places and one slot per member (src/utils/practiceSlots.ts); refused with 409
+ *   switchSlot: true   Yes / Bowling only here moves the member out of the other slot in one step
+ *   wholeEvening: true Not available (or null to clear) applies to every slot of the evening
  * Requires: Member session
  */
 export const handler: Handler = async (
@@ -47,7 +49,7 @@ export const handler: Handler = async (
     const playerId = session.userId;
 
     // Parse request body
-    const { practiceId, response, extraPlayers } = JSON.parse(event.body || '{}');
+    const { practiceId, response, extraPlayers, switchSlot, wholeEvening } = JSON.parse(event.body || '{}');
 
     // Validate required fields
     if (!practiceId) {
@@ -162,6 +164,66 @@ export const handler: Handler = async (
       )
     ).filter((p): p is PracticeSession => !!p && p.status !== 'cancelled');
 
+    // Not available (or clearing it) for the whole evening: every slot at once
+    if (wholeEvening === true && (response === 'not-available' || response === null) && practice.linkedPracticeIds?.length) {
+      const slots = [practice, ...otherSlots];
+      const lockedSlot = slots.find((p) => p.locked);
+      if (lockedSlot) {
+        return {
+          statusCode: 403,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ error: `Slot ${lockedSlot.slotNumber} is locked by admin. Please reach out to admin to change your availability.` }),
+        };
+      }
+      for (const slot of slots) {
+        await updateJSON<PracticeSession>(practicesStore, `practice-${slot.id}`, (current) => {
+          if (!current) return null;
+          const record = current.playerAvailability.find((r) => r.playerId === playerId);
+          if (!record && response === null) return null;
+          if (record) {
+            record.response = response;
+            record.extraPlayers = 0;
+            record.submittedAt = response !== null ? now : record.submittedAt;
+            record.lastUpdated = now;
+          } else {
+            current.playerAvailability.push({ playerId, playerName, response, extraPlayers: 0, submittedAt: now, lastUpdated: now });
+          }
+          current.updatedAt = now;
+          current.updatedBy = session.email || session.username;
+          return current;
+        });
+      }
+      try {
+        await addAuditLog(
+          session.email || session.username,
+          'practice_availability_updated',
+          `Updated availability for all slots of "${practice.title}": ${response === null ? 'No Response' : 'Not Available'}`,
+          practiceId,
+          { response, practiceTitle: practice.title, practiceDate: practice.date, slots: slots.map((p) => p.id) }
+        );
+      } catch (err) {
+        console.error('Audit log failed:', err);
+      }
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ success: true, response, extraPlayers: 0, lastUpdated: now }),
+      };
+    }
+
+    // Switching slots: the slot being left mustn't be locked; it's cleared once this vote is saved
+    const leaving = switchSlot === true && isCommitted(response)
+      ? otherSlots.filter((p) => p.playerAvailability.some((r) => r.playerId === playerId && isCommitted(r.response)))
+      : [];
+    const lockedLeaving = leaving.find((p) => p.locked);
+    if (lockedLeaving) {
+      return {
+        statusCode: 403,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: `Slot ${lockedLeaving.slotNumber} is locked by admin, so you can't move out of it. Please reach out to admin.` }),
+      };
+    }
+
     let playerAvailRecord: PracticeAvailabilityRecord | undefined;
 
     // Re-check against the latest copy when saving, so two members can't both
@@ -174,7 +236,8 @@ export const handler: Handler = async (
 
       const existing = current.playerAvailability.find((pa) => pa.playerId === playerId);
       const newExtras = extraPlayers !== undefined ? extraPlayers : existing?.extraPlayers ?? 0;
-      const refusal = checkSlotVote(current, otherSlots, playerId, response, newExtras);
+      // When switching, the slot being left doesn't block this vote (it's cleared next)
+      const refusal = checkSlotVote(current, leaving.length ? [] : otherSlots, playerId, response, newExtras);
       if (refusal) throw new VoteRefused(refusal, 409);
 
       if (existing) {
@@ -209,6 +272,20 @@ export const handler: Handler = async (
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ error: saved.message }),
       };
+    }
+
+    // Saved in the new slot: now take the member out of the one they left
+    for (const left of leaving) {
+      await updateJSON<PracticeSession>(practicesStore, `practice-${left.id}`, (current) => {
+        const record = current?.playerAvailability.find((r) => r.playerId === playerId);
+        if (!current || !record || !isCommitted(record.response)) return null;
+        record.response = null;
+        record.extraPlayers = 0;
+        record.lastUpdated = now;
+        current.updatedAt = now;
+        current.updatedBy = session.email || session.username;
+        return current;
+      });
     }
 
     // Create audit log

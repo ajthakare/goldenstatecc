@@ -125,6 +125,14 @@ export const handler: Handler = async (
         slotGroup: practice.slotGroup || null,
         capacity: practice.capacity || null,
         battingCount: battingCount(practice),
+        // Players not available for the evening: said so in a slot and aren't in any slot
+        eveningNotAvailable: practice.slotGroup ? (() => {
+          const slots = [practice, ...(practice.linkedPracticeIds || []).map((id) => byId.get(id))]
+            .filter((p): p is PracticeSession => !!p && p.status !== 'cancelled');
+          const records = slots.flatMap((p) => p.playerAvailability);
+          const inASlot = new Set(records.filter((r) => isCommitted(r.response)).map((r) => r.playerId));
+          return new Set(records.filter((r) => r.response === 'not-available' && !inASlot.has(r.playerId)).map((r) => r.playerId)).size;
+        })() : null,
         inOtherSlot:
           (practice.linkedPracticeIds || [])
             .map((id) => byId.get(id))
