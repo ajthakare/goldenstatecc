@@ -378,6 +378,31 @@ if (!session || !isMember(session)) {
       border-color: #FECACA;
       color: #991B1B;
     }
+    /* Slot picker inside the Wednesday card */
+    .slot-picker { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.25rem; }
+    .slot-option {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.75rem 0.875rem; border: 1.5px solid #E5E7EB; border-radius: 10px;
+      background: #fff; cursor: pointer; transition: border-color 0.15s, background 0.15s;
+    }
+    .slot-option.is-selected { border-color: var(--color-maroon-600, #8C1D18); background: #FBF5F4; }
+    .slot-option input { width: 1.1rem; height: 1.1rem; margin: 0; flex-shrink: 0; accent-color: var(--color-maroon-600, #8C1D18); }
+    .slot-option-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+    .slot-option-name { font-weight: 700; font-size: 0.95rem; display: inline-flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+    .slot-option-you { font-size: 0.7rem; font-weight: 700; color: #065F46; background: #D1FAE5; padding: 0.1rem 0.45rem; border-radius: 999px; }
+    .slot-option-time { font-size: 0.85rem; color: #4B5563; white-space: nowrap; }
+    .slot-option-count { display: flex; flex-direction: column; align-items: flex-end; gap: 0.3rem; width: 4.75rem; flex-shrink: 0; }
+    .slot-option-count .slot-capacity-bar { flex: none; width: 100%; height: 6px; border-radius: 999px; background: #E5E7EB; overflow: hidden; display: block; }
+    .slot-option-count .slot-capacity-fill { display: block; height: 100%; border-radius: 999px; background: #10B981; }
+    .slot-option.is-full .slot-capacity-fill { background: #DC2626; }
+    .slot-option-text { font-size: 0.8rem; font-weight: 600; white-space: nowrap; }
+    .slot-option.is-full .slot-option-text { color: #B91C1C; }
+    .slot-status-line { align-items: center; }
+    .slot-status-line + .slot-status-line { margin-top: 0.35rem; }
+    .slot-status-name { font-weight: 700; font-size: 0.85rem; min-width: 3.25rem; }
+    .slot-players + .slot-players { margin-top: 1rem; }
+    .slot-players-title { font-weight: 700; font-size: 0.85rem; margin-bottom: 0.5rem; color: #374151; }
+
     .practice-type-badge.badge-slot {
       background: #EEF2FF;
       color: #3730A3;
@@ -494,7 +519,19 @@ if (!session || !isMember(session)) {
 
       practicesGrid.innerHTML = '';
 
+      // The slots of one Wednesday share a single card
+      const renderedGroups = new Set<string>();
       practices.forEach((practice) => {
+        if (practice.slotGroup) {
+          if (renderedGroups.has(practice.slotGroup)) return;
+          renderedGroups.add(practice.slotGroup);
+          const slots = practices
+            .filter((p) => p.slotGroup === practice.slotGroup)
+            .sort((a, b) => (a.slotNumber || 0) - (b.slotNumber || 0));
+          practicesGrid.appendChild(renderSlotCard(slots));
+          return;
+        }
+
         const card = document.createElement('div');
         card.className = 'practice-card';
         card.id = `practice-${practice.id}`;
@@ -701,6 +738,254 @@ if (!session || !isMember(session)) {
           if (inOtherSlot) extraPlayersSelect.disabled = true;
         }
       });
+    }
+
+    // ---- Wednesday slots: one card, pick a slot, then answer ----
+    const slotSelection: Record<string, string> = {};
+    const isIn = (p: any) => p.myResponse === 'yes' || p.myResponse === 'bowling-only';
+    const mySlot = (slots: any[]) => slots.find(isIn) || null;
+    // Batting places left for this member in a slot (their own places count as free)
+    const placesLeftFor = (p: any) => {
+      const mine = p.myResponse === 'yes' ? 1 + (p.myExtraPlayers || 0) : p.myResponse === 'bowling-only' ? (p.myExtraPlayers || 0) : 0;
+      return (p.capacity || 0) - (p.battingCount - mine);
+    };
+    const slotsOf = (key: string) => practices
+      .filter((p) => p.slotGroup === key)
+      .sort((a, b) => (a.slotNumber || 0) - (b.slotNumber || 0));
+    const selectedSlot = (key: string, slots: any[]) =>
+      slots.find((p) => p.id === slotSelection[key])
+      || mySlot(slots)
+      || slots.find((p) => p.battingCount < p.capacity)
+      || slots[0];
+
+    function renderSlotCard(slots: any[]): HTMLElement {
+      const key = slots[0].slotGroup;
+      const mine = mySlot(slots);
+      const sel = selectedSlot(key, slots);
+      slotSelection[key] = sel.id;
+      const first = slots[0];
+      const moving = !!mine && mine.id !== sel.id;
+      const eveningOff = !mine && slots.some((p) => p.myResponse === 'not-available');
+      const anyLocked = slots.some((p) => p.locked);
+      const guestSlot = mine || sel;
+      const guests = guestSlot.myExtraPlayers || 0;
+      const selLeft = placesLeftFor(sel);
+      const selIsMine = !!mine && mine.id === sel.id;
+      const cantLeave = moving && mine.locked;
+
+      const yesOn = selIsMine && sel.myResponse === 'yes';
+      const bowlOn = selIsMine && sel.myResponse === 'bowling-only';
+      const yesBlocked = sel.locked || cantLeave || (!yesOn && selLeft < 1 + guests);
+      const bowlBlocked = sel.locked || cantLeave || (!bowlOn && !selIsMine && selLeft < guests);
+
+      const card = document.createElement('div');
+      card.className = 'practice-card';
+      card.id = `practice-${key}`;
+
+      const optionsHTML = slots.map((p) => {
+        const full = p.battingCount >= p.capacity;
+        const pct = Math.min(100, Math.round((p.battingCount / p.capacity) * 100));
+        return `
+          <label class="slot-option ${p.id === sel.id ? 'is-selected' : ''} ${full ? 'is-full' : ''}">
+            <input type="radio" name="slot-${key}" value="${p.id}" ${p.id === sel.id ? 'checked' : ''} onchange="selectSlot('${key}', '${p.id}')" />
+            <span class="slot-option-main">
+              <span class="slot-option-name">Slot ${p.slotNumber}${mine && mine.id === p.id ? ' <span class="slot-option-you">You\'re in</span>' : ''}${p.locked ? ` ${_svg(IC.lock, 13)}` : ''}</span>
+              <span class="slot-option-time">${p.time}</span>
+            </span>
+            <span class="slot-option-count">
+              <span class="slot-capacity-bar"><span class="slot-capacity-fill" style="width: ${pct}%"></span></span>
+              <span class="slot-option-text">${full ? 'Full · ' : ''}${p.battingCount}/${p.capacity}</span>
+            </span>
+          </label>`;
+      }).join('');
+
+      let noteHTML = '';
+      if (sel.locked) {
+        noteHTML = `<div class="lock-message">${_svg(IC.lock, 15)} Slot ${sel.slotNumber} is locked by admin. Please reach out to admin if you need a change.</div>`;
+      } else if (cantLeave) {
+        noteHTML = `<div class="lock-message">${_svg(IC.lock, 15)} You're in Slot ${mine.slotNumber}, which is locked by admin, so you can't move out of it.</div>`;
+      } else if (moving) {
+        noteHTML = `<div class="slot-note">You're in Slot ${mine.slotNumber}. Pressing Yes or Bowling only moves you to Slot ${sel.slotNumber}.</div>`;
+      } else if (sel.battingCount >= sel.capacity && !yesOn) {
+        noteHTML = `<div class="slot-note is-full">Slot ${sel.slotNumber} is full for batting. You can still join as Bowling only, or pick the other slot.</div>`;
+      }
+
+      // Guests count in the member's slot (or the one picked), up to the places left
+      const maxGuests = placesLeftFor(guestSlot) - (guestSlot.myResponse === 'yes' ? 1 : 0);
+      const guestOptions = [['0', 'No extras'], ['1', '+1 person'], ['2', '+2 people'], ['3', '+3 people'], ['4', '+4 people'], ['5', '+5 or more']]
+        .map(([v, label]) => {
+          const n = parseInt(v);
+          const disabled = n > 0 && n > maxGuests && n !== guests;
+          return `<option value="${v}" ${Math.min(guests, 5) === n ? 'selected' : ''} ${disabled ? 'disabled' : ''}>${label}</option>`;
+        }).join('');
+
+      card.innerHTML = `
+        <div class="practice-header">
+          <div class="practice-type-icon">${_svg(IC.bat, 22)}</div>
+          <div class="practice-info">
+            <h3 class="practice-title">${practiceHeading(first.title)}</h3>
+            <span class="practice-type-badge badge-net">Net Session</span><span class="practice-type-badge badge-slot">${slots.length} slots</span>
+          </div>
+        </div>
+
+        <div class="practice-details">
+          <div class="practice-detail">${_svg(IC.calendar)} ${formatDateDisplay(first.date)}</div>
+          <div class="practice-detail">${_svg(IC.pin)} ${first.location}</div>
+        </div>
+
+        ${first.description ? `<p style="color: #4b5563; margin-bottom: 1.25rem;">${first.description}</p>` : ''}
+
+        <div class="slot-picker" role="radiogroup" aria-label="Pick your slot">
+          <div class="availability-label">Pick your slot:</div>
+          ${optionsHTML}
+        </div>
+
+        ${noteHTML}
+
+        <div class="availability-section">
+          <label class="availability-label">My Availability:</label>
+          <div class="availability-buttons" id="buttons-${key}">
+            <button class="availability-btn ${yesOn ? 'active-yes' : ''}" onclick="slotVote('${key}', 'yes')" ${yesBlocked ? 'disabled' : ''}>
+              ${_svg(IC.check, 15)} Yes
+            </button>
+            <button class="availability-btn ${bowlOn ? 'active-bowling' : ''}" onclick="slotVote('${key}', 'bowling-only')" ${bowlBlocked ? 'disabled' : ''}>
+              Bowling Only
+            </button>
+            <button class="availability-btn ${eveningOff ? 'active-no' : ''}" onclick="slotVote('${key}', 'not-available')" ${anyLocked ? 'disabled' : ''}>
+              ${_svg(IC.x, 15)} Not Available
+            </button>
+          </div>
+        </div>
+
+        <div class="extra-players-section">
+          <label class="extra-players-label" for="extra-players-${key}">Bringing friends/guests?</label>
+          <select id="extra-players-${key}" class="extra-players-select" onchange="slotGuests('${key}')" ${guestSlot.locked ? 'disabled' : ''}>
+            ${guestOptions}
+          </select>
+          <small class="extra-players-hint">Unregistered players joining practice${mine ? ` (Slot ${mine.slotNumber})` : ''}</small>
+        </div>
+
+        <div class="team-status">
+          <div class="team-status-title">Team Status:</div>
+          ${slots.map((p) => `
+            <div class="team-status-counts slot-status-line">
+              <span class="slot-status-name">Slot ${p.slotNumber}</span>
+              <span class="status-count"><span class="status-count-value">${p.battingCount}</span> batting</span>
+              <span class="status-count"><span class="status-count-value">${p.availabilityCounts.bowlingOnly}</span> bowling only</span>
+            </div>`).join('')}
+          <div class="team-status-counts slot-status-line">
+            <span class="status-count"><span class="status-count-value">${first.eveningNotAvailable ?? 0}</span> not available</span>
+          </div>
+        </div>
+
+        <div class="available-players-section">
+          <button class="available-players-toggle" onclick="toggleSlotPlayers('${key}')" id="toggle-${key}">
+            <span class="toggle-text">View Available Players</span>
+            <span class="toggle-icon">▼</span>
+          </button>
+          <div class="available-players-list" id="players-${key}" style="display: none;">
+            <div class="players-loading">Loading...</div>
+          </div>
+        </div>
+      `;
+      return card;
+    }
+
+    function selectSlot(key: string, practiceId: string) {
+      slotSelection[key] = practiceId;
+      renderPractices();
+    }
+
+    async function postVote(body: Record<string, unknown>) {
+      const res = await fetch('/.netlify/functions/practice-availability-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to update availability');
+      }
+    }
+
+    async function runSlotUpdate(key: string, body: Record<string, unknown>) {
+      if (updatingPracticeId) return;
+      updatingPracticeId = key;
+      document.querySelectorAll(`#practice-${key} button, #practice-${key} select, #practice-${key} input`)
+        .forEach((el) => { (el as HTMLButtonElement).disabled = true; });
+      try {
+        await postVote(body);
+        await loadPractices();
+      } catch (error) {
+        alert(error instanceof Error ? error.message : 'Failed to update availability');
+        renderPractices();
+      } finally {
+        updatingPracticeId = null;
+      }
+    }
+
+    function slotVote(key: string, response: string) {
+      const slots = slotsOf(key);
+      const mine = mySlot(slots);
+      const sel = selectedSlot(key, slots);
+      const select = document.getElementById(`extra-players-${key}`) as HTMLSelectElement | null;
+      const extraPlayers = select ? parseInt(select.value) : 0;
+
+      if (response === 'not-available') {
+        // Not available is for the whole evening; pressing it again clears it
+        const isOff = !mine && slots.some((p) => p.myResponse === 'not-available');
+        return runSlotUpdate(key, { practiceId: sel.id, response: isOff ? null : 'not-available', wholeEvening: true });
+      }
+      if (mine && mine.id === sel.id && mine.myResponse === response) {
+        return runSlotUpdate(key, { practiceId: sel.id, response: null, extraPlayers });
+      }
+      return runSlotUpdate(key, { practiceId: sel.id, response, extraPlayers, switchSlot: !!mine && mine.id !== sel.id });
+    }
+
+    function slotGuests(key: string) {
+      const slots = slotsOf(key);
+      const target = mySlot(slots) || selectedSlot(key, slots);
+      const select = document.getElementById(`extra-players-${key}`) as HTMLSelectElement;
+      return runSlotUpdate(key, { practiceId: target.id, response: target.myResponse || null, extraPlayers: parseInt(select.value) });
+    }
+
+    async function toggleSlotPlayers(key: string) {
+      const toggleBtn = document.getElementById(`toggle-${key}`);
+      const list = document.getElementById(`players-${key}`);
+      if (!toggleBtn || !list) return;
+      if (list.style.display !== 'none') {
+        list.style.display = 'none';
+        toggleBtn.classList.remove('expanded');
+        return;
+      }
+      list.style.display = 'block';
+      toggleBtn.classList.add('expanded');
+      list.innerHTML = '<div class="players-loading">Loading players...</div>';
+      try {
+        const slots = slotsOf(key);
+        const lists = await Promise.all(slots.map(async (p) => {
+          const res = await fetch(`/.netlify/functions/practice-available-players-get?practiceId=${p.id}`, { credentials: 'same-origin' });
+          if (!res.ok) throw new Error('Failed to load available players');
+          return res.json();
+        }));
+        list.innerHTML = slots.map((p, i) => {
+          const data = lists[i];
+          // Guests bat too, so show them next to the count (matches the batting places above)
+          const guestsOf = (players: any[]) => {
+            const n = players.reduce((sum, pl) => sum + (pl.extraPlayers || 0), 0);
+            return n ? ` + ${n} guest${n === 1 ? '' : 's'}` : '';
+          };
+          const names = (players: any[], cls: string) => players.map((pl) => playerBadge(pl, cls, pl.extraPlayers > 0 ? ` +${pl.extraPlayers}` : '')).join('');
+          const body = data.totalYes === 0 && data.totalBowlingOnly === 0
+            ? '<div class="no-players-message">No one yet</div>'
+            : `${data.totalYes > 0 ? `<div class="players-section"><div class="players-section-title available">${_svg(IC.check, 14)} Batting (${data.totalYes}${guestsOf(data.yesPlayers)})</div><div class="player-names-list">${names(data.yesPlayers, 'available')}</div></div>` : ''}
+               ${data.totalBowlingOnly > 0 ? `<div class="players-section"><div class="players-section-title bowling-only">${_svg(IC.activity, 14)} Bowling Only (${data.totalBowlingOnly}${guestsOf(data.bowlingOnlyPlayers)})</div><div class="player-names-list">${names(data.bowlingOnlyPlayers, 'bowling-only')}</div></div>` : ''}`;
+          return `<div class="slot-players"><div class="slot-players-title">Slot ${p.slotNumber} · ${p.time}</div>${body}</div>`;
+        }).join('');
+      } catch (error) {
+        list.innerHTML = '<div class="no-players-message">Failed to load players. Please try again.</div>';
+      }
     }
 
     async function updateAvailability(practiceId: string, response: string) {
@@ -937,5 +1222,9 @@ if (!session || !isMember(session)) {
     (window as any).updateAvailability = updateAvailability;
     (window as any).updateExtraPlayers = updateExtraPlayers;
     (window as any).toggleAvailablePlayers = toggleAvailablePlayers;
+    (window as any).selectSlot = selectSlot;
+    (window as any).slotVote = slotVote;
+    (window as any).slotGuests = slotGuests;
+    (window as any).toggleSlotPlayers = toggleSlotPlayers;
   </script>
 </Layout>
