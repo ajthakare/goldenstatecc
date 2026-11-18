@@ -33,9 +33,9 @@ export const DOCUMENTS: ClubDocument[] = [
   },
   {
     folder: 'ncca',
-    file: '2026 NCCA Winter T20 Standing Rules - Oct 26 2026.docx.pdf',
+    file: '2026 NCCA Winter T20 Standing Rules - Oct 31 2026.pdf',
     title: 'NCCA Winter T20 Standing Rules 2026',
-    description: 'League playing conditions for the winter T20 season (updated Oct 26, 2026).',
+    description: 'League playing conditions for the winter T20 season (updated Oct 31, 2026).',
   },
   {
     folder: 'ncca',
