@@ -1,5 +1,5 @@
 import { Handler, HandlerEvent } from '@netlify/functions';
-import { validateAdminSession } from '../../src/middleware/auth';
+import { sessionFromHeaders } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
 import { recalculateProfileStats } from './_profile-stats';
 
@@ -15,7 +15,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
     return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
   try {
-    const session = validateAdminSession(event.headers.cookie);
+    const session = sessionFromHeaders(event.headers);
     if (!session || !(await isCurrentAdmin(session))) {
       return { statusCode: 403, body: JSON.stringify({ error: 'Admin access required' }) };
     }

@@ -10,7 +10,7 @@ vi.mock('@netlify/blobs', () => ({
   getStore: ({ name }: { name: string }) => ({ get: async (key: string) => blobs[name]?.[key] ?? null }),
 }));
 vi.mock('../../src/middleware/auth', () => ({
-  validateAdminSession: () => ({ userId: 'p1', email: 'p1@example.com', role: 'member' }),
+  sessionFromHeaders: () => ({ userId: 'p1', email: 'p1@example.com', role: 'member' }),
   isMember: () => true,
 }));
 

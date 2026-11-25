@@ -1,6 +1,6 @@
 import type { Context } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import { validateAdminSession, isMember } from '../../src/middleware/auth';
+import { sessionFromHeaders, isMember } from '../../src/middleware/auth';
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== 'POST') {
@@ -10,8 +10,7 @@ export default async (req: Request, _context: Context) => {
     });
   }
 
-  const cookieHeader = req.headers.get('cookie') || '';
-  const session = validateAdminSession(cookieHeader);
+  const session = sessionFromHeaders(req.headers);
   if (!session || !isMember(session)) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,

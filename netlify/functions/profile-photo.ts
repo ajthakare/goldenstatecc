@@ -1,5 +1,5 @@
 import { Handler, HandlerEvent } from '@netlify/functions';
-import { validateAdminSession, isMember } from '../../src/middleware/auth';
+import { sessionFromHeaders, isMember } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
 import { addAuditLog } from '../../src/utils/auditLog';
 import { blobStore, loadPlayers } from './_profile-stats';
@@ -32,7 +32,7 @@ function detectImageType(bytes: Buffer): string | null {
 
 export const handler: Handler = async (event: HandlerEvent) => {
   try {
-    const session = validateAdminSession(event.headers.cookie);
+    const session = sessionFromHeaders(event.headers);
     if (!session || !isMember(session)) {
       return { statusCode: 401, body: JSON.stringify({ error: 'Authentication required' }) };
     }

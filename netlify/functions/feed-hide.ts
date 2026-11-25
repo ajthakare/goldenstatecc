@@ -1,5 +1,5 @@
 import { Handler, HandlerEvent } from '@netlify/functions';
-import { validateAdminSession } from '../../src/middleware/auth';
+import { sessionFromHeaders } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
 import { addAuditLog } from '../../src/utils/auditLog';
 import { loadHiddenPosts } from './_profile-stats';
@@ -18,7 +18,7 @@ import { setStoredFeedHidden, updateHiddenPosts } from './_club-feed';
  */
 export const handler: Handler = async (event: HandlerEvent) => {
   try {
-    const session = validateAdminSession(event.headers.cookie);
+    const session = sessionFromHeaders(event.headers);
     if (!session) {
       return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
     }

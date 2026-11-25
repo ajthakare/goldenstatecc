@@ -1,11 +1,10 @@
 import type { Context } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import { validateAdminSession } from '../../src/middleware/auth';
+import { sessionFromHeaders } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
 
 export default async (req: Request, _context: Context) => {
-  const cookieHeader = req.headers.get('cookie') || '';
-  const session = validateAdminSession(cookieHeader);
+  const session = sessionFromHeaders(req.headers);
   if (!session || !(await isCurrentAdmin(session))) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,

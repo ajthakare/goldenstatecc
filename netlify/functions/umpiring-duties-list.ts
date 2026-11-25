@@ -1,5 +1,5 @@
 import { Handler, HandlerEvent } from '@netlify/functions';
-import { validateAdminSession } from '../../src/middleware/auth';
+import { sessionFromHeaders } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
 import { getJSONWithRetry, blobStore, mapLimit, readJSON, todayString } from './_profile-stats';
 import { json, loadDuties } from './_umpiring';
@@ -18,7 +18,7 @@ import type { Fixture, FixtureAvailability } from '../../src/types/player';
  */
 export const handler: Handler = async (event: HandlerEvent) => {
   try {
-    const session = validateAdminSession(event.headers.cookie);
+    const session = sessionFromHeaders(event.headers);
     if (!session) return json(401, { error: 'Unauthorized' });
     // Admin endpoint: a valid member session isn't enough
     if (!(await isCurrentAdmin(session))) return json(403, { error: 'Admin access required' });

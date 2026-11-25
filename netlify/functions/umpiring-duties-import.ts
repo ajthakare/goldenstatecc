@@ -1,7 +1,7 @@
 import { Handler, HandlerEvent } from '@netlify/functions';
 import { randomUUID } from 'crypto';
 import Papa from 'papaparse';
-import { validateAdminSession } from '../../src/middleware/auth';
+import { sessionFromHeaders } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
 import { addAuditLog } from '../../src/utils/auditLog';
 import { json, loadDuties, loadSeason, saveDuties } from './_umpiring';
@@ -18,7 +18,7 @@ import { importDutyRows } from '../../src/utils/umpiring';
  */
 export const handler: Handler = async (event: HandlerEvent) => {
   try {
-    const session = validateAdminSession(event.headers.cookie);
+    const session = sessionFromHeaders(event.headers);
     if (!session) return json(401, { error: 'Unauthorized' });
     // Admin endpoint: a valid member session isn't enough
     if (!(await isCurrentAdmin(session))) return json(403, { error: 'Admin access required' });

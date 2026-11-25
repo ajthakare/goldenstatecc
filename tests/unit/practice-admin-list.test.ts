@@ -10,7 +10,7 @@ vi.mock('@netlify/blobs', () => ({
   getStore: ({ name }: { name: string }) => ({ get: async (key: string) => blobs[name]?.[key] ?? null }),
 }));
 vi.mock('../../src/middleware/auth', () => ({
-  validateAdminSession: () => ({ userId: 'a1', role: 'admin' }),
+  sessionFromHeaders: () => ({ userId: 'a1', role: 'admin' }),
 }));
 vi.mock('../../netlify/functions/_admin-auth', () => ({ isCurrentAdmin: async () => true }));
 

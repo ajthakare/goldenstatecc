@@ -1,5 +1,5 @@
 import { Handler, HandlerEvent } from '@netlify/functions';
-import { validateAdminSession, isMember } from '../../src/middleware/auth';
+import { sessionFromHeaders, isMember } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
 import { buildFeed, clubFeedCacheHeaders } from '../../src/utils/feed';
 import { feedPlayers, loadFeedSources } from './_club-feed';
@@ -27,7 +27,7 @@ import { todayString } from './_profile-stats';
  */
 export const handler: Handler = async (event: HandlerEvent) => {
   try {
-    const session = validateAdminSession(event.headers.cookie);
+    const session = sessionFromHeaders(event.headers);
     const signedIn = !!(session && isMember(session));
 
     const playerId = event.queryStringParameters?.playerId || undefined;

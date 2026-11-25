@@ -1,6 +1,6 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import { validateAdminSession, isMember, verifyPassword, hashPassword } from '../../src/middleware/auth';
+import { sessionFromHeaders, isMember, verifyPassword, hashPassword } from '../../src/middleware/auth';
 import { addAuditLog } from '../../src/utils/auditLog';
 import type { Player } from '../../src/types/player';
 import { BATTING_STYLES, BOWLING_STYLES, PLAYER_ROLES } from '../../src/types/player';
@@ -28,7 +28,7 @@ export const handler: Handler = async (
 
   try {
     // Validate member session
-    const session = validateAdminSession(event.headers.cookie);
+    const session = sessionFromHeaders(event.headers);
     if (!session || !isMember(session)) {
       return {
         statusCode: 403,
