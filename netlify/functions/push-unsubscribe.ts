@@ -1,7 +1,8 @@
 import type { Context } from '@netlify/functions';
-import { getStore } from '@netlify/blobs';
 import { sessionFromHeaders } from '../../src/middleware/auth';
 import { isCurrentMember } from './_admin-auth';
+import { updateJSON } from './_blobs';
+import { pushStore, WEB_KEY } from './_push-utils';
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== 'POST') {
@@ -30,18 +31,11 @@ export default async (req: Request, _context: Context) => {
       });
     }
 
-    const store = getStore({
-      name: 'push-subscriptions',
-      siteID: process.env.SITE_ID || '',
-      token: process.env.NETLIFY_AUTH_TOKEN || '',
-    });
-
-    const existing = (await store.get('subscriptions', { type: 'json' })) || [];
     // Only the signed-in member's own subscription for this device can be removed
-    const filtered = existing.filter(
-      (s: any) => !(s.subscription.endpoint === endpoint && s.playerId === session.userId)
+    const mine = (s: any) => s.subscription?.endpoint === endpoint && s.playerId === session.userId;
+    await updateJSON<any[]>(pushStore(), WEB_KEY, (existing) =>
+      existing && existing.some(mine) ? existing.filter((s) => !mine(s)) : null
     );
-    await store.setJSON('subscriptions', filtered);
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,

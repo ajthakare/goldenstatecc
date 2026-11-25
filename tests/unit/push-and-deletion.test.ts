@@ -83,6 +83,8 @@ const expoFetch = vi.fn(async (_url: string, init: { body: string }) => {
 vi.stubGlobal('fetch', expoFetch);
 
 import registerDevice from '../../netlify/functions/push-register-device';
+import webSubscribe from '../../netlify/functions/push-subscribe';
+import webUnsubscribe from '../../netlify/functions/push-unsubscribe';
 import { handler as accountDelete } from '../../netlify/functions/account-delete';
 import { sendPushToAll, sendPushToPlayers } from '../../netlify/functions/_push-utils';
 import { createSession, hashPassword } from '../../src/middleware/auth';
@@ -172,6 +174,45 @@ describe('push-register-device', () => {
       {} as any
     );
     expect(anon.status).toBe(401);
+  });
+});
+
+describe('browser subscribe and unsubscribe', () => {
+  const call = (fn: typeof webSubscribe, userId: string, body: unknown) =>
+    fn(
+      new Request('https://gscc.test/x', {
+        method: 'POST',
+        headers: { authorization: bearer(userId), 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+      {} as any
+    );
+
+  beforeEach(() => {
+    put('players', 'players-all', [
+      { id: 'p1', email: 'p1@example.com', passwordHash: 'h' },
+      { id: 'p2', email: 'p2@example.com', passwordHash: 'h' },
+    ]);
+    put('push-subscriptions', 'expo-tokens', [{ playerId: 'p1', token: TOKEN_A }]);
+  });
+
+  it('adds a browser once per endpoint and leaves app tokens alone', async () => {
+    expect((await call(webSubscribe, 'p1', { subscription: { endpoint: 'https://web/1', keys: {} } })).status).toBe(200);
+    expect((await call(webSubscribe, 'p1', { subscription: { endpoint: 'https://web/1', keys: {} } })).status).toBe(200);
+    await call(webSubscribe, 'p2', { subscription: { endpoint: 'https://web/2', keys: {} } });
+    expect(read('push-subscriptions', 'subscriptions').map((s: any) => s.subscription.endpoint)).toEqual([
+      'https://web/1',
+      'https://web/2',
+    ]);
+    expect(read('push-subscriptions', 'expo-tokens')).toHaveLength(1);
+  });
+
+  it('removes only your own browser', async () => {
+    await call(webSubscribe, 'p1', { subscription: { endpoint: 'https://web/1', keys: {} } });
+    await call(webSubscribe, 'p2', { subscription: { endpoint: 'https://web/2', keys: {} } });
+    await call(webUnsubscribe, 'p1', { endpoint: 'https://web/2' });
+    await call(webUnsubscribe, 'p1', { endpoint: 'https://web/1' });
+    expect(read('push-subscriptions', 'subscriptions').map((s: any) => s.playerId)).toEqual(['p2']);
   });
 });
 
