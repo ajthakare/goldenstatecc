@@ -1,5 +1,6 @@
 import type { Handler, HandlerEvent } from '@netlify/functions';
-import { sessionFromHeaders, isMember } from '../../src/middleware/auth';
+import { sessionFromHeaders } from '../../src/middleware/auth';
+import { isCurrentMember } from './_admin-auth';
 import { loadPublicSchedule } from './_public-schedule';
 import { todayString } from './_profile-stats';
 
@@ -21,7 +22,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
   const session = sessionFromHeaders(event.headers);
   const schedule = await loadPublicSchedule({
     today: todayString(),
-    signedInMember: !!(session && isMember(session)),
+    signedInMember: !!(session && (await isCurrentMember(session))),
   });
 
   return {

@@ -1,7 +1,7 @@
 import type { Context } from '@netlify/functions';
-import { getStore } from '@netlify/blobs';
 import { sessionFromHeaders } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
+import { pushStore, WEB_KEY, EXPO_KEY } from './_push-utils';
 
 export default async (req: Request, _context: Context) => {
   const session = sessionFromHeaders(req.headers);
@@ -12,15 +12,16 @@ export default async (req: Request, _context: Context) => {
     });
   }
 
-  const store = getStore({
-    name: 'push-subscriptions',
-    siteID: process.env.SITE_ID || '',
-    token: process.env.NETLIFY_AUTH_TOKEN || '',
-  });
+  const store = pushStore();
+  const [web, app] = await Promise.all([
+    store.get(WEB_KEY, { type: 'json' }) as Promise<unknown[] | null>,
+    store.get(EXPO_KEY, { type: 'json' }) as Promise<unknown[] | null>,
+  ]);
+  const webCount = web?.length ?? 0;
+  const appCount = app?.length ?? 0;
 
-  const subscriptions = (await store.get('subscriptions', { type: 'json' })) || [];
-
-  return new Response(JSON.stringify({ count: subscriptions.length }), {
+  // count: every device a notification reaches (browsers/PWAs + the native app)
+  return new Response(JSON.stringify({ count: webCount + appCount, web: webCount, app: appCount }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });

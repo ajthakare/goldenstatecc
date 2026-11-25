@@ -80,6 +80,7 @@ export interface Player {
   approvedAt?: string;           // When super admin approved (ISO date)
   approvedBy?: string;           // Super admin username who approved
   lastLogin?: string;            // Track member activity (ISO date)
+  accountDeletedAt?: string;     // The player deleted their account (login and personal details removed; name kept in club records)
 
   // Emergency Contact Information (mandatory for members)
   emergencyContactName?: string;  // Emergency contact name

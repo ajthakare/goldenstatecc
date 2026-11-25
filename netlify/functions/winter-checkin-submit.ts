@@ -1,6 +1,7 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import { sessionFromHeaders, isMember } from '../../src/middleware/auth';
+import { sessionFromHeaders } from '../../src/middleware/auth';
+import { isCurrentMember } from './_admin-auth';
 import { addAuditLog } from '../../src/utils/auditLog';
 import { SITE_CONFIG, isAcceptingMemberResponses } from '../../src/config';
 import type { Player } from '../../src/types/player';
@@ -93,7 +94,7 @@ export const handler: Handler = async (
 
   // --- Identity: from the player record for members, from the body for guests ---
   const session = sessionFromHeaders(event.headers);
-  const memberSession = session && isMember(session) ? session : null;
+  const memberSession = session && (await isCurrentMember(session)) ? session : null;
 
   // Members' window (winter check-in + Summer '26 feedback) can be closed
   // independently of guests (prospective new members), who are never affected.

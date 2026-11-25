@@ -1,0 +1,104 @@
+---
+export const prerender = false;
+
+import Layout from '../../layouts/Layout.astro';
+import PageHeader from '../../components/PageHeader.astro';
+import { validateAdminSession } from '../../middleware/auth';
+import { SITE_CONFIG } from '../../config';
+
+// Account deletion: the URL the app stores (Google Play) link to, and where a
+// signed-in player can delete their account from the website. The work is
+// done by netlify/functions/account-delete.ts (same as in the app).
+const session = validateAdminSession(Astro.request.headers.get('cookie') || '');
+const contactEmail = SITE_CONFIG.email;
+---
+
+<Layout title="Delete Your Account - Golden State Cricket Club">
+  <div class="min-h-screen flex items-start justify-center px-4 pb-6 pt-8">
+    <div class="max-w-md w-full space-y-6">
+      <PageHeader align="center" rule={false} kicker="Account" title="Delete your account" subtitle="For the GSCC website and the GSCC app" />
+
+      <div class="card card-static p-6 space-y-3 text-sm">
+        <h2 class="subsection-heading">What is deleted</h2>
+        <ul class="list-disc pl-5 space-y-1 text-muted">
+          <li>Your sign-in (email and password) for the website and the app</li>
+          <li>Phone number, USAC ID, emergency contact, job and company</li>
+          <li>Your profile photo and privacy settings</li>
+          <li>Notifications on every device you signed in on</li>
+        </ul>
+        <h2 class="subsection-heading pt-2">What the club keeps</h2>
+        <p class="text-muted">
+          Your name and cricket details in the club's match records: fixtures, availability, results,
+          Player of the Match and statistics.
+        </p>
+        <p class="text-muted">Deletion is immediate and can't be undone. You can register again later with the same email.</p>
+      </div>
+
+      {session ? (
+        <div id="delete-section" class="card card-static p-6">
+          <div id="error-message" class="hidden mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700"></div>
+          <form id="delete-form" class="space-y-5">
+            <div>
+              <label for="password" class="field-label">Your password</label>
+              <input type="password" id="password" required autocomplete="current-password" class="input w-full" />
+            </div>
+            <label class="flex items-start gap-2 text-sm">
+              <input type="checkbox" id="confirm" required class="mt-1" />
+              <span>I understand my account will be deleted permanently.</span>
+            </label>
+            <button type="submit" id="submit-btn" class="btn btn-lg btn-block" style="background:#B42318;border-color:#B42318;">
+              Delete my account
+            </button>
+          </form>
+        </div>
+      ) : (
+        <div class="card card-static p-6 text-sm space-y-3">
+          <p>Sign in first, then come back to this page to delete your account.</p>
+          <a href="/login?redirect=/account/delete" class="btn btn-block">Sign in</a>
+          <p class="text-muted">
+            Can't sign in? Email <a class="link" href={`mailto:${contactEmail}?subject=Delete%20my%20GSCC%20account`}>{contactEmail}</a>
+            from the address on your account and we'll delete it for you.
+          </p>
+        </div>
+      )}
+
+      <div id="done-section" class="hidden card card-static p-6 text-center">
+        <h2 class="subsection-heading">Your account has been deleted</h2>
+        <p class="text-muted text-sm mb-6">You've been signed out. Thanks for playing with GSCC.</p>
+        <a href="/" class="btn">Go to the home page</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('delete-form') as HTMLFormElement | null;
+    const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement | null;
+    const errorMessage = document.getElementById('error-message') as HTMLElement | null;
+
+    form?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!submitBtn || !errorMessage) return;
+      const password = (document.getElementById('password') as HTMLInputElement).value;
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Deleting...';
+      errorMessage.classList.add('hidden');
+      try {
+        const res = await fetch('/.netlify/functions/account-delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Could not delete your account. Please try again.');
+        document.getElementById('delete-section')?.classList.add('hidden');
+        document.getElementById('done-section')?.classList.remove('hidden');
+      } catch (error) {
+        errorMessage.textContent = error instanceof Error ? error.message : 'Something went wrong. Please try again.';
+        errorMessage.classList.remove('hidden');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Delete my account';
+      }
+    });
+  </script>
+</Layout>

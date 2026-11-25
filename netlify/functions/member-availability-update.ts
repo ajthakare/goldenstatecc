@@ -1,7 +1,8 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
 import { v4 as uuidv4 } from 'uuid';
-import { sessionFromHeaders, isMember } from '../../src/middleware/auth';
+import { sessionFromHeaders } from '../../src/middleware/auth';
+import { isCurrentMember } from './_admin-auth';
 import { addAuditLog } from '../../src/utils/auditLog';
 import type { FixtureAvailability, CoreRosterAssignment, Player, PlayerAvailabilityRecord } from '../../src/types/player';
 import { parseLocalDate, getPacificToday } from './_utils';
@@ -28,7 +29,7 @@ export const handler: Handler = async (
   try {
     // Validate member session
     const session = sessionFromHeaders(event.headers);
-    if (!session || !isMember(session)) {
+    if (!session || !(await isCurrentMember(session))) {
       return {
         statusCode: 403,
         body: JSON.stringify({ error: 'Member authentication required' }),

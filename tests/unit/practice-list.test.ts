@@ -13,6 +13,8 @@ vi.mock('../../src/middleware/auth', () => ({
   sessionFromHeaders: () => ({ userId: 'p1', email: 'p1@example.com', role: 'member' }),
   isMember: () => true,
 }));
+// The account itself is checked in current-member.test.ts; here it's an active member
+vi.mock('../../netlify/functions/_admin-auth', () => ({ isCurrentMember: async () => true }));
 
 import { handler } from '../../netlify/functions/practice-list';
 
