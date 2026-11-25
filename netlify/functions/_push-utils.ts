@@ -12,6 +12,8 @@
 import { getStore } from '@netlify/blobs';
 import webpush from 'web-push';
 import { updateJSON } from './_blobs';
+import { loginBlock } from './_login-status';
+import { loadPlayers } from './_profile-stats';
 
 export interface PushPayload {
   title: string;
@@ -121,17 +123,22 @@ async function sendExpo(targets: StoredExpoToken[], payload: PushPayload): Promi
   return { sent, gone };
 }
 
-/** Send to every device whose player passes `wanted` (null = everyone), then drop devices that are gone. */
+/** Send to these players' devices (null = everyone), active accounts only, then drop devices that are gone. */
 export async function sendPushTo(playerIds: string[] | null, payload: PushPayload): Promise<PushResult> {
   const ids = playerIds ? new Set(playerIds) : null;
   if (ids && ids.size === 0) return { sent: 0, total: 0, expired: 0 };
-  const wanted = (playerId: string) => !ids || ids.has(playerId);
 
   const store = pushStore();
-  const [web, expo] = await Promise.all([
+  const [web, expo, players] = await Promise.all([
     store.get(WEB_KEY, { type: 'json' }) as Promise<StoredWebSubscription[] | null>,
     store.get(EXPO_KEY, { type: 'json' }) as Promise<StoredExpoToken[] | null>,
+    loadPlayers().catch(() => []),
   ]);
+  // Only players whose account is active (same rule as login): a suspended,
+  // pending or deleted player's devices get nothing. If the player list can't
+  // be read, send as before rather than to nobody.
+  const active = players.length > 0 ? new Set(players.filter((p) => !loginBlock(p)).map((p) => p.id)) : null;
+  const wanted = (playerId: string) => (!ids || ids.has(playerId)) && (!active || active.has(playerId));
   const webTargets = (web || []).filter((s) => wanted(s.playerId));
   const expoTargets = (expo || []).filter((t) => wanted(t.playerId));
 

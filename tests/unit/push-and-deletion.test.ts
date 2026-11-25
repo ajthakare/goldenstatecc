@@ -244,6 +244,18 @@ describe('sending pushes to browsers and the app', () => {
     expect(expoMessages.map((m) => m.to)).toEqual([TOKEN_A]);
   });
 
+  it("skips suspended or deleted players' devices", async () => {
+    put('players', 'players-all', [
+      { id: 'p1', email: 'p1@example.com', passwordHash: 'h' },
+      { id: 'p2', email: 'p2@example.com', passwordHash: 'h', registrationStatus: 'suspended' },
+      { id: 'p3', firstName: 'Gone', accountDeletedAt: '2026-11-25' },
+    ]);
+    const result = await sendPushToAll({ title: 't', body: 'b' });
+    expect(result.sent).toBe(2);
+    expect(webSent).toEqual(['https://web/p1']);
+    expect(expoMessages.map((m) => m.to)).toEqual([TOKEN_A]);
+  });
+
   it('does not call the Expo service when no phone is targeted', async () => {
     await sendPushToPlayers(['p2'], { title: 't', body: 'b' });
     expect(expoFetch).not.toHaveBeenCalled();
