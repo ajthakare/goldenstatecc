@@ -6,6 +6,8 @@ import { sessionCookieDomain } from './hosts';
 const SESSION_SECRET = process.env.SESSION_SECRET || '';
 const SESSION_COOKIE_NAME = 'bengals_admin_session';
 const SESSION_EXPIRY = '15d';
+/** Native app tokens: longer, since the app renews them on every launch (auth-refresh). */
+export const APP_SESSION_EXPIRY = '30d';
 
 export type AdminRole = 'super_admin' | 'admin';
 export type AuthRole = 'super_admin' | 'admin' | 'member';
@@ -55,20 +57,22 @@ export async function verifyPassword(
  * @param email - User email
  * @param role - Authentication role (super_admin, admin, or member)
  * @param username - Optional username (for admins)
+ * @param expiresIn - Token lifetime; the website's 15 days unless given (app: APP_SESSION_EXPIRY)
  * @returns JWT token string
  */
 export function createSession(
   userId: string,
   email: string,
   role: AuthRole,
-  username?: string
+  username?: string,
+  expiresIn: typeof SESSION_EXPIRY | typeof APP_SESSION_EXPIRY = SESSION_EXPIRY
 ): string {
   if (!SESSION_SECRET) {
     throw new Error('SESSION_SECRET environment variable is not set');
   }
 
   const payload: SessionPayload = { userId, email, role, username };
-  return jwt.sign(payload, SESSION_SECRET, { expiresIn: SESSION_EXPIRY });
+  return jwt.sign(payload, SESSION_SECRET, { expiresIn });
 }
 
 /**

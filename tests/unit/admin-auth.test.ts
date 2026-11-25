@@ -20,6 +20,7 @@ const FUNCTIONS_DIR = join(__dirname, '../../netlify/functions');
 const NOT_ADMIN_ONLY = new Set([
   'players-get', // members may read their own record; tested below
   'auth-check',  // any signed-in user checks their own session
+  'auth-refresh', // any signed-in app user renews their own token; tested in auth-app-token.test.ts
 ]);
 
 const cookieFor = (role: 'member' | 'admin' | 'super_admin', userId = 'member-1') =>
