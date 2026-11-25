@@ -8,6 +8,14 @@ import {
 import type { Player } from '../../src/types/player';
 import { readPlayersForUpdate, writePlayers } from './_players-store';
 import { loginBlock, sessionClaims, sessionUser } from './_login-status';
+import {
+  clearFailures,
+  emailAttemptKey,
+  lockedFor,
+  lockedResponse,
+  playerAttemptKey,
+  recordFailure,
+} from './_password-attempts';
 
 /**
  * Handle unified login (admin and member)
@@ -56,23 +64,35 @@ export const handler: Handler = async (
       (p) => p.email?.toLowerCase() === normalizedEmail && p.passwordHash
     );
 
+    // Wrong-password limit, counted per account; an unknown email gets its own
+    // count and the same responses, so a lockout doesn't reveal whether it exists
+    const attemptKey = player ? playerAttemptKey(player.id) : emailAttemptKey(normalizedEmail);
+    const locked = await lockedFor(attemptKey);
+    if (locked) return lockedResponse(locked);
+
+    const invalid = async () => {
+      const nowLocked = await recordFailure(attemptKey);
+      if (nowLocked) return lockedResponse(nowLocked);
+      return {
+        statusCode: 401,
+        body: JSON.stringify({ error: 'Invalid credentials' }),
+      };
+    };
+
     // No login, or registration pending / rejected / suspended (same rule as auth-refresh)
     const blocked = loginBlock(player);
-    if (blocked || !player) {
+    if (!player) return invalid();
+    if (blocked) {
       return {
-        statusCode: blocked?.statusCode ?? 401,
-        body: JSON.stringify({ error: blocked?.error ?? 'Invalid credentials' }),
+        statusCode: blocked.statusCode,
+        body: JSON.stringify({ error: blocked.error }),
       };
     }
 
     // Verify password
     const isValid = await verifyPassword(password, player.passwordHash!);
-    if (!isValid) {
-      return {
-        statusCode: 401,
-        body: JSON.stringify({ error: 'Invalid credentials' }),
-      };
-    }
+    if (!isValid) return invalid();
+    await clearFailures(attemptKey);
 
     // Update lastLogin timestamp
     player.lastLogin = new Date().toISOString();
