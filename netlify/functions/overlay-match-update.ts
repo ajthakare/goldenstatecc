@@ -1,6 +1,6 @@
 import { Handler, HandlerEvent } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import { validateAdminSession } from '../../src/middleware/auth';
+import { sessionFromHeaders } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
 import { updateJSON } from './_blobs';
 import {
@@ -27,7 +27,7 @@ const JSON_HEADERS: Record<string, string> = { 'Content-Type': 'application/json
 
 export const handler: Handler = async (event: HandlerEvent) => {
   try {
-    const session = validateAdminSession(event.headers.cookie);
+    const session = sessionFromHeaders(event.headers);
     if (!session) {
       return { statusCode: 401, headers: JSON_HEADERS, body: JSON.stringify({ error: 'Unauthorized' }) };
     }

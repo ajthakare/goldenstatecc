@@ -1,5 +1,5 @@
 import { Handler, HandlerEvent } from '@netlify/functions';
-import { validateAdminSession, isMember } from '../../src/middleware/auth';
+import { sessionFromHeaders, isMember } from '../../src/middleware/auth';
 import { loadPlayers, readJSON } from './_profile-stats';
 import { json, loadDuties } from './_umpiring';
 import { toPublicDuty } from '../../src/utils/umpiring';
@@ -13,7 +13,7 @@ import { toPublicDuty } from '../../src/utils/umpiring';
  */
 export const handler: Handler = async (event: HandlerEvent) => {
   try {
-    const session = validateAdminSession(event.headers.cookie);
+    const session = sessionFromHeaders(event.headers);
     const signedIn = !!(session && isMember(session));
 
     let seasonId = event.queryStringParameters?.seasonId;

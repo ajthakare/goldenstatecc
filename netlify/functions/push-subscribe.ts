@@ -1,6 +1,6 @@
 import type { Context } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import { validateAdminSession, isMember } from '../../src/middleware/auth';
+import { sessionFromHeaders, isMember } from '../../src/middleware/auth';
 
 interface StoredSubscription {
   playerId: string;
@@ -17,8 +17,7 @@ export default async (req: Request, _context: Context) => {
     });
   }
 
-  const cookieHeader = req.headers.get('cookie') || '';
-  const session = validateAdminSession(cookieHeader);
+  const session = sessionFromHeaders(req.headers);
   if (!session || !isMember(session)) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,

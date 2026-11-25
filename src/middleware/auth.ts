@@ -177,6 +177,46 @@ export function validateAdminSession(
   return validateSession(token);
 }
 
+/** Request headers in either function style: a plain object (event.headers) or a fetch Headers (req.headers). */
+export type RequestHeaders = Headers | Record<string, string | undefined> | undefined | null;
+
+function readHeader(headers: RequestHeaders, name: string): string | undefined {
+  if (!headers) return undefined;
+  if (typeof (headers as Headers).get === 'function') {
+    return (headers as Headers).get(name) ?? undefined;
+  }
+  const record = headers as Record<string, string | undefined>;
+  if (record[name] !== undefined) return record[name];
+  const key = Object.keys(record).find((k) => k.toLowerCase() === name);
+  return key ? record[key] : undefined;
+}
+
+/** The token from an `Authorization: Bearer <token>` header, or null. */
+export function bearerToken(authorization: string | undefined): string | null {
+  const match = authorization?.match(/^Bearer\s+(\S+)\s*$/i);
+  return match ? match[1] : null;
+}
+
+/**
+ * The signed-in session for a function request, from either source:
+ * - `Authorization: Bearer <jwt>`: the native app
+ * - the session cookie: the website and PWAs
+ *
+ * Both carry the same JWT, validated the same way, so a token grants exactly
+ * what the cookie would. When a Bearer header is present it alone decides: an
+ * invalid one is rejected, not retried with the cookie. Like
+ * validateAdminSession, this accepts any signed-in role; admin functions must
+ * still call isCurrentAdmin (see netlify/functions/_admin-auth.ts).
+ */
+export function sessionFromHeaders(headers: RequestHeaders): SessionPayload | null {
+  const authorization = readHeader(headers, 'authorization');
+  if (authorization !== undefined && /^Bearer\b/i.test(authorization)) {
+    const token = bearerToken(authorization);
+    return token ? validateSession(token) : null;
+  }
+  return validateAdminSession(readHeader(headers, 'cookie'));
+}
+
 /**
  * Strip the password hash before a player record leaves the server.
  * `hasPassword` tells admin pages whether the player has a member login.

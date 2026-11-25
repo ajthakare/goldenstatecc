@@ -390,7 +390,8 @@ try {
 ### Add New Admin Function
 1. Create Netlify function in `/netlify/functions/`
 2. Follow pattern from existing functions (auth check, Blobs operations)
-3. **Check the role, not just the session:** `validateAdminSession()` accepts any signed-in user, members included. After it, call `isCurrentAdmin(session)` (or `isCurrentSuperAdmin`) from `netlify/functions/_admin-auth.ts` and return 403 if it fails. `tests/unit/admin-auth.test.ts` fails for any admin function that skips this
+3. **Read the session with `sessionFromHeaders(event.headers)`** (or `req.headers` in v2 functions), never the cookie directly: it accepts the website's cookie and the native app's `Authorization: Bearer` token. `tests/unit/session-from-headers.test.ts` fails for any function that reads the cookie itself
+4. **Check the role, not just the session:** `sessionFromHeaders()` accepts any signed-in user, members included. After it, call `isCurrentAdmin(session)` (or `isCurrentSuperAdmin`) from `netlify/functions/_admin-auth.ts` and return 403 if it fails. `tests/unit/admin-auth.test.ts` fails for any admin function that skips this
 
 ### Run Maintenance Scripts
 ```bash
@@ -445,7 +446,7 @@ touch local-debug/scripts/check-data-integrity.js
 - Carousel has horizontal scroll with snap points
 
 ### Authentication
-- Signed JWT in a cookie (`src/middleware/auth.ts`); nothing stored server-side
+- Signed JWT in a cookie (`src/middleware/auth.ts`); nothing stored server-side. Functions also accept the same JWT as `Authorization: Bearer` (native app) via `sessionFromHeaders`
 - Roles: `member`, `admin`, `super_admin`. The token carries the role from login time, so admin functions re-check the current role in `players-all` (`isCurrentAdmin`)
 - 15-day session expiry
 - Passwords hashed with bcrypt

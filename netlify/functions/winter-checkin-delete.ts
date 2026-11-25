@@ -1,6 +1,6 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import { validateAdminSession } from '../../src/middleware/auth';
+import { sessionFromHeaders } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
 import { addAuditLog } from '../../src/utils/auditLog';
 import { SITE_CONFIG, isWinterCheckInAdminRestricted } from '../../src/config';
@@ -22,7 +22,7 @@ export const handler: Handler = async (
     return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
 
-  const session = validateAdminSession(event.headers.cookie);
+  const session = sessionFromHeaders(event.headers);
   if (!session || !(await isCurrentAdmin(session)) || isWinterCheckInAdminRestricted(session.email)) {
     return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
   }

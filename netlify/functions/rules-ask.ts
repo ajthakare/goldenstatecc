@@ -1,6 +1,6 @@
 import { Handler, HandlerEvent } from '@netlify/functions';
 import Anthropic from '@anthropic-ai/sdk';
-import { validateAdminSession } from '../../src/middleware/auth';
+import { sessionFromHeaders } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
 import rules from '../../src/data/ncca-rules.json';
 import { DOCUMENTS } from '../../src/data/documents';
@@ -134,7 +134,7 @@ export function buildRequest(
 const asText = (value: unknown, max: number) => (typeof value === 'string' ? value.trim().slice(0, max) : '');
 
 export const handler: Handler = async (event: HandlerEvent) => {
-  const session = validateAdminSession(event.headers.cookie);
+  const session = sessionFromHeaders(event.headers);
   if (!session) return json(401, { error: 'Unauthorized' });
   // Admin endpoint: a valid member session isn't enough
   if (!(await isCurrentAdmin(session))) return json(403, { error: 'Admin access required' });

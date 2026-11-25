@@ -1,5 +1,5 @@
 import { Handler, HandlerEvent } from '@netlify/functions';
-import { validateAdminSession } from '../../src/middleware/auth';
+import { sessionFromHeaders } from '../../src/middleware/auth';
 import { isCurrentAdmin } from './_admin-auth';
 import { blobStore, readJSON } from './_profile-stats';
 import { countDutyHistory } from '../../src/utils/duty-suggestions';
@@ -20,7 +20,7 @@ const json = (statusCode: number, data: unknown) => ({
  */
 export const handler: Handler = async (event: HandlerEvent) => {
   try {
-    const session = validateAdminSession(event.headers.cookie);
+    const session = sessionFromHeaders(event.headers);
     if (!session) return json(401, { error: 'Unauthorized' });
 
     // Admin endpoint: a valid member session isn't enough

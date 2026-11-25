@@ -1,6 +1,6 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import { validateAdminSession, hashPassword } from '../../src/middleware/auth';
+import { sessionFromHeaders, hashPassword } from '../../src/middleware/auth';
 import { isCurrentSuperAdmin } from './_admin-auth';
 import { addAuditLog } from '../../src/utils/auditLog';
 import { readPlayersForUpdate, writePlayers } from './_players-store';
@@ -53,8 +53,7 @@ export const handler: Handler = async (
 
   try {
     // Validate admin session
-    const cookieHeader = event.headers.cookie;
-    const session = validateAdminSession(cookieHeader);
+    const session = sessionFromHeaders(event.headers);
 
     if (!session || !(await isCurrentSuperAdmin(session))) {
       return {

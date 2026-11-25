@@ -1,6 +1,6 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import { validateAdminSession, AdminUser } from '../../src/middleware/auth';
+import { sessionFromHeaders, AdminUser } from '../../src/middleware/auth';
 import type { Player } from '../../src/types/player';
 
 /**
@@ -14,10 +14,9 @@ export const handler: Handler = async (
 ) => {
   try {
     // Get cookie header
-    const cookieHeader = event.headers.cookie;
 
     // Validate session
-    const session = validateAdminSession(cookieHeader);
+    const session = sessionFromHeaders(event.headers);
 
     if (!session) {
       return {
