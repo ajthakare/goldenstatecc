@@ -516,6 +516,7 @@ touch local-debug/scripts/check-data-integrity.js
 
 - Password hashing with salt
 - Session validation on all admin endpoints, plus a current-role check (`isCurrentAdmin`), since a valid session alone can belong to a member
+- Member endpoints call `isCurrentMember(session)` (not the token-only `isMember`): it re-checks the account in `players-all`, so a deleted or suspended player's still-valid token is refused. `tests/unit/current-member.test.ts` enforces it
 - Role-based access control (RBAC)
 - Input sanitization
 - CSRF protection via same-origin policy

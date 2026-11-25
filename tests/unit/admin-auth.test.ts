@@ -39,7 +39,7 @@ const adminFunctions = readdirSync(FUNCTIONS_DIR)
     const src = readFileSync(join(FUNCTIONS_DIR, f), 'utf8');
     // Classic `handler` functions only; the few v2 (`export default`) functions
     // (push-send, push-subscriber-count) already check isAdmin and load push keys on import
-    return src.includes('sessionFromHeaders(') && !/\bisMember\b/.test(src)
+    return src.includes('sessionFromHeaders(') && !/\bisCurrentMember\b/.test(src)
       && /export const handler/.test(src);
   })
   .map((f) => f.replace(/\.ts$/, ''))

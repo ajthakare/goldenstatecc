@@ -87,6 +87,7 @@ import { handler as accountDelete } from '../../netlify/functions/account-delete
 import { sendPushToAll, sendPushToPlayers } from '../../netlify/functions/_push-utils';
 import { createSession, hashPassword } from '../../src/middleware/auth';
 import { loginBlock } from '../../netlify/functions/_login-status';
+import { _resetAdminAuthCache } from '../../netlify/functions/_admin-auth';
 
 const TOKEN_A = 'ExponentPushToken[aaaaaaaaaaaaaaaaaaaaaa]';
 const TOKEN_B = 'ExponentPushToken[bbbbbbbbbbbbbbbbbbbbbb]';
@@ -115,6 +116,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   blobs.clear();
+  _resetAdminAuthCache(); // the account check caches players-all for a few seconds
   audit.length = 0;
   webSent.length = 0;
   webGone.clear();

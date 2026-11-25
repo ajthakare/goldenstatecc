@@ -1,5 +1,6 @@
 import { Handler, HandlerEvent } from '@netlify/functions';
-import { sessionFromHeaders, isMember } from '../../src/middleware/auth';
+import { sessionFromHeaders } from '../../src/middleware/auth';
+import { isCurrentMember } from './_admin-auth';
 import { isListedMember, loadPlayers, loadProfileStats, toDirectoryCard } from './_profile-stats';
 
 /**
@@ -11,7 +12,7 @@ import { isListedMember, loadPlayers, loadProfileStats, toDirectoryCard } from '
 export const handler: Handler = async (event: HandlerEvent) => {
   try {
     const session = sessionFromHeaders(event.headers);
-    if (!session || !isMember(session)) {
+    if (!session || !(await isCurrentMember(session))) {
       return { statusCode: 401, body: JSON.stringify({ error: 'Authentication required' }) };
     }
 

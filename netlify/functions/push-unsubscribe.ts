@@ -1,6 +1,7 @@
 import type { Context } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import { sessionFromHeaders, isMember } from '../../src/middleware/auth';
+import { sessionFromHeaders } from '../../src/middleware/auth';
+import { isCurrentMember } from './_admin-auth';
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== 'POST') {
@@ -11,7 +12,7 @@ export default async (req: Request, _context: Context) => {
   }
 
   const session = sessionFromHeaders(req.headers);
-  if (!session || !isMember(session)) {
+  if (!session || !(await isCurrentMember(session))) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },

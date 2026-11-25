@@ -1,5 +1,5 @@
 /**
- * Role checks against the player database, not just the session token.
+ * Role and account checks against the player database, not just the session token.
  *
  * Session tokens last 15 days and carry the role from login time, so on their
  * own they'd let a demoted, suspended or deleted admin keep admin access until
@@ -10,8 +10,9 @@
  * never gain them: someone newly promoted gets admin access at their next login.
  */
 import { getStore } from '@netlify/blobs';
-import type { AuthRole, SessionPayload } from '../../src/middleware/auth';
+import { isMember, type AuthRole, type SessionPayload } from '../../src/middleware/auth';
 import type { Player } from '../../src/types/player';
+import { loginBlock } from './_login-status';
 
 // One function invocation often checks the role more than once; admin traffic is
 // low, so a few seconds of reuse is plenty (a role change applies within 5s).
@@ -56,6 +57,20 @@ export async function isCurrentAdmin(session: SessionPayload | null): Promise<bo
 
 export async function isCurrentSuperAdmin(session: SessionPayload | null): Promise<boolean> {
   return (await currentRole(session)) === 'super_admin';
+}
+
+/**
+ * True if the session holder may still use the members' area: any signed-in
+ * role whose account, looked up now in players-all, passes the same rule as
+ * login (exists, has a login, not pending, rejected or suspended). Without
+ * this a deleted or suspended player's token keeps working until it expires
+ * (15 days on the website, 30 in the app). Member endpoints call this instead
+ * of isMember(session).
+ */
+export async function isCurrentMember(session: SessionPayload | null): Promise<boolean> {
+  if (!session?.userId || !isMember(session)) return false;
+  const player = (await loadPlayers()).find((p) => p.id === session.userId);
+  return loginBlock(player) === null;
 }
 
 /** Tests only: forget cached player data. */

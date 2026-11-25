@@ -1,6 +1,7 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { getStore } from '@netlify/blobs';
-import { sessionFromHeaders, isMember } from '../../src/middleware/auth';
+import { sessionFromHeaders } from '../../src/middleware/auth';
+import { isCurrentMember } from './_admin-auth';
 import { SITE_CONFIG } from '../../src/config';
 import type { WinterCheckInResponse } from '../../src/types/winter';
 
@@ -16,7 +17,7 @@ export const handler: Handler = async (
   _context: HandlerContext
 ) => {
   const session = sessionFromHeaders(event.headers);
-  if (!session || !isMember(session)) {
+  if (!session || !(await isCurrentMember(session))) {
     return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
   }
 
