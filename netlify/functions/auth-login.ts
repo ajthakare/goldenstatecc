@@ -1,20 +1,20 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
-import { getStore } from '@netlify/blobs';
 import {
   verifyPassword,
   createSession,
   loginCookies,
-  AdminUser,
-  AuthRole,
+  APP_SESSION_EXPIRY,
 } from '../../src/middleware/auth';
 import type { Player } from '../../src/types/player';
 import { readPlayersForUpdate, writePlayers } from './_players-store';
+import { loginBlock, sessionClaims, sessionUser } from './_login-status';
 
 /**
  * Handle unified login (admin and member)
  * POST /api/auth-login
- * Body: { email, password } OR { username, password }
- * Returns: Success with cookie set, or error
+ * Body: { email, password } OR { username, password }, plus client: "app" from the native app
+ * Returns: Success with the session cookie set (website), or with the token in
+ * the JSON body and no cookie (app, which sends it back as Authorization: Bearer)
  */
 export const handler: Handler = async (
   event: HandlerEvent,
@@ -32,6 +32,7 @@ export const handler: Handler = async (
     // Parse request body
     const body = JSON.parse(event.body || '{}');
     const { username, email, password } = body;
+    const isApp = body.client === 'app';
 
     const loginIdentifier = email || username;
 
@@ -46,11 +47,6 @@ export const handler: Handler = async (
     const isProduction = process.env.NODE_ENV === 'production';
 
     // Check players store for all logins (members, admins, super_admins)
-    const playersStore = getStore({
-      name: 'players',
-      siteID: process.env.SITE_ID || '',
-      token: process.env.NETLIFY_AUTH_TOKEN || '',
-    });
     const playersData = await readPlayersForUpdate();
     const players: Player[] = (playersData as Player[]) || [];
 
@@ -60,45 +56,17 @@ export const handler: Handler = async (
       (p) => p.email?.toLowerCase() === normalizedEmail && p.passwordHash
     );
 
-    if (!player) {
+    // No login, or registration pending / rejected / suspended (same rule as auth-refresh)
+    const blocked = loginBlock(player);
+    if (blocked || !player) {
       return {
-        statusCode: 401,
-        body: JSON.stringify({ error: 'Invalid credentials' }),
-      };
-    }
-
-    // Check if player has passwordHash (is a member)
-    if (!player.passwordHash) {
-      return {
-        statusCode: 401,
-        body: JSON.stringify({ error: 'Invalid credentials' }),
-      };
-    }
-
-    // Check registration status
-    if (player.registrationStatus === 'pending') {
-      return {
-        statusCode: 403,
-        body: JSON.stringify({ error: 'Registration pending approval by admin' }),
-      };
-    }
-
-    if (player.registrationStatus === 'rejected') {
-      return {
-        statusCode: 403,
-        body: JSON.stringify({ error: 'Registration not approved' }),
-      };
-    }
-
-    if (player.registrationStatus === 'suspended') {
-      return {
-        statusCode: 403,
-        body: JSON.stringify({ error: 'Account suspended. Contact admin.' }),
+        statusCode: blocked?.statusCode ?? 401,
+        body: JSON.stringify({ error: blocked?.error ?? 'Invalid credentials' }),
       };
     }
 
     // Verify password
-    const isValid = await verifyPassword(password, player.passwordHash);
+    const isValid = await verifyPassword(password, player.passwordHash!);
     if (!isValid) {
       return {
         statusCode: 401,
@@ -110,13 +78,17 @@ export const handler: Handler = async (
     player.lastLogin = new Date().toISOString();
     await writePlayers(players);
 
-    // Get role (default to 'member' if not set)
-    const role: AuthRole = player.role_auth || 'member';
+    const { role, displayName } = sessionClaims(player);
 
-    // Create display username (for admins, use name; for members, use email)
-    const displayName = role === 'super_admin' || role === 'admin'
-      ? `${player.firstName} ${player.lastName}`.trim() || player.email
-      : undefined;
+    if (isApp) {
+      // The app keeps the token in the phone's secure storage and renews it on every launch
+      const token = createSession(player.id, player.email!, role, displayName, APP_SESSION_EXPIRY);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+        body: JSON.stringify({ success: true, token, user: sessionUser(player, role) }),
+      };
+    }
 
     // Create session token
     const token = createSession(player.id, player.email!, role, displayName);
@@ -138,13 +110,7 @@ export const handler: Handler = async (
       body: JSON.stringify({
         success: true,
         message: 'Login successful',
-        user: {
-          id: player.id,
-          email: player.email,
-          firstName: player.firstName,
-          lastName: player.lastName,
-          role,
-        },
+        user: sessionUser(player, role),
         redirectTo,
       }),
     };

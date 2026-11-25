@@ -13,8 +13,6 @@ export const handler: Handler = async (
   context: HandlerContext
 ) => {
   try {
-    // Get cookie header
-
     // Validate session
     const session = sessionFromHeaders(event.headers);
 
