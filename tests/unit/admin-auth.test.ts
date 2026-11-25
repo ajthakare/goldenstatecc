@@ -21,6 +21,7 @@ const NOT_ADMIN_ONLY = new Set([
   'players-get', // members may read their own record; tested below
   'auth-check',  // any signed-in user checks their own session
   'auth-refresh', // any signed-in app user renews their own token; tested in auth-app-token.test.ts
+  'account-delete', // any signed-in player deletes their own account; tested in account-delete.test.ts
 ]);
 
 const cookieFor = (role: 'member' | 'admin' | 'super_admin', userId = 'member-1') =>
