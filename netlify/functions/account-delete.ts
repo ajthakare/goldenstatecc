@@ -7,6 +7,7 @@ import { readPlayersForUpdate, writePlayers } from './_players-store';
 import { blobStore } from './_profile-stats';
 import { removePlayerDevices } from './_push-utils';
 import { updateJSON } from './_blobs';
+import { clearFailures, lockedFor, lockedResponse, playerAttemptKey, recordFailure } from './_password-attempts';
 
 /**
  * A player deletes their own account (required by the App Store and Google Play).
@@ -73,9 +74,16 @@ export const handler: Handler = async (event: HandlerEvent) => {
     if (!player || !player.passwordHash) {
       return json(404, { error: 'Account not found' });
     }
+    // Same wrong-password limit as sign-in, so a stolen token can't guess here either
+    const attemptKey = playerAttemptKey(player.id);
+    const locked = await lockedFor(attemptKey);
+    if (locked) return lockedResponse(locked);
     if (!(await verifyPassword(password, player.passwordHash))) {
+      const nowLocked = await recordFailure(attemptKey);
+      if (nowLocked) return lockedResponse(nowLocked);
       return json(401, { error: 'Incorrect password' });
     }
+    await clearFailures(attemptKey);
 
     // Never leave the club without a super admin
     if (player.role_auth === 'super_admin') {
