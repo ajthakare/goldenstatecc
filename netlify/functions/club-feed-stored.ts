@@ -1,5 +1,6 @@
 import type { Handler, HandlerEvent } from '@netlify/functions';
-import { sessionFromHeaders, isAdmin, isMember } from '../../src/middleware/auth';
+import { sessionFromHeaders, isAdmin } from '../../src/middleware/auth';
+import { isCurrentMember } from './_admin-auth';
 import { viewStoredFeed } from '../../src/utils/feed';
 import { buildLiveFeed, readStoredFeed } from './_club-feed';
 import { todayString } from './_profile-stats';
@@ -22,7 +23,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
   }
 
   const session = sessionFromHeaders(event.headers);
-  const signedIn = !!(session && isMember(session));
+  const signedIn = !!(session && (await isCurrentMember(session)));
 
   try {
     // Admins expect a post they just hid to be gone, so they read the latest copy

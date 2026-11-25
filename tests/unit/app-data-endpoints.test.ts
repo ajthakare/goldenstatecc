@@ -30,6 +30,8 @@ vi.mock('../../netlify/functions/_profile-stats', () => ({
 vi.mock('../../netlify/functions/_seasons', () => ({
   loadSeasonsInPlay: async () => ({ seasons, active }),
 }));
+// Signed-in = any valid token here; the account re-check is tested in current-member.test.ts
+vi.mock('../../netlify/functions/_admin-auth', () => ({ isCurrentMember: async (session: unknown) => !!session }));
 vi.mock('../../netlify/functions/_club-feed', () => ({
   readStoredFeed: async (opts: { strong?: boolean } = {}) => {
     feedReads.push(opts);
