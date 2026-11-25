@@ -2,6 +2,8 @@ import type { Context } from '@netlify/functions';
 import { sessionFromHeaders, isMember } from '../../src/middleware/auth';
 import { updateJSON } from './_blobs';
 import { EXPO_KEY, isExpoPushToken, pushStore, type StoredExpoToken } from './_push-utils';
+import { loginBlock } from './_login-status';
+import { loadPlayers } from './_profile-stats';
 
 /**
  * Register or remove the native app's push token for the signed-in player.
@@ -11,6 +13,10 @@ import { EXPO_KEY, isExpoPushToken, pushStore, type StoredExpoToken } from './_p
  * One entry per token (a phone): signing in as someone else on the same phone
  * moves the token to them. Only your own token can be removed. Browsers and
  * PWAs keep using push-subscribe / push-unsubscribe.
+ *
+ * Registering re-checks the account: a session token stays valid after the
+ * account is deleted or suspended, and a device registered then would keep
+ * getting club pushes.
  */
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -51,6 +57,12 @@ export default async (req: Request, _context: Context) => {
     const platform = body.platform;
     if (platform !== 'ios' && platform !== 'android') {
       return json(400, { error: 'platform must be "ios" or "android"' });
+    }
+
+    // Same rule as login and auth-refresh: deleted, no login, pending, rejected or suspended
+    const player = (await loadPlayers({ strong: true })).find((p) => p.id === session.userId);
+    if (loginBlock(player)) {
+      return json(401, { error: 'Account not active' });
     }
 
     const now = new Date().toISOString();

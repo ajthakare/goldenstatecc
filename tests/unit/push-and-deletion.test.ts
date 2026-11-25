@@ -124,6 +124,24 @@ beforeEach(() => {
 });
 
 describe('push-register-device', () => {
+  beforeEach(() => {
+    put('players', 'players-all', [
+      { id: 'p1', email: 'p1@example.com', passwordHash: 'h', registrationStatus: 'approved' },
+      { id: 'p2', email: 'p2@example.com', passwordHash: 'h' },
+    ]);
+  });
+
+  it('refuses a still-valid token from a deleted or suspended account', async () => {
+    put('players', 'players-all', [
+      { id: 'p1', firstName: 'Asha', accountDeletedAt: '2026-11-25' },
+      { id: 'p2', email: 'p2@example.com', passwordHash: 'h', registrationStatus: 'suspended' },
+    ]);
+    expect((await register('p1', { token: TOKEN_A, platform: 'ios' })).status).toBe(401);
+    expect((await register('p2', { token: TOKEN_A, platform: 'ios' })).status).toBe(401);
+    expect((await register('p3', { token: TOKEN_A, platform: 'ios' })).status).toBe(401); // no such player
+    expect(read('push-subscriptions', 'expo-tokens')).toBeNull();
+  });
+
   it('stores a token per phone and moves it when someone else signs in on it', async () => {
     expect((await register('p1', { token: TOKEN_A, platform: 'ios' })).status).toBe(200);
     expect((await register('p1', { token: TOKEN_A, platform: 'ios' })).status).toBe(200);
