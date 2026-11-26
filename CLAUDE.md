@@ -331,10 +331,12 @@ try {
 
 ## Design System
 
-**Color Scheme:**
-- **Primary:** `#f67280` (coral pink) - brand color
-- **Secondary:** `#355c7d` (blue) - complementary color
-- **Accent:** `#E5C878` (gold) - highlights
+**Color Scheme** (live theme: `src/styles/themes/theme-golden-state-v2.css`; the native app mirrors it in gscc-app `constants/Colors.ts`):
+- **Primary:** `#8C1D18` (maroon) - brand color, buttons, links
+- **Accent:** `#C9A227` (gold) - rules, kickers, highlights; `#A9821B` for gold text on light
+- **Ink:** `#1A1614` - headings, and the PWA top/bottom bars (with a 2px gold edge)
+- **Neutrals:** warm off-white `#FAF7F2` sections, white cards, hairline `#E9E4DD`
+- Light only (no dark mode). The old coral `#f67280` / blue `#355c7d` palette is retired
 
 **Team Colors:** `src/utils/teamColors.ts` (Tigers amber, Bulls blue, Thunder Cats purple, Bears green)
 
