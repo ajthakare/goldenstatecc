@@ -372,12 +372,17 @@ if (!isAdminUser) return Astro.redirect('/');
   .picker { display: grid; gap: 0.6rem; }
   .picker input[type="search"] { width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--color-border-strong); border-radius: 8px; font: inherit; background: var(--color-bg-input); color: var(--color-text-body); }
   .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-  .chip { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.6rem; border-radius: 999px; background: var(--color-maroon-100, #F6E7E4); color: var(--color-primary); font-size: 0.8rem; font-weight: 600; border: 0; cursor: pointer; }
-  .player-list { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 8px; }
-  .player-list li { border-bottom: 1px solid var(--color-border); }
-  .player-list li:last-child { border-bottom: 0; }
-  .player-list label { display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.75rem; cursor: pointer; font-size: 0.9rem; }
-  .player-list .devices { margin-left: auto; font-size: 0.75rem; color: var(--color-text-muted); white-space: nowrap; }
+  .chips:empty { display: none; }
+  /* Rows and chips are created by the script, so these need :global() to reach them */
+  .chips :global(.chip) { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.7rem; border-radius: 999px; background: var(--color-maroon-100, #F6E7E4); color: var(--color-primary); font-size: 0.8rem; font-weight: 600; border: 0; cursor: pointer; }
+  .player-list { list-style: none; margin: 0; padding: 0; max-height: 300px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-bg-card); }
+  .player-list :global(li) { border-bottom: 1px solid var(--color-border); }
+  .player-list :global(li:last-child) { border-bottom: 0; }
+  .player-list :global(label) { display: flex; align-items: center; gap: 0.75rem; padding: 0.65rem 0.9rem; cursor: pointer; font-size: 0.925rem; color: var(--color-text-heading); }
+  .player-list :global(label:hover) { background: var(--color-surface-sunken, #FAF7F2); }
+  .player-list :global(input[type="checkbox"]) { width: 1.05rem; height: 1.05rem; margin: 0; flex: none; accent-color: var(--color-primary); }
+  .player-list :global(.name) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .player-list :global(.devices) { flex: none; font-size: 0.75rem; font-weight: 600; color: var(--color-text-muted); background: var(--color-surface-sunken, #FAF7F2); border: 1px solid var(--color-border); border-radius: 999px; padding: 0.1rem 0.55rem; white-space: nowrap; }
   .picker-note { margin: 0; font-size: 0.8rem; color: var(--color-text-muted); }
 </style>
 
@@ -418,6 +423,7 @@ if (!isAdminUser) return Astro.redirect('/');
       box.checked = chosen.has(id);
       box.addEventListener('change', () => { box.checked ? chosen.add(id) : chosen.delete(id); renderChips(); updateSendLabel(); });
       const name = document.createElement('span');
+      name.className = 'name';
       name.textContent = names[id];
       const devices = document.createElement('span');
       devices.className = 'devices';
