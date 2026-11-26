@@ -34,7 +34,7 @@ if (!isAdminUser) return Astro.redirect('/');
 
     <div class="page-header">
       <h1 class="page-title">Send Notification</h1>
-      <p class="page-description">Push a notification to all subscribed players</p>
+      <p class="page-description">Push a notification to players' phones and browsers</p>
     </div>
 
     <div class="notif-card">
@@ -73,6 +73,21 @@ if (!isAdminUser) return Astro.redirect('/');
 
       <div class="divider"></div>
 
+      <!-- Audience -->
+      <div class="section-label">Send to</div>
+      <div class="audience" role="radiogroup" aria-label="Send to">
+        <label class="audience-option"><input type="radio" name="audience" value="all" checked /> Everyone with notifications on</label>
+        <label class="audience-option"><input type="radio" name="audience" value="chosen" /> Chosen players</label>
+      </div>
+      <div id="picker" class="picker" hidden>
+        <input id="player-search" type="search" placeholder="Search players with notifications on" autocomplete="off" />
+        <div id="chosen-chips" class="chips"></div>
+        <ul id="player-list" class="player-list" aria-label="Players with notifications on"></ul>
+        <p id="picker-note" class="picker-note"></p>
+      </div>
+
+      <div class="divider"></div>
+
       <!-- Custom fields -->
       <div class="section-label">Message</div>
       <div class="fields">
@@ -89,6 +104,9 @@ if (!isAdminUser) return Astro.redirect('/');
           <select id="notif-url">
             <option value="/myfixtures">My Fixtures page</option>
             <option value="/mypractice">My Practice page</option>
+            <option value="/fixtures">Fixtures page</option>
+            <option value="/feed">Club Feed</option>
+            <option value="/profile">Profile</option>
           </select>
         </div>
       </div>
@@ -111,7 +129,7 @@ if (!isAdminUser) return Astro.redirect('/');
       <!-- Send button -->
       <button id="send-btn" class="send-btn">
         <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
-        Send to All Players
+        <span id="send-label">Send to everyone</span>
       </button>
 
     </div>
@@ -348,38 +366,127 @@ if (!isAdminUser) return Astro.redirect('/');
     opacity: 0.6;
     cursor: not-allowed;
   }
+
+  .audience { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; margin-bottom: 0.75rem; }
+  .audience-option { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.9rem; color: var(--color-text-body); cursor: pointer; }
+  .picker { display: grid; gap: 0.6rem; }
+  .picker input[type="search"] { width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--color-border-strong); border-radius: 8px; font: inherit; background: var(--color-bg-input); color: var(--color-text-body); }
+  .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .chip { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.6rem; border-radius: 999px; background: var(--color-maroon-100, #F6E7E4); color: var(--color-primary); font-size: 0.8rem; font-weight: 600; border: 0; cursor: pointer; }
+  .player-list { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 8px; }
+  .player-list li { border-bottom: 1px solid var(--color-border); }
+  .player-list li:last-child { border-bottom: 0; }
+  .player-list label { display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.75rem; cursor: pointer; font-size: 0.9rem; }
+  .player-list .devices { margin-left: auto; font-size: 0.75rem; color: var(--color-text-muted); white-space: nowrap; }
+  .picker-note { margin: 0; font-size: 0.8rem; color: var(--color-text-muted); }
 </style>
 
 <script>
-  // Load subscriber count
-  async function loadSubscriberCount() {
-    try {
-      const res = await fetch('/.netlify/functions/push-subscriber-count');
-      if (res.ok) {
-        const data = await res.json();
-        document.getElementById('subscriber-count').textContent =
-          `${data.count} player${data.count !== 1 ? 's' : ''} subscribed`;
-      } else {
-        document.getElementById('subscriber-count').textContent = 'Could not load subscriber count';
-      }
-    } catch {
-      document.getElementById('subscriber-count').textContent = 'Could not load subscriber count';
+  type Devices = { web: number; app: number };
+  let byPlayer: Record<string, Devices> = {};
+  let names: Record<string, string> = {};
+  const chosen = new Set<string>();
+
+  const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
+  const audience = () => (document.querySelector('input[name="audience"]:checked') as HTMLInputElement).value;
+
+  function deviceText(d: Devices) {
+    const parts = [];
+    if (d.app) parts.push(`${d.app} app`);
+    if (d.web) parts.push(`${d.web} browser`);
+    return parts.join(' · ');
+  }
+
+  function updateSendLabel() {
+    const n = chosen.size;
+    $('send-label').textContent = audience() === 'all' ? 'Send to everyone' : n === 0 ? 'Choose players to send to' : `Send to ${n} player${n !== 1 ? 's' : ''}`;
+    ($('send-btn') as HTMLButtonElement).disabled = audience() === 'chosen' && n === 0;
+  }
+
+  function renderPicker() {
+    const q = ($('player-search') as HTMLInputElement).value.trim().toLowerCase();
+    const ids = Object.keys(byPlayer)
+      .filter((id) => names[id])
+      .sort((a, b) => names[a].localeCompare(names[b]));
+    const list = $('player-list');
+    list.replaceChildren();
+    for (const id of ids.filter((id) => !q || names[id].toLowerCase().includes(q))) {
+      const li = document.createElement('li');
+      const label = document.createElement('label');
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = chosen.has(id);
+      box.addEventListener('change', () => { box.checked ? chosen.add(id) : chosen.delete(id); renderChips(); updateSendLabel(); });
+      const name = document.createElement('span');
+      name.textContent = names[id];
+      const devices = document.createElement('span');
+      devices.className = 'devices';
+      devices.textContent = deviceText(byPlayer[id]);
+      label.append(box, name, devices);
+      li.append(label);
+      list.append(li);
+    }
+    $('picker-note').textContent = ids.length
+      ? 'Only players with notifications turned on are listed.'
+      : 'No players have notifications turned on yet.';
+  }
+
+  function renderChips() {
+    const chips = $('chosen-chips');
+    chips.replaceChildren();
+    for (const id of chosen) {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'chip';
+      chip.textContent = `${names[id] || 'Player'} ✕`;
+      chip.setAttribute('aria-label', `Remove ${names[id] || 'player'}`);
+      chip.addEventListener('click', () => { chosen.delete(id); renderChips(); renderPicker(); updateSendLabel(); });
+      chips.append(chip);
     }
   }
 
+  // Subscriber count, devices per player, and player names
+  async function loadSubscriberCount() {
+    try {
+      const res = await fetch('/.netlify/functions/push-subscriber-count');
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      byPlayer = data.byPlayer || {};
+      const players = Object.keys(byPlayer).length;
+      $('subscriber-count').textContent =
+        `${players} player${players !== 1 ? 's' : ''} · ${data.count} device${data.count !== 1 ? 's' : ''} (${data.app ?? 0} app, ${data.web ?? data.count} browser)`;
+      renderPicker();
+    } catch {
+      $('subscriber-count').textContent = 'Could not load subscriber count';
+    }
+  }
+
+  async function loadNames() {
+    try {
+      const res = await fetch('/.netlify/functions/players-list');
+      if (!res.ok) return;
+      const players = await res.json();
+      names = Object.fromEntries(players.map((p: any) => [p.id, `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim()]));
+      renderPicker();
+    } catch {}
+  }
+
   loadSubscriberCount();
+  loadNames();
+
+  document.querySelectorAll('input[name="audience"]').forEach((r) =>
+    r.addEventListener('change', () => { $('picker').hidden = audience() !== 'chosen'; updateSendLabel(); })
+  );
+  $('player-search').addEventListener('input', renderPicker);
 
   // Preset selection
-  document.querySelectorAll('.preset-btn').forEach((btn) => {
+  document.querySelectorAll<HTMLElement>('.preset-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('selected'));
+      document.querySelectorAll('.preset-btn').forEach((b) => b.classList.remove('selected'));
       btn.classList.add('selected');
-      const titleEl = document.getElementById('notif-title') as HTMLInputElement;
-      const bodyEl = document.getElementById('notif-body') as HTMLTextAreaElement;
-      const urlEl = document.getElementById('notif-url') as HTMLSelectElement;
-      titleEl.value = btn.dataset.title;
-      bodyEl.value = btn.dataset.body;
-      urlEl.value = btn.dataset.url;
+      ($('notif-title') as HTMLInputElement).value = btn.dataset.title || '';
+      ($('notif-body') as HTMLTextAreaElement).value = btn.dataset.body || '';
+      ($('notif-url') as HTMLSelectElement).value = btn.dataset.url || '/myfixtures';
       updatePreview();
       updateCharCounts();
     });
@@ -387,29 +494,26 @@ if (!isAdminUser) return Astro.redirect('/');
 
   // Live preview + char counts
   function updatePreview() {
-    const title = (document.getElementById('notif-title') as HTMLInputElement).value || 'Notification title';
-    const body = (document.getElementById('notif-body') as HTMLTextAreaElement).value || 'Notification message will appear here.';
-    document.getElementById('preview-title').textContent = title;
-    document.getElementById('preview-body').textContent = body;
+    $('preview-title').textContent = ($('notif-title') as HTMLInputElement).value || 'Notification title';
+    $('preview-body').textContent = ($('notif-body') as HTMLTextAreaElement).value || 'Notification message will appear here.';
   }
 
   function updateCharCounts() {
-    const title = (document.getElementById('notif-title') as HTMLInputElement).value;
-    const body = (document.getElementById('notif-body') as HTMLTextAreaElement).value;
-    document.getElementById('title-count').textContent = `${title.length} / 60`;
-    document.getElementById('body-count').textContent = `${body.length} / 140`;
+    $('title-count').textContent = `${($('notif-title') as HTMLInputElement).value.length} / 60`;
+    $('body-count').textContent = `${($('notif-body') as HTMLTextAreaElement).value.length} / 140`;
   }
 
-  document.getElementById('notif-title').addEventListener('input', () => { updatePreview(); updateCharCounts(); });
-  document.getElementById('notif-body').addEventListener('input', () => { updatePreview(); updateCharCounts(); });
+  $('notif-title').addEventListener('input', () => { updatePreview(); updateCharCounts(); });
+  $('notif-body').addEventListener('input', () => { updatePreview(); updateCharCounts(); });
 
   // Send
-  document.getElementById('send-btn').addEventListener('click', async () => {
-    const title = (document.getElementById('notif-title') as HTMLInputElement).value.trim();
-    const body = (document.getElementById('notif-body') as HTMLTextAreaElement).value.trim();
-    const url = (document.getElementById('notif-url') as HTMLSelectElement).value;
-    const resultEl = document.getElementById('send-result');
-    const sendBtn = document.getElementById('send-btn') as HTMLButtonElement;
+  $('send-btn').addEventListener('click', async () => {
+    const title = ($('notif-title') as HTMLInputElement).value.trim();
+    const body = ($('notif-body') as HTMLTextAreaElement).value.trim();
+    const url = ($('notif-url') as HTMLSelectElement).value;
+    const resultEl = $('send-result');
+    const sendBtn = $('send-btn') as HTMLButtonElement;
+    const toChosen = audience() === 'chosen';
 
     if (!title || !body) {
       resultEl.className = 'result-box error';
@@ -417,41 +521,38 @@ if (!isAdminUser) return Astro.redirect('/');
       resultEl.style.display = 'block';
       return;
     }
+    if (toChosen && chosen.size === 0) return;
 
     sendBtn.disabled = true;
-    sendBtn.textContent = 'Sending...';
+    $('send-label').textContent = 'Sending...';
     resultEl.style.display = 'none';
 
     try {
       const res = await fetch('/.netlify/functions/push-send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, body, url }),
+        body: JSON.stringify({ title, body, url, ...(toChosen ? { playerIds: [...chosen] } : {}) }),
       });
       const data = await res.json();
-
       resultEl.style.display = 'block';
       if (res.ok) {
         resultEl.className = 'result-box success';
-        resultEl.textContent = `Sent to ${data.sent} player${data.sent !== 1 ? 's' : ''}.${data.expired > 0 ? ` (${data.expired} expired subscriptions removed)` : ''}`;
-        sendBtn.textContent = '✓ Sent';
-        setTimeout(() => {
-          sendBtn.disabled = false;
-          sendBtn.innerHTML = '<svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg> Send to All Players';
-        }, 3000);
+        resultEl.textContent = !data.total
+          ? 'No devices to send to: nobody chosen has notifications on.'
+          : `Sent to ${data.sent} of ${data.total} device${data.total !== 1 ? 's' : ''}.${data.expired > 0 ? ` (${data.expired} expired removed)` : ''}`;
         loadSubscriberCount();
       } else {
         resultEl.className = 'result-box error';
         resultEl.textContent = data.error || 'Failed to send notification.';
-        sendBtn.disabled = false;
-        sendBtn.innerHTML = '<svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg> Send to All Players';
       }
     } catch {
       resultEl.style.display = 'block';
       resultEl.className = 'result-box error';
       resultEl.textContent = 'Network error. Please try again.';
-      sendBtn.disabled = false;
-      sendBtn.innerHTML = '<svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg> Send to All Players';
     }
+    sendBtn.disabled = false;
+    updateSendLabel();
   });
+
+  updateSendLabel();
 </script>
