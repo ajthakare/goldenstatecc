@@ -34,9 +34,10 @@ netlify/
 public/media/        # Gallery images — drop a file in here and it appears on the site
 tests/                # Unit, integration, and e2e (Playwright) tests
 docs/                 # Project documentation and guides
+utils/                # Standalone club utilities (e.g. social/highlight-reel)
 ```
 
-See [CLAUDE.md](CLAUDE.md) for a full breakdown of the codebase, data model, and conventions.
+See [CLAUDE.md](CLAUDE.md) for a full breakdown of the codebase, data model, and conventions, and [utils/social/highlight-reel/README.md](utils/social/highlight-reel/README.md) for the Instagram highlights reel generator.
 
 ## Developing Locally
 
