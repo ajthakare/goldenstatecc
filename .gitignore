@@ -30,6 +30,8 @@ local-debug/
 .venv-docs/
 
 # Social highlight-reel utility (Python env, media caches & rendered outputs)
+utils/social/workspace/
+utils/social/output/
 utils/social/highlight-reel/.venv/
 utils/social/highlight-reel/.pytest_cache/
 utils/social/highlight-reel/workspace/

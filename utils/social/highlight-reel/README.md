@@ -322,9 +322,13 @@ club:
     gold_soft: "#E9C86B"
     obsidian_deep: "#0E0C0B"
 
+paths:
+  workspace_dir: "../workspace"    # Shared GSCC/utils/social/workspace/ (gitignored)
+  output_dir: "../output"          # Shared GSCC/utils/social/output/ (gitignored)
+
 selection:
   default_mode: "gscc-only"
-  max_duration_sec: 120.0
+  max_duration_sec: 225.0
   intro_sec: 2.0
   innings_break_sec: 2.8
   outro_sec: 5.5
@@ -358,26 +362,26 @@ render:
 
 ## Workspace, Caching & Disk Management
 
-Each match creates a gitignored workspace folder alongside the final rendered Reel and Instagram Cover:
+Each match creates a gitignored workspace folder alongside the final rendered Reel and Instagram Cover inside the shared **`utils/social/`** directories:
 
 ```text
-workspace/<match_slug>/
+utils/social/workspace/<match_slug>/
 ├── source_part_1.mp4          # Downloaded YouTube stream (~1.2–2.3 GB for 2–3.5 hr 720p)
 ├── ocr_readings.json          # Cached Apple Vision score transitions (skips 3-min rescan)
 ├── clips.json                 # Editable ProjectManifest (timestamps, headlines, scorecard metadata, music)
 ├── preview_sheet.jpg          # Contact sheet of selected clips (3-frame boundary / 5-frame wicket)
-├── filmstrips/                # 16-frame pitch-focused action JPEGs (clip_XX.jpg, zoom strips)
+├── filmstrips/                # 16-frame full-frame action JPEGs (clip_XX.jpg, zoom strips)
 ├── overlays/                  # Cached v2.1 Pillow RGBA PNG layers & teaser frame
 └── rendered_clips/            # SHA-256 cached 9:16 segment MP4s (instant tweaks & ~2s music swaps)
 
-output/
-├── <match_slug>_reel.mp4      # Final 1080x1920 @ 30fps Instagram Reel (<= 120s, ~-14 LUFS)
+utils/social/output/
+├── <match_slug>_reel.mp4      # Final 1080x1920 @ 30fps Instagram Reel (<= 225s, ~-14 LUFS)
 └── <match_slug>_cover.jpg     # Clean 1080x1920 cover centered for Instagram's 4:5 profile grid
 ```
 
-- **While tweaking clips:** Keep `workspace/<match_slug>/` intact so `ocr_readings.json` and `rendered_clips/` keep iterations near-instant.
-- **After posting:** Reclaim gigabytes while keeping `output/<match_slug>_reel.mp4` by passing `--cleanup` to `render` (deletes `source_part_*.mp4`) or deleting `workspace/<match_slug>/`.
-- Both `workspace/` and `output/` are gitignored at repo root so large media binaries never enter git history.
+- **While tweaking clips:** Keep `utils/social/workspace/<match_slug>/` intact so `ocr_readings.json` and `rendered_clips/` keep iterations near-instant. All CLI subcommands (`filmstrips`, `tweak`, `framing`, `render`) accept either a bare `<match_slug>` or full path.
+- **After posting:** Reclaim gigabytes while keeping `utils/social/output/<match_slug>_reel.mp4` by passing `--cleanup` to `render` (deletes `source_part_*.mp4`) or deleting `utils/social/workspace/<match_slug>/`.
+- Both `utils/social/workspace/` and `utils/social/output/` are gitignored at repo root so large media binaries never enter git history.
 
 ---
 

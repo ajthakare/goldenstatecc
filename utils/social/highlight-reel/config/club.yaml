@@ -44,6 +44,11 @@ club:
     - "GSCC Thundercats"
     - "GSCC Bears"
 
+paths:
+  # Shared local workspaces & rendered outputs under GSCC/utils/social/ (gitignored)
+  workspace_dir: "../workspace"
+  output_dir: "../output"
+
 selection:
   # Default strict GSCC-only; automatically switches to 'both' on GSCC-vs-GSCC derbies
   default_mode: "gscc-only"

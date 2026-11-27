@@ -162,6 +162,12 @@ class ProjectManifest:
         innings = [InningsSummary(**inn) for inn in mi_raw.get("innings", [])]
         match_info = MatchInfo(**{**mi_raw, "innings": innings})
         video_parts = [VideoPart(**vp) for vp in raw.get("video_parts", [])]
+        # Resiliently rebase local_path if a workspace directory was moved
+        for vp in video_parts:
+            if vp.local_path and not Path(vp.local_path).exists():
+                sibling = path.parent / Path(vp.local_path).name
+                if sibling.exists():
+                    vp.local_path = str(sibling.resolve())
         clips = [ClipSpec(**c) for c in raw.get("clips", [])]
         return cls(
             version=int(raw.get("version", 1)),

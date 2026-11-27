@@ -6,11 +6,15 @@ description: Create a 1-4 minute 9:16 Instagram Highlights Reel for any Golden S
 # GSCC Cricket Highlights Workflow (Zero-Quota Local Pipeline)
 
 All code, configuration, assets, and CLI entry points live in **`utils/social/highlight-reel/`**.
-Invoke commands with `~/.local/bin/uv --directory utils/social/highlight-reel run gscc-highlights ...` (or directly via `utils/social/highlight-reel/.venv/bin/gscc-highlights ...` if `uv` isn't on `PATH`). Relative `workspace/` and `output/` paths resolve inside `utils/social/highlight-reel/` when using `--directory` (pass an absolute path if targeting an existing workspace elsewhere).
+All match workspaces and rendered reels live together in shared gitignored folders under **`utils/social/`**:
+- **Workspaces (all squads/matches):** `utils/social/workspace/<match_slug>/`
+- **Rendered outputs (MP4s & covers):** `utils/social/output/<match_slug>_reel.mp4` and `utils/social/output/<match_slug>_cover.jpg`
+
+Invoke commands with `~/.local/bin/uv --directory utils/social/highlight-reel run gscc-highlights ...` (or directly via `utils/social/highlight-reel/.venv/bin/gscc-highlights ...` if `uv` isn't on `PATH`). Subcommands (`filmstrips`, `tweak`, `framing`, `render`) accept either a bare `<match_slug>` (resolved under `utils/social/workspace/`) or a full path.
 
 **CRITICAL RULES:**
 - **NEVER BURN LLM VIDEO/VISION QUOTA:** Never upload, stream, or send match video frames to an AI model to find highlights. Always run the local CLI (`gscc-highlights`), which handles downloading, ticker detection, native macOS Apple Vision OCR, alignment, filmstrip extraction, framing analysis, and VideoToolbox rendering 100% locally.
-- **KEEP CACHED RAW VIDEOS BY DEFAULT:** Never pass `--cleanup` or delete `workspace/*/source_part_*.mp4` unless the user explicitly asks to free disk space, so follow-up tweaks and re-renders stay instant.
+- **KEEP CACHED RAW VIDEOS BY DEFAULT:** Never pass `--cleanup` or delete `utils/social/workspace/*/source_part_*.mp4` unless the user explicitly asks to free disk space, so follow-up tweaks and re-renders stay instant.
 
 ## Step-by-Step Procedure
 
@@ -27,7 +31,7 @@ Before running `prepare` or `run`, list the user's tracks (`gscc-highlights musi
 1. **Use the built-in `browser` subagent FIRST** (`Model: "flash"`) to open the live NCCA match URL in the real browser:
    - Read the **Scorecard / Info** view to collect: `title`, `match_id`, `series`, `date`, `venue`, `result_text`, `player_of_match`, both `innings` (`innings_number`, `batting_team`, `bowling_team`, `runs`, `wickets`, `overs_text`, `batting_code`), and GSCC `top_performers` (e.g. `"Player Name 44 (33)"`, `"Bowler Name 3/25 (4 ov)"`).
    - Open the **Ball by Ball** tab (switching through both 1st and 2nd innings) and extract every highlight delivery (all 4s, 6s, wickets, and 50/100 milestones) with `innings_number`, `sequence_index`, `over`, `ball`, `over_ball`, `batting_team`, `bowling_team`, `batter`, `bowler`, `runs_off_bat`, `total_runs_ball`, `is_four`/`is_six`/`is_wicket`, `dismissal_text`, `score_runs_after`, `score_wickets_after`, `batter_runs_after`, and `batter_balls_after`.
-   - Save this structured file to `utils/social/highlight-reel/workspace/<match_slug>/ncca_match.json` and pass `--ncca-json <path>` to `gscc-highlights prepare`.
+   - Save this structured file to `utils/social/workspace/<match_slug>/ncca_match.json` and pass `--ncca-json <path>` to `gscc-highlights prepare`.
 2. **If the browser subagent cannot load the NCCA page** (e.g., Cloudflare security verification / CAPTCHA, origin block, timeout, or empty Ball-by-Ball tab — **NEVER** solve, click through, wait out, or bypass a CAPTCHA/Cloudflare check):
    - If the browser subagent paused on a verification page in the visible browser pane, let the user know they can complete it directly in the browser pane if they want to resume.
    - **Otherwise, STOP and ask the user how to proceed before running `prepare` (do NOT silently drop into Ticker-Only mode without asking):**
@@ -39,7 +43,7 @@ Before running `prepare` or `run`, list the user's tracks (`gscc-highlights musi
 Run `gscc-highlights prepare` (note: on macOS, Apple Vision OCR requires IOSurface access outside the Seatbelt sandbox if running via agent terminal) with:
 - One or more `--youtube <URL>` or `--video <path.mp4>` flags (multi-part streams supported; full-match YouTube downloads stay fast and compact at `720p`).
 - NCCA scorecard input (matching what was resolved in Step 2a):
-  - `--ncca-json <file.json>` (preferred when extracted via the browser subagent into `workspace/<match_slug>/ncca_match.json`),
+  - `--ncca-json <file.json>` (preferred when extracted via the browser subagent into `utils/social/workspace/<match_slug>/ncca_match.json`),
   - `--ncca-excel <file.xlsx>` (NCCA Export Excel provided by the user),
   - `--ncca-file <file.html>` (browser `Cmd+S` of NCCA Ball-by-Ball tab provided by the user),
   - `--ncca <url>` (standalone CLI mode: tries HTTP + local Chrome/puppeteer-core automatically; prompts interactively for Excel/HTML or Ticker-Only mode if blocked, or falls back to Ticker-Only in `--non-interactive` mode — never silently produces 0 clips),
@@ -51,31 +55,31 @@ Run `gscc-highlights prepare` (note: on macOS, Apple Vision OCR requires IOSurfa
 Scorecard/ticker updates are ONLY rough timeframe helpers—live scorers frequently update 10–25s late on boundaries and **30–65s late on wickets**. Before rendering:
 1. Run the local pitch-focused filmstrip generator (0 quota):
    ```bash
-   ~/.local/bin/uv --directory utils/social/highlight-reel run gscc-highlights filmstrips workspace/<match_slug>
+   ~/.local/bin/uv --directory utils/social/highlight-reel run gscc-highlights filmstrips <match_slug>
    ```
-2. Visually inspect each compact 16-frame **full-frame** filmstrip (`filmstrips/clip_XX.jpg` — full 16:9 width by default so both ends of the pitch AND the bottom score ticker stay visible on any camera angle, including wide/side-on angles) to actually **watch each ball**:
+2. Visually inspect each compact 16-frame **full-frame** filmstrip (`utils/social/workspace/<match_slug>/filmstrips/clip_XX.jpg` — full 16:9 width by default so both ends of the pitch AND the bottom score ticker stay visible on any camera angle, including wide/side-on angles) to actually **watch each ball**:
    - Locate the exact second the **bowler starts their run-up / releases the ball** (`start_sec`),
    - Locate the exact second the **batter hits the 4/6** or **gets bowled/caught/run-out** plus immediate reaction / umpire signal (`end_sec`),
    - Verify the striker name, bowler name, score, and over from the visible ticker (in Ticker-Only mode, confirm pre-flip vs post-flip batters so non-strikers or new batters aren't swapped in),
    - If a long-lag wicket occurred before the initial window or needs 1-second clarity, generate a targeted zoom strip:
      ```bash
-     ~/.local/bin/uv --directory utils/social/highlight-reel run gscc-highlights filmstrips workspace/<match_slug> --clip N --window START:END
+     ~/.local/bin/uv --directory utils/social/highlight-reel run gscc-highlights filmstrips <match_slug> --clip N --window START:END
      ```
    - Drop any false-positive / dead-ball / blocked-camera clip (`--drop N`).
 3. Lock every clip's exact visually verified `[start_sec, end_sec]` via `tweak --trim`:
    ```bash
-   ~/.local/bin/uv --directory utils/social/highlight-reel run gscc-highlights tweak workspace/<match_slug> --trim 1=622.5:627.3 --trim 2=814.8:819.6 ...
+   ~/.local/bin/uv --directory utils/social/highlight-reel run gscc-highlights tweak <match_slug> --trim 1=622.5:627.3 --trim 2=814.8:819.6 ...
    ```
 4. Apply any user tweaks, framing checks, or scorecard metadata updates:
    - Clip edits (`tweak`): `--shift`, `--trim`, `--drop`, `--enable`, `--headline`, `--subtext`, `--badge`, `--music`.
    - Match / Outro scorecard & HQ source overrides (`tweak`): `--title`, `--result`, `--potm`, `--performer` (repeatable), `--series`, `--date`, `--venue`, `--youtube-url`.
-   - Per-match smart framing (`framing`): run `gscc-highlights framing workspace/<match_slug>` (`--reanalyze`, `--height 608|680|740|800`, `--center 0..1`). **Wide / side-on camera rule:** never horizontally crop a side-on/wide angle where the batter and bowler sit near opposite edges — keep the full 16:9 frame (`608px`, `100%` visible width) so the bowler's run-up and release stay inside the frame. If auto-framing crops tighter than `608px`, inspect `framing_preview.jpg` (1 tiny JPEG) to confirm the gold crop box cleanly covers both ends of the pitch.
+   - Per-match smart framing (`framing`): run `gscc-highlights framing <match_slug>` (`--reanalyze`, `--height 608|680|740|800`, `--center 0..1`). **Wide / side-on camera rule:** never horizontally crop a side-on/wide angle where the batter and bowler sit near opposite edges — keep the full 16:9 frame (`608px`, `100%` visible width) so the bowler's run-up and release stay inside the frame. If auto-framing crops tighter than `608px`, inspect `framing_preview.jpg` (1 tiny JPEG) to confirm the gold crop box cleanly covers both ends of the pitch.
    - Intro backdrop style: controlled via `render.intro_backdrop` (`sharp` default or `blurred`) in `config/club.yaml`.
 
 ### 4. Fast Cached Broadcast Render (with Automatic `1440p` HQ Clip Fetch)
 Run:
 ```bash
-~/.local/bin/uv --directory utils/social/highlight-reel run gscc-highlights render workspace/<match_slug>
+~/.local/bin/uv --directory utils/social/highlight-reel run gscc-highlights render <match_slug>
 ```
 - **Two-Tier `1440p`/`1080p` HQ Clarity:** While `prepare` scans quickly at `720p`, `render` automatically resolves the highest YouTube stream up to `1440p` once per match and streams **only the selected clips** over HTTPS (`flags=lanczos` + subtle luma micro-sharpening + `CRF 18` / `8M` headroom), falling back cleanly to the local file when offline or when `720p` is max. Pass `--no-hq` to skip remote HQ fetch or `--hq-url <URL>` to supply a YouTube URL manually.
 - Produces the Stadium Floodlight & Heritage Hybrid broadcast reel: `2.0s` live-action teaser intro (dual Club + Squad crests), per-match smart framing (`--framing auto|full`), segmented progress bar, `0.8s` delayed slide-in lower cards, auto-inserted `2.8s` Innings Break card (chase maths + GSCC contributors), `5.5s` outcome-first Full-Time / Match Summary scorecard, two-stage `-14 LUFS` audio mastering with sidechain ducking, AND an Instagram `4:5` grid cover JPEG (`<slug>_cover.jpg`).

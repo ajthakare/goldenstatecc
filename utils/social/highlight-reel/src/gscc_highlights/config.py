@@ -70,6 +70,10 @@ class ClubConfig:
         ]
     )
 
+    # Storage paths (shared under GSCC/utils/social/ by default; gitignored)
+    workspace_dir: Path = field(default_factory=lambda: Path("../workspace"))
+    output_dir: Path = field(default_factory=lambda: Path("../output"))
+
     # Selection rules
     default_mode: str = "gscc-only"
     max_duration_sec: float = 225.0
@@ -150,7 +154,15 @@ class ClubConfig:
 
     def resolve(self, path: Path | str) -> Path:
         p = Path(path)
-        return p if p.is_absolute() else (self.repo_root / p)
+        return p.resolve() if p.is_absolute() else (self.repo_root / p).resolve()
+
+    @property
+    def workspace_root(self) -> Path:
+        return self.resolve(self.workspace_dir)
+
+    @property
+    def output_root(self) -> Path:
+        return self.resolve(self.output_dir)
 
     def is_gscc_team(self, team_name: str) -> bool:
         norm = " ".join((team_name or "").lower().split())
@@ -195,6 +207,7 @@ def load_config(config_path: Path | str | None = None) -> ClubConfig:
 
     club = raw.get("club", {})
     colors_raw = club.get("colors", {})
+    paths = raw.get("paths", {})
     sel = raw.get("selection", {})
     sync = raw.get("sync", {})
     audio = raw.get("audio", {})
@@ -218,6 +231,8 @@ def load_config(config_path: Path | str | None = None) -> ClubConfig:
         font_extrabold_path=Path(club.get("font_extrabold_path", defaults.font_extrabold_path)),
         colors=colors,
         squad_patterns=list(club.get("squad_patterns", defaults.squad_patterns)),
+        workspace_dir=Path(paths.get("workspace_dir", defaults.workspace_dir)),
+        output_dir=Path(paths.get("output_dir", defaults.output_dir)),
         default_mode=sel.get("default_mode", defaults.default_mode),
         max_duration_sec=float(sel.get("max_duration_sec", defaults.max_duration_sec)),
         target_duration_sec=float(sel.get("target_duration_sec", defaults.target_duration_sec)),

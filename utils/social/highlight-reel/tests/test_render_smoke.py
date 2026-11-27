@@ -209,3 +209,15 @@ def test_render_smoke_innings_break_cover_and_per_clip_cache(tmp_path: Path):
     out2 = render_reel(reloaded, match_dir, cfg, output_path=tmp_path / "smoke_2_reel.mp4")
     assert out2.exists()
     assert cached_clip1.stat().st_mtime == mtime_before
+
+
+def test_shared_workspace_and_output_paths_under_utils_social():
+    from gscc_highlights.cli import _resolve_match_dir
+
+    cfg = load_config()
+    assert cfg.workspace_root == (cfg.repo_root.parent / "workspace").resolve()
+    assert cfg.output_root == (cfg.repo_root.parent / "output").resolve()
+    assert cfg.workspace_root.name == "workspace"
+    assert cfg.output_root.name == "output"
+    assert cfg.workspace_root.parent.name == "social"
+    assert _resolve_match_dir("nonexistent_slug_xyz", cfg).name == "nonexistent_slug_xyz"

@@ -220,7 +220,7 @@ def _run_prepare(args: argparse.Namespace) -> tuple[Path, ProjectManifest]:
         )
         slug = _slugify(title_hint)
 
-    match_dir = cfg.resolve(Path("workspace") / slug)
+    match_dir = cfg.workspace_root / slug
     match_dir.mkdir(parents=True, exist_ok=True)
 
     # Step 3: Download / Probe Videos (supports multi-part streams)
@@ -323,9 +323,21 @@ def _cmd_prepare(args: argparse.Namespace) -> int:
     return 0
 
 
+def _resolve_match_dir(raw_arg: str, cfg: ClubConfig) -> Path:
+    """Resolve a match workspace from an explicit path, relative path, or bare match slug."""
+    p = Path(raw_arg).expanduser()
+    if p.exists():
+        return p.resolve()
+    # Allow bare slug (e.g. 'gscc_bulls_vs_livermore_monks') or 'workspace/<slug>' shorthand
+    cand = cfg.workspace_root / p.name
+    if cand.exists():
+        return cand.resolve()
+    return p.resolve()
+
+
 def _cmd_tweak(args: argparse.Namespace) -> int:
     cfg = load_config(args.config)
-    match_dir = Path(args.match_dir).expanduser().resolve()
+    match_dir = _resolve_match_dir(args.match_dir, cfg)
     clips_json = match_dir / "clips.json"
     manifest = ProjectManifest.load(clips_json)
     clip_map = {c.clip_id: c for c in manifest.clips}
@@ -407,7 +419,7 @@ def _cmd_framing(args: argparse.Namespace) -> int:
     from gscc_highlights.video_io import get_ffmpeg_paths
 
     cfg = load_config(args.config)
-    match_dir = Path(args.match_dir).expanduser().resolve()
+    match_dir = _resolve_match_dir(args.match_dir, cfg)
     manifest = ProjectManifest.load(match_dir / "clips.json")
     if args.height is not None or args.center is not None:
         fr = set_manual_framing(match_dir, cfg, args.height, args.center)
@@ -427,7 +439,7 @@ def _cmd_framing(args: argparse.Namespace) -> int:
 
 def _cmd_render(args: argparse.Namespace) -> int:
     cfg = load_config(args.config)
-    match_dir = Path(args.match_dir).expanduser().resolve()
+    match_dir = _resolve_match_dir(args.match_dir, cfg)
     manifest = ProjectManifest.load(match_dir / "clips.json")
 
     out_path = Path(args.output).expanduser().resolve() if args.output else None
@@ -470,7 +482,8 @@ def _cmd_render(args: argparse.Namespace) -> int:
 
 
 def _cmd_filmstrips(args: argparse.Namespace) -> int:
-    match_dir = Path(args.match_dir).expanduser().resolve()
+    cfg = load_config(args.config)
+    match_dir = _resolve_match_dir(args.match_dir, cfg)
     manifest = ProjectManifest.load(match_dir / "clips.json")
     win_ov: tuple[float, float] | None = None
     if args.window:

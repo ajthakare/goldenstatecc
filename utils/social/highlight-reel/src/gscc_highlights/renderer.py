@@ -884,7 +884,7 @@ def render_reel(
     )
 
     # 5. Final Broadcast Audio Mix (-14 LUFS + auto-ducking music under cheers)
-    final_out = output_path or (config.repo_root / "output" / f"{mi.slug}_reel.mp4")
+    final_out = output_path or (config.output_root / f"{mi.slug}_reel.mp4")
     final_out.parent.mkdir(parents=True, exist_ok=True)
 
     music_choice = music_override if music_override is not None else manifest.music_choice
