@@ -119,6 +119,28 @@ def test_hard_120s_cap_and_chronological_order():
     assert keys == sorted(keys)
 
 
+def test_default_cap_allows_3_to_4_minute_boundary_packed_reel():
+    cfg = load_config()
+    assert 180.0 <= cfg.max_duration_sec <= 240.0
+    info = MatchInfo(
+        slug="boundary_rich",
+        title="California Falcons vs GSCC Bears",
+        gscc_team="GSCC Bears",
+        opponent_team="California Falcons",
+    )
+    # 9 wickets + 18 boundaries (~165s) should ALL fit without dropping fours!
+    balls = [_make_ball(1, i, i, 3, "California Falcons", "GSCC Bears", wicket=True) for i in range(1, 10)]
+    for j in range(10, 20):
+        balls.append(_make_ball(2, j, j - 9, 2, "GSCC Bears", "California Falcons", six=True))
+    for k in range(20, 28):
+        balls.append(_make_ball(2, k, k - 19, 5, "GSCC Bears", "California Falcons", four=True))
+
+    cands = extract_highlight_candidates(info, balls, cfg, mode="gscc-only")
+    selected = select_highlights_for_budget(cands, cfg)
+    assert len(selected) == len(cands)
+    assert any(c.event_type == "four" for c in selected)
+
+
 def test_derby_auto_includes_both_gscc_teams():
     cfg = load_config()
     info = MatchInfo(

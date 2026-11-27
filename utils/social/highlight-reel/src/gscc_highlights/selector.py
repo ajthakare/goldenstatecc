@@ -1,4 +1,4 @@
-"""Highlight ranking, strict GSCC filtering, and <=120s budget selection."""
+"""Highlight ranking, strict GSCC filtering, and configurable duration-budget selection (default <=225s / 3m45s)."""
 
 from __future__ import annotations
 
@@ -60,8 +60,10 @@ def _is_run_out_ball(ball: BallEvent) -> bool:
 
 
 def _batter_stat_prefix(ball: BallEvent, suffix: str = "") -> str:
-    if ball.batter_runs_after > 0 or ball.batter_balls_after > 0:
+    if ball.batter_runs_after > 0 and ball.batter_balls_after > 0:
         return f"{ball.batter_runs_after}* ({ball.batter_balls_after}{suffix})"
+    if ball.batter_runs_after > 0:
+        return f"{ball.batter_runs_after}*"
     return ""
 
 
@@ -78,8 +80,10 @@ def _format_callout(ball: BallEvent, event_type: str) -> tuple[str, str, str]:
 
         if ball.dismissal_text:
             subtext = ball.dismissal_text
-        elif ball.batter_runs_after > 0 or ball.batter_balls_after > 0:
+        elif ball.batter_runs_after > 0 and ball.batter_balls_after > 0:
             subtext = f"{ball.batter} OUT ({ball.batter_runs_after} off {ball.batter_balls_after})"
+        elif ball.batter_runs_after > 0:
+            subtext = f"{ball.batter} OUT ({ball.batter_runs_after})"
         else:
             subtext = f"{ball.batter} OUT" if ball.batter else "Wicket!"
     elif event_type in {"fifty", "hundred"}:
@@ -158,7 +162,7 @@ def select_highlights_for_budget(
     config: ClubConfig,
     max_duration_sec: float | None = None,
 ) -> list[HighlightCandidate]:
-    """Pack highest-priority highlights within the <=120s reel cap, then sort chronologically.
+    """Pack highest-priority highlights within the configured hard cap (default <=225s / 3-4 min), then sort chronologically.
 
     Accounts accurately for intro, outro, and optional Innings Break divider so renderer
     never silently drops selected clips. Never pads with opponent plays or dot balls.

@@ -47,8 +47,9 @@ club:
 selection:
   # Default strict GSCC-only; automatically switches to 'both' on GSCC-vs-GSCC derbies
   default_mode: "gscc-only"
-  max_duration_sec: 120.0
-  target_duration_sec: 105.0
+  # 3-4 min hard stop (225s = 3m45s) so matches don't drop boundaries unnecessarily
+  max_duration_sec: 225.0
+  target_duration_sec: 180.0
   intro_sec: 2.0
   innings_break_sec: 2.8
   outro_sec: 5.5
@@ -58,12 +59,12 @@ selection:
   clip_durations:
     four: 5.0
     six: 5.5
-    wicket: 5.5
-    fifty: 7.0
+    wicket: 6.0
+    fifty: 6.5
     hundred: 7.5
     winning_shot: 7.0
 
-  # Priority scores when trimming a high-scoring match to <= 120s
+  # Priority scores when trimming a mega high-scoring match to <= max_duration_sec
   priority_weights:
     hundred: 100
     winning_shot: 95
@@ -80,8 +81,8 @@ sync:
 
   # Event-aware CricClubs live-scorer lag windows (seconds BEFORE ticker flip)
   boundary_lookback_min_sec: 3.0
-  boundary_lookback_max_sec: 18.0
-  boundary_default_offset_sec: 9.0
+  boundary_lookback_max_sec: 32.0
+  boundary_default_offset_sec: 14.0
 
   wicket_lookback_min_sec: 5.0
   wicket_lookback_max_sec: 65.0
@@ -115,8 +116,8 @@ render:
   # auto = detect where the action is once per match (cached in framing.json) and use a bigger cropped video band
   # full = always show the whole 16:9 frame
   framing_mode: auto
-  # blurred = moody blurred teaser backdrop on the intro (default) | sharp = crisp action frame
-  intro_backdrop: blurred
+  # sharp = crisp action frame behind the intro text (default) | blurred = moody blurred teaser backdrop
+  intro_backdrop: sharp
   card_reveal_delay_sec: 0.8
   card_slide_sec: 0.32
   export_cover_jpg: true

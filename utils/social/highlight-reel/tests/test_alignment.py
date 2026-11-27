@@ -115,3 +115,36 @@ def test_alignment_multi_part_bulk_jump_and_missing_in_video():
     # Clip 4 (stream cut off before 16.5): marked missing_in_video, never hallucinated!
     assert clips[3].status == "missing_in_video" and clips[3].enabled is False
     assert clips[3].ticker_flip_sec is None
+
+
+def test_denoise_repairs_isolated_overs_glitch_and_striker_diffing():
+    from gscc_highlights.clip_refiner import compute_refiner_window
+    from gscc_highlights.ticker_ocr import _extract_all_players_from_wing, _resolve_striker_from_pre_post
+
+    # Isolated OVERS='12' glitch between 2.0 (12 balls) and 2.3 (15 balls) must be repaired!
+    readings = [
+        TickerReading(0, 7960.0, "GSB", 21, 0, "2", 12),
+        TickerReading(0, 8020.0, "GSB", 27, 0, "12", 72),  # OCR glitch on overs
+        TickerReading(0, 8132.0, "GSB", 29, 0, "2.3", 15),
+    ]
+    cleaned = denoise_readings(readings)
+    assert len(cleaned) == 3
+    assert cleaned[1].runs == 27 and cleaned[1].legal_balls == 0
+
+    # Left-to-right wing parser + PRE/POST diff picks the actual striker even when non-striker is present
+    pre = _extract_all_players_from_wing("ABHIMANYU K 46 20 SUBHOJIT D 14 10")
+    post = _extract_all_players_from_wing("ABHIMANYU K 52 21 SUBHOJIT D 14 10")
+    assert len(pre) == 2 and pre[0] == ("Abhimanyu K", 46, 20)
+    assert _resolve_striker_from_pre_post(pre, post, dr=6, is_wicket=False) == ("Abhimanyu K", 52, 21)
+
+    # Wicket diff identifies the dismissed batter whose balls incremented without scoring
+    pre_w = _extract_all_players_from_wing("ADEL M 24 11 SURYANSH K 18 6")
+    post_w = _extract_all_players_from_wing("ADEL M 24 12 SURYANSH K 18 6")
+    assert _resolve_striker_from_pre_post(pre_w, post_w, dr=0, is_wicket=True) == ("Adel M", 24, 12)
+
+    # Late-entered prev_ball_flip_sec (only 7s before t_flip) must NOT truncate the boundary search window!
+    cfg = load_config()
+    ws, we, prior = compute_refiner_window(t_flip=7475.0, prev_ball_flip_sec=7468.0, is_wicket=False, config=cfg)
+    assert ws <= 7445.0  # reaches back far enough to catch a 7448s six!
+    assert we == 7472.0
+    assert ws < prior < we

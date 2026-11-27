@@ -53,9 +53,13 @@ def render_clip_filmstrip(
     win_end: float | None = None,
     num_frames: int = 16,
     cols: int = 4,
-    zoom_pitch: bool = True,
+    zoom_pitch: bool = False,
 ) -> Path:
-    """Render a crisp 4x4 timestamped action filmstrip covering the search window before ticker flip."""
+    """Render a crisp 4x4 timestamped action filmstrip covering the search window before ticker flip.
+
+    Defaults to full 16:9 frame (zoom_pitch=False) so wide/side-on camera angles always show BOTH
+    the bowler run-up and batter crease AND the live score ticker for verifying score flips.
+    """
     t_flip = clip.ticker_flip_sec if clip.ticker_flip_sec is not None else clip.end_sec
 
     if win_start is None or win_end is None:
@@ -65,7 +69,7 @@ def render_clip_filmstrip(
             # Scorers often take 45-65s on wickets (Out -> Type -> Fielder -> New Batter)
             start_t = max(0.0, end_t - default_span)
         else:
-            default_span = 32.0
+            default_span = 36.0
             end_t = min(video_duration - 0.2, t_flip + 1.0)
             start_t = max(0.0, end_t - default_span)
     else:
@@ -145,7 +149,7 @@ def generate_all_filmstrips(
     clip_ids: list[int] | None = None,
     window_override: tuple[float, float] | None = None,
     num_frames: int = 16,
-    zoom_pitch: bool = True,
+    zoom_pitch: bool = False,
 ) -> list[Path]:
     """Generate action filmstrips for all (or selected) clips into workspace/<slug>/filmstrips/."""
     out_dir = match_dir / "filmstrips"

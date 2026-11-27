@@ -276,7 +276,7 @@ def _run_prepare(args: argparse.Namespace) -> tuple[Path, ProjectManifest]:
     # Step 5: Build or Align Highlights
     if ncca_loaded is None:
         match_info, balls = build_ticker_only_match_and_balls(
-            all_readings, video_parts, boxes_by_video, title_hint, cfg
+            all_readings, video_parts, boxes_by_video, title_hint, cfg, mode=args.mode
         )
         if args.title:
             match_info.title = args.title
@@ -482,7 +482,7 @@ def _cmd_filmstrips(args: argparse.Namespace) -> int:
         clip_ids=args.clip,
         window_override=win_ov,
         num_frames=args.frames,
-        zoom_pitch=not args.full_frame,
+        zoom_pitch=bool(getattr(args, "zoom_pitch", False)) and not bool(args.full_frame),
     )
     console.print(f"[green]Generated {len(paths)} action filmstrip(s) in {match_dir / 'filmstrips'}[/green]")
     for p in paths:
@@ -522,7 +522,7 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--music", default=None, help="Music track name in assets/music/, custom audio file path, or 'none'")
         sp.add_argument("--start-time", type=float, default=None, help="Override scan start offset in seconds")
         sp.add_argument("--ticker-box", default=None, help="Manual center scorebox override 'x,y,w,h'")
-        sp.add_argument("--max-duration", type=float, default=None, help="Override max reel duration (default 120s)")
+        sp.add_argument("--max-duration", type=float, default=None, help="Override max reel duration (default 225s / 3m45s)")
         sp.add_argument("--title", default=None, help="Override match title shown on intro/header")
         sp.add_argument("--cookies-from-browser", default=None, help="Browser name for yt-dlp cookies (e.g. chrome, safari)")
         sp.add_argument("--non-interactive", action="store_true", help="Skip interactive music prompt (uses --music or default)")
@@ -601,7 +601,8 @@ def build_parser() -> argparse.ArgumentParser:
     sp_fs.add_argument("--clip", action="append", type=int, help="Specific clip ID(s) to generate (default: all)")
     sp_fs.add_argument("--window", default=None, help="Optional tight zoom window START:END in seconds (for 0.5s-1s precision)")
     sp_fs.add_argument("--frames", type=int, default=16, help="Frames per filmstrip (default: 16)")
-    sp_fs.add_argument("--full-frame", action="store_true", help="Disable gentle pitch-band crop")
+    sp_fs.add_argument("--full-frame", action="store_true", help="Show full 16:9 frame including bowler edges & ticker (default)")
+    sp_fs.add_argument("--zoom-pitch", action="store_true", help="Gently crop sky/ticker band for tighter straight-on cameras")
     sp_fs.set_defaults(func=_cmd_filmstrips)
 
     sp_fr = sub.add_parser("framing", help="Show, re-detect (--reanalyze) or manually override (--height/--center) the per-match video crop")

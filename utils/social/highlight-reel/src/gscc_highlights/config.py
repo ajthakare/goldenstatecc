@@ -72,8 +72,8 @@ class ClubConfig:
 
     # Selection rules
     default_mode: str = "gscc-only"
-    max_duration_sec: float = 120.0
-    target_duration_sec: float = 105.0
+    max_duration_sec: float = 225.0
+    target_duration_sec: float = 180.0
     intro_sec: float = 2.0
     innings_break_sec: float = 2.8
     outro_sec: float = 5.5
@@ -82,8 +82,8 @@ class ClubConfig:
         default_factory=lambda: {
             "four": 5.0,
             "six": 5.5,
-            "wicket": 5.5,
-            "fifty": 7.0,
+            "wicket": 6.0,
+            "fifty": 6.5,
             "hundred": 7.5,
             "winning_shot": 7.0,
         }
@@ -105,11 +105,11 @@ class ClubConfig:
     bulk_jump_max_balls: int = 2
     bulk_jump_max_runs: int = 8
     boundary_lookback_min_sec: float = 3.0
-    boundary_lookback_max_sec: float = 18.0
-    boundary_default_offset_sec: float = 9.0
+    boundary_lookback_max_sec: float = 32.0
+    boundary_default_offset_sec: float = 14.0
     wicket_lookback_min_sec: float = 5.0
-    wicket_lookback_max_sec: float = 45.0
-    wicket_default_offset_sec: float = 20.0
+    wicket_lookback_max_sec: float = 65.0
+    wicket_default_offset_sec: float = 30.0
     wicket_preview_offsets_sec: list[int] = field(default_factory=lambda: [-30, -22, -15, -8, -3])
 
     # Audio rules
@@ -136,7 +136,7 @@ class ClubConfig:
     # 'auto' = detect action position once per match and use a bigger cropped video band; 'full' = legacy full 16:9
     framing_mode: str = "auto"
     # Intro backdrop: 'blurred' (moody, legacy look) or 'sharp' (crisp action frame)
-    intro_backdrop: str = "blurred"
+    intro_backdrop: str = "sharp"
     card_reveal_delay_sec: float = 0.8
     card_slide_sec: float = 0.32
     export_cover_jpg: bool = True

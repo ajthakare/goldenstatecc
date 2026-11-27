@@ -1,6 +1,6 @@
 # GSCC Instagram Highlights Reel Generator
 
-Automated local utility for **Golden State Cricket Club (`@goldenstate_cc`)** that turns 2–3.5 hour NCCA YouTube match livestreams and NCCA scorecards into pro-broadcast **1–2 minute `1080×1920` (9:16) Instagram Reels** plus ready-to-post **`4:5` Instagram Cover JPEGs**—without burning through AI video-scanning quota.
+Automated local utility for **Golden State Cricket Club (`@goldenstate_cc`)** that turns 2–3.5 hour NCCA YouTube match livestreams and NCCA scorecards into pro-broadcast **1–4 minute `1080×1920` (9:16) Instagram Reels** plus ready-to-post **`4:5` Instagram Cover JPEGs**—without burning through AI video-scanning quota.
 
 Supports all four GSCC squads (**GSCC Tigers**, **GSCC Bulls**, **GSCC ThunderCats**, **GSCC Bears**) with bundled high-res squad crests, `Inter Variable` typography, and automatic balanced both-teams mode on intra-club GSCC-vs-GSCC derbies.
 
@@ -36,7 +36,7 @@ Supports all four GSCC squads (**GSCC Tigers**, **GSCC Bulls**, **GSCC ThunderCa
 | **Slim Live-Context Top Bar + Delayed Slide-In Cards** | Compact top bar shows live cache-safe match phase (`1ST INN • POWERPLAY`, `NEED 1 OFF 13`); lower callout card slides up after a spoiler-free `0.8s` run-up delay with unmistakable color coding (`FOUR!` Warm White, `MAXIMUM 6` / milestones Radiant Gold, `WICKET!` / `RUN OUT!` Signal Crimson), Hero-Player layout, and zero 46-char truncation. |
 | **Broadcast Full-Time / Part 1 Recap Scorecard** | `5.5s` outro with outcome-first headline (`LOST BY 2 WICKETS` + chase context), smart status pill (`FULL TIME` vs `MATCH SUMMARY` when the stream stops midway), neutral Player-of-the-Match line when he is an opponent, split-hierarchy scores + auto-computed Run Rates + winner accent, separated `PLAYER OF THE MATCH` badge, and aligned `BAT`/`BOWL` `GSCC STANDOUTS` (auto-derived from clips in Ticker-Only mode so there are never empty voids). |
 | **Broadcast `-14 LUFS` Audio & Sidechain Ducking** | Prompts for music first (built-in 124 BPM beat, custom `.mp3`/`.wav`/`.m4a`, or `none`), high-passes and stem-levels quiet ground audio, automatically ducks music under crowd cheers/appeals, and masters the final mix to Instagram's `-14 LUFS` / `-1.5 dBTP` standard. |
-| **All 4 GSCC Squads, Derbies & Safe Zones** | Strict `gscc-only` default (auto `both` on intra-club derbies), hard `≤ 120.0s` cap in chronological order, and verified Instagram Reels Safe Zones (`y = 220..1480`, lower-right `x ≤ 910`). |
+| **All 4 GSCC Squads, Derbies & Safe Zones** | Strict `gscc-only` default (auto `both` on intra-club derbies), configurable `≤ 225.0s` (3–4 min) cap in chronological order so boundaries aren't needlessly dropped, and verified Instagram Reels Safe Zones (`y = 220..1480`, lower-right `x ≤ 910`). |
 | **Instant Per-Clip Caching & Two-Tier `1440p` HQ Fetch** | Full-match `prepare` stays fast/compact at `720p`, while `render` automatically streams only the selected ~100s of clips directly from YouTube at up to **`1440p`/`1080p`** (`7.5 Mbps` VP9/H.264), downscales via `flags=lanczos` + subtle luma micro-sharpening (`CRF 18` / `8M`), and caches every segment in `rendered_clips/` (~2s music swaps, ~3–5s single-clip tweaks). |
 
 ---
@@ -241,7 +241,7 @@ Run commands from `utils/social/highlight-reel/` with `uv run gscc-highlights <s
 | `--music CHOICE` | Interactive | Filename in `assets/music/`, full path to custom `.mp3`/`.wav`/`.m4a`, or `none` (ground audio only). |
 | `--start-time SEC` | From `?t=` / `0` | Seconds to skip pre-match warmup before OCR scanning. |
 | `--ticker-box X,Y,W,H` | Auto-detected | Manual center scorebox pixel bounds for non-standard stream graphics. |
-| `--max-duration SEC` | `120.0` | Hard maximum reel duration in seconds (including intro, innings break, and outro). |
+| `--max-duration SEC` | `225.0` | Hard maximum reel duration in seconds (3m45s default; includes intro, innings break, and outro). |
 | `--title TEXT` | Auto | Override match title displayed on Intro Card and Top Broadcast Bar. |
 | `--cookies-from-browser` | Optional | Pass browser cookies (`chrome`, `safari`) to `yt-dlp` for unlisted/throttled streams. |
 | `--non-interactive` | `false` | Skip interactive music prompt (uses `--music` or default beat). |
@@ -339,7 +339,7 @@ audio:
 
 render:
   framing_mode: auto
-  intro_backdrop: blurred
+  intro_backdrop: sharp
   card_reveal_delay_sec: 0.8
   card_slide_sec: 0.32
   export_cover_jpg: true
@@ -490,6 +490,6 @@ cd utils/social/highlight-reel
 |---|---|---|
 | `render.framing_mode` | `config/club.yaml` / `render --framing auto\|full` | `auto` measures (locally, zero quota) where motion happens across the highlight clips **once per match**, picks the biggest video band (up to 800px) that still contains the action, and uses the **same crop window for every clip**. Cached in `workspace/<slug>/framing.json` with a `framing_preview.jpg` (gold box = visible area). Wide-action matches automatically stay on the full 16:9 frame. `full` always shows the whole frame. |
 | `gscc-highlights framing <workspace/slug>` | CLI | Show the detected framing. `--reanalyze` re-detects; `--height 608\|680\|740\|800 --center 0..1` sets a manual override that auto-detection never overwrites. |
-| `render.intro_backdrop` | `config/club.yaml` | `blurred` (default, moody legacy look) or `sharp` (crisp action frame positioned with the per-match crop centre). |
+| `render.intro_backdrop` | `config/club.yaml` | `sharp` (default: crisp action frame behind the intro text) or `blurred` (moody legacy look). |
 
 Other v3 behaviours: generic series labels such as bare `NCCA` are hidden; the intro shows a stakes chip (`WON BY…` on a GSCC win, a score line on other results, `CHASING N` on a partial stream); highlight cards show a big live score, the dismissed batter as the hero line on wickets, and a reel progress bar; the innings-break card shows chase maths (`N OFF 120 BALLS • RRR`) and GSCC's own bowlers/batters.
