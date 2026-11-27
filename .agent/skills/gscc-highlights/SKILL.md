@@ -3,7 +3,7 @@ name: gscc-highlights
 description: Create a 1-2 minute 9:16 Instagram Highlights Reel for any Golden State Cricket Club match (Bulls, Tigers, ThunderCats, Bears) using the local zero-quota Python + FFmpeg + Apple Vision OCR CLI in utils/social/highlight-reel. Activate whenever the user asks to generate cricket highlights, make a GSCC Instagram reel, or tweak/re-render an existing match reel.
 ---
 
-# GSCC Cricket Highlights Workflow (Zero-Quota Local Pipeline)
+# GSCC Cricket Highlights Workflow (Zero-Quota Local `v2` Pipeline)
 
 All code, configuration, assets, and CLI entry points live in **`utils/social/highlight-reel/`**.
 Invoke commands with `uv --directory utils/social/highlight-reel run gscc-highlights ...` (or from inside `utils/social/highlight-reel/`).
@@ -18,7 +18,7 @@ Invoke commands with `uv --directory utils/social/highlight-reel run gscc-highli
 Before running `prepare` or `run`, list the user's tracks (`uv --directory utils/social/highlight-reel run gscc-highlights music`) and ask which music they want:
 - A track from `utils/social/highlight-reel/assets/music/` (including `default_hype_beat.wav`),
 - A custom `.mp3` / `.wav` / `.m4a` file path, OR
-- `none` (ground audio only — ideal if they plan to add trending Instagram Reels audio inside Instagram).
+- `none` (ground audio only — ideal if they plan to add trending Instagram Reels audio inside Instagram; ground audio is still cleanly high-passed and broadcast-leveled to `-14 LUFS`).
 
 ### 2. Run Local `prepare` (Zero Quota)
 Run `uv --directory utils/social/highlight-reel run gscc-highlights prepare` (note: on macOS, Apple Vision OCR requires IOSurface access outside the Seatbelt sandbox if running via agent terminal) with:
@@ -49,13 +49,16 @@ Scorecard/ticker updates are ONLY rough timeframe helpers—live scorers frequen
    ```bash
    uv --directory utils/social/highlight-reel run gscc-highlights tweak workspace/<match_slug> --trim 1=622.5:627.3 --trim 2=814.8:819.6 ...
    ```
-4. Share the updated `preview_sheet.jpg` or apply any further user tweaks (`--shift`, `--drop`, `--headline`, `--music`).
+4. Apply any user tweaks or scorecard metadata updates via `tweak`:
+   - Clip edits: `--shift`, `--trim`, `--drop`, `--enable`, `--headline`, `--subtext`, `--badge`, `--music`.
+   - Match / Outro scorecard overrides: `--title`, `--result`, `--potm`, `--performer` (repeatable), `--series`, `--date`, `--venue`.
 
-### 4. Fast Cached Render
+### 4. Fast Cached `v2` Broadcast Render
 Run:
 ```bash
 uv --directory utils/social/highlight-reel run gscc-highlights render workspace/<match_slug>
 ```
-- Per-clip caching ensures tweaked re-renders only re-encode changed clips (~3–5s each) and music swaps take ~2s.
-- Enforces `<= 120.0s` hard cap, `1080×1920` (9:16), Instagram Reels Safe Zones, and unified GSCC branding (`@goldenstate_cc`).
-- Report the clickable `file://` link to the output `.mp4`, duration, resolution, and file size.
+- Produces the `v2` Stadium Floodlight & Heritage Hybrid broadcast reel: `2.0s` darkened live-action teaser intro (dual Club + Squad crests), `0.8s` delayed slide-in lower cards with unmistakable event colors, auto-inserted `1.4s` Innings Break card (when both innings are present), `4.2s` Full-Time / Part 1 Recap scorecard (with Run Rates & auto-derived Ticker-Only standouts), two-stage `-14 LUFS` audio mastering with sidechain music ducking, AND an Instagram `4:5` grid cover JPEG (`<slug>_cover.jpg`).
+- Per-clip caching (`v2.1`) ensures tweaked re-renders only re-encode changed clips (~3–5s each) and music swaps take ~2–3s.
+- Enforces `<= 120.0s` hard cap, `1080×1920` (9:16), Instagram Reels Safe Zones (`y=220..1480`, `x<=910`), and unified GSCC branding (`@goldenstate_cc`).
+- Report clickable `file://` links to both the output `.mp4` and `_cover.jpg`, plus duration, resolution, and file size.

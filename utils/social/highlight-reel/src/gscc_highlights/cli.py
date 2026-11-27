@@ -47,7 +47,13 @@ def _cmd_music(args: argparse.Namespace) -> int:
     return 0
 
 
-def _print_clips_table(manifest: ProjectManifest, max_dur: float, intro: float, outro: float) -> None:
+def _print_clips_table(
+    manifest: ProjectManifest,
+    max_dur: float,
+    intro: float,
+    outro: float,
+    innings_break: float = 0.0,
+) -> None:
     table = Table(title=f"Selected Clips — {manifest.match_info.title}")
     table.add_column("#", justify="right", style="cyan")
     table.add_column("On", justify="center")
@@ -58,10 +64,12 @@ def _print_clips_table(manifest: ProjectManifest, max_dur: float, intro: float, 
     table.add_column("Dur", justify="right")
     table.add_column("Headline")
 
-    enabled_total = 0.0
+    enabled_clips = [c for c in manifest.clips if c.enabled]
+    enabled_total = sum(c.duration_sec for c in enabled_clips)
+    has_break = any(p.innings_number == 1 and n.innings_number == 2 for p, n in zip(enabled_clips, enabled_clips[1:]))
+    break_dur = innings_break if has_break else 0.0
+
     for c in manifest.clips:
-        if c.enabled:
-            enabled_total += c.duration_sec
         win = f"{c.start_sec:.1f}-{c.end_sec:.1f}" if c.status != "missing_in_video" else "MISSING"
         table.add_row(
             str(c.clip_id),
@@ -74,10 +82,11 @@ def _print_clips_table(manifest: ProjectManifest, max_dur: float, intro: float, 
             c.headline,
         )
     console.print(table)
-    est = enabled_total + intro + outro
+    est = enabled_total + intro + break_dur + outro
+    break_str = f" + break {break_dur:.1f}s" if break_dur > 0 else ""
     console.print(
         f"[bold]Estimated reel length:[/bold] {est:.1f}s "
-        f"(intro {intro:.1f}s + {sum(1 for c in manifest.clips if c.enabled)} clips + outro {outro:.1f}s, cap {max_dur:.0f}s)"
+        f"(intro {intro:.1f}s + {len(enabled_clips)} clips{break_str} + outro {outro:.1f}s, cap {max_dur:.0f}s)"
     )
 
 
@@ -219,7 +228,13 @@ def _run_prepare(args: argparse.Namespace) -> tuple[Path, ProjectManifest]:
     manifest.save(clips_json)
 
     preview_path = generate_preview_sheet(manifest, match_dir / "preview_sheet.jpg", cfg)
-    _print_clips_table(manifest, args.max_duration or cfg.max_duration_sec, cfg.intro_sec, cfg.outro_sec)
+    _print_clips_table(
+        manifest,
+        args.max_duration or cfg.max_duration_sec,
+        cfg.intro_sec,
+        cfg.outro_sec,
+        cfg.innings_break_sec,
+    )
     console.print(f"\n[bold green]Saved manifest:[/bold green] {clips_json}")
     console.print(f"[bold green]Saved preview sheet:[/bold green] {preview_path}")
     return match_dir, manifest
@@ -272,9 +287,29 @@ def _cmd_tweak(args: argparse.Namespace) -> int:
         cid_s, text = item.split("=", 1)
         clip_map[int(cid_s)].headline = text.strip()
 
+    for item in args.subtext or []:
+        cid_s, text = item.split("=", 1)
+        clip_map[int(cid_s)].subtext = text.strip()
+
     for item in args.badge or []:
         cid_s, text = item.split("=", 1)
         clip_map[int(cid_s)].badge = text.strip()
+
+    mi = manifest.match_info
+    if args.title is not None:
+        mi.title = args.title.strip()
+    if args.result is not None:
+        mi.result_text = args.result.strip()
+    if args.potm is not None:
+        mi.player_of_match = args.potm.strip()
+    if args.performer:
+        mi.top_performers = [p.strip() for p in args.performer if p.strip()]
+    if args.series is not None:
+        mi.series = args.series.strip()
+    if args.date is not None:
+        mi.date = args.date.strip()
+    if args.venue is not None:
+        mi.venue = args.venue.strip()
 
     if args.music is not None:
         resolve_music_path(args.music, cfg)
@@ -282,7 +317,7 @@ def _cmd_tweak(args: argparse.Namespace) -> int:
 
     manifest.save(clips_json)
     preview_path = generate_preview_sheet(manifest, match_dir / "preview_sheet.jpg", cfg)
-    _print_clips_table(manifest, cfg.max_duration_sec, cfg.intro_sec, cfg.outro_sec)
+    _print_clips_table(manifest, cfg.max_duration_sec, cfg.intro_sec, cfg.outro_sec, cfg.innings_break_sec)
     console.print(f"[green]Updated {clips_json} and refreshed {preview_path}[/green]")
     return 0
 
@@ -293,7 +328,7 @@ def _cmd_render(args: argparse.Namespace) -> int:
     manifest = ProjectManifest.load(match_dir / "clips.json")
 
     out_path = Path(args.output).expanduser().resolve() if args.output else None
-    console.print(f"[bold]Rendering 9:16 Instagram Reel (per-clip cache enabled)...[/bold]")
+    console.print(f"[bold]Rendering v2 9:16 Instagram Reel (per-clip cache enabled)...[/bold]")
     final_mp4 = render_reel(
         manifest=manifest,
         match_dir=match_dir,
@@ -304,11 +339,14 @@ def _cmd_render(args: argparse.Namespace) -> int:
     )
     probed = probe_video(final_mp4)
     size_mb = final_mp4.stat().st_size / (1024 * 1024)
+    stem = final_mp4.stem[:-5] if final_mp4.stem.endswith("_reel") else final_mp4.stem
+    cover_jpg = final_mp4.with_name(f"{stem}_cover.jpg")
+    cover_line = f"\n  Cover JPG:  {cover_jpg}" if cover_jpg.exists() else ""
     console.print(
         f"\n[bold green]Reel ready![/bold green] {final_mp4}\n"
         f"  Resolution: {probed.width}x{probed.height} @ {probed.fps:.0f}fps\n"
         f"  Duration:   {probed.duration_sec:.1f}s (<= {cfg.max_duration_sec:.0f}s)\n"
-        f"  Size:       {size_mb:.1f} MB"
+        f"  Size:       {size_mb:.1f} MB{cover_line}"
     )
 
     if args.cleanup:
@@ -389,14 +427,26 @@ def build_parser() -> argparse.ArgumentParser:
     _add_ingest_args(sp_prep)
     sp_prep.set_defaults(func=_cmd_prepare)
 
-    sp_tweak = sub.add_parser("tweak", help="Quickly shift, trim, enable, or drop clips in clips.json")
+    sp_tweak = sub.add_parser("tweak", help="Quickly shift, trim, drop clips, or update match scorecard metadata")
     sp_tweak.add_argument("match_dir", help="Path to workspace/<match_slug> directory")
     sp_tweak.add_argument("--shift", action="append", help="Shift clip by seconds: ID=DELTA (e.g. 4=-8)")
     sp_tweak.add_argument("--trim", action="append", help="Set exact clip bounds: ID=START:END")
     sp_tweak.add_argument("--drop", action="append", type=int, help="Disable clip ID")
     sp_tweak.add_argument("--enable", action="append", type=int, help="Enable clip ID")
     sp_tweak.add_argument("--headline", action="append", help="Override headline: ID=New Headline")
+    sp_tweak.add_argument("--subtext", action="append", help="Override subtext: ID=New Subtext")
     sp_tweak.add_argument("--badge", action="append", help="Override badge: ID=MAXIMUM 6")
+    sp_tweak.add_argument("--title", default=None, help="Override match title on Intro/Top Bar")
+    sp_tweak.add_argument("--result", default=None, help="Override match result on Full-Time Scorecard")
+    sp_tweak.add_argument("--potm", default=None, help="Override Player of the Match on Full-Time Scorecard")
+    sp_tweak.add_argument(
+        "--performer",
+        action="append",
+        help="Set GSCC Standout performer on Outro (repeatable, e.g. 'Sharan C 77 (47)')",
+    )
+    sp_tweak.add_argument("--series", default=None, help="Override tournament/series label")
+    sp_tweak.add_argument("--date", default=None, help="Override match date label")
+    sp_tweak.add_argument("--venue", default=None, help="Override venue label")
     sp_tweak.add_argument("--music", default=None, help="Change music choice")
     sp_tweak.set_defaults(func=_cmd_tweak)
 

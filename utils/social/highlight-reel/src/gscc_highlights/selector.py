@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from gscc_highlights.config import ClubConfig
 from gscc_highlights.models import BallEvent, HighlightCandidate, MatchInfo
 
@@ -52,30 +54,55 @@ def _classify_ball(
     return events[0]
 
 
+def _is_run_out_ball(ball: BallEvent) -> bool:
+    blob = f"{ball.dismissal_text} {ball.commentary}".lower()
+    return "run out" in blob or "run-out" in blob or "runout" in blob
+
+
+def _batter_stat_prefix(ball: BallEvent, suffix: str = "") -> str:
+    if ball.batter_runs_after > 0 or ball.batter_balls_after > 0:
+        return f"{ball.batter_runs_after}* ({ball.batter_balls_after}{suffix})"
+    return ""
+
+
 def _format_callout(ball: BallEvent, event_type: str) -> tuple[str, str, str]:
     """Build (badge, headline, subtext) for the Instagram Safe-Zone lower card."""
     badge = BADGE_LABELS.get(event_type, event_type.upper())
     if event_type == "wicket":
-        headline = f"{ball.bowler} strikes!" if ball.bowler else "Big Breakthrough!"
+        if _is_run_out_ball(ball):
+            badge = "RUN OUT!"
+            m_ro = re.search(r"run\s*out\s*\(([^)]+)\)", ball.dismissal_text or "", flags=re.IGNORECASE)
+            headline = f"Run Out ({m_ro.group(1).strip()})" if m_ro else "Clutch Run Out!"
+        else:
+            headline = f"{ball.bowler} strikes!" if ball.bowler else "Big Breakthrough!"
+
         if ball.dismissal_text:
             subtext = ball.dismissal_text
-        else:
+        elif ball.batter_runs_after > 0 or ball.batter_balls_after > 0:
             subtext = f"{ball.batter} OUT ({ball.batter_runs_after} off {ball.batter_balls_after})"
+        else:
+            subtext = f"{ball.batter} OUT" if ball.batter else "Wicket!"
     elif event_type in {"fifty", "hundred"}:
         mark = "100" if event_type == "hundred" else "50"
         shot_note = " with a SIX!" if ball.is_six else (" with a FOUR!" if ball.is_four else "")
         headline = f"{ball.batter} reaches {mark}{shot_note}"
-        subtext = f"{ball.batter_runs_after}* ({ball.batter_balls_after} balls) vs {ball.bowler}"
+        stat = _batter_stat_prefix(ball, " balls")
+        vs_txt = f"vs {ball.bowler}" if ball.bowler else ""
+        subtext = " ".join(p for p in [stat, vs_txt] if p)
     elif event_type == "winning_shot":
         shot_note = " — SIX!" if ball.is_six else (" — FOUR!" if ball.is_four else "!")
         headline = f"{ball.batter} seals the win{shot_note}"
         subtext = f"{ball.batting_team} {ball.score_runs_after}/{ball.score_wickets_after} • Over {ball.over_ball}"
     elif event_type == "six":
         headline = f"{ball.batter} launches it for 6!"
-        subtext = f"{ball.batter_runs_after}* ({ball.batter_balls_after}) off {ball.bowler}"
+        stat = _batter_stat_prefix(ball)
+        off_txt = f"off {ball.bowler}" if ball.bowler else ""
+        subtext = " ".join(p for p in [stat, off_txt] if p)
     else:
         headline = f"{ball.batter} finds the boundary!"
-        subtext = f"{ball.batter_runs_after}* ({ball.batter_balls_after}) off {ball.bowler}"
+        stat = _batter_stat_prefix(ball)
+        off_txt = f"off {ball.bowler}" if ball.bowler else ""
+        subtext = " ".join(p for p in [stat, off_txt] if p)
     return badge, headline, subtext
 
 
@@ -133,10 +160,12 @@ def select_highlights_for_budget(
 ) -> list[HighlightCandidate]:
     """Pack highest-priority highlights within the <=120s reel cap, then sort chronologically.
 
-    Never pads with opponent plays or dot balls if fewer highlights exist.
+    Accounts accurately for intro, outro, and optional Innings Break divider so renderer
+    never silently drops selected clips. Never pads with opponent plays or dot balls.
     """
     hard_cap = float(max_duration_sec or config.max_duration_sec)
-    overhead = config.intro_sec + config.outro_sec
+    has_two_innings = {1, 2}.issubset({c.ball_event.innings_number for c in candidates})
+    overhead = config.intro_sec + config.outro_sec + (config.innings_break_sec if has_two_innings else 0.0)
     available = max(10.0, hard_cap - overhead)
 
     # Sort by impact priority descending; clutch later-match moments win ties
@@ -155,7 +184,6 @@ def select_highlights_for_budget(
     used = 0.0
     for cand in ranked:
         clip_cost = cand.desired_duration_sec
-        # Account for transition overlap between consecutive clips
         effective_cost = clip_cost if not selected else max(1.0, clip_cost - config.transition_sec)
         if used + effective_cost <= available:
             selected.append(cand)

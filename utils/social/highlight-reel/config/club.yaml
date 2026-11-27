@@ -8,6 +8,12 @@ club:
   website: "goldenstatecc.org"
   instagram_handle: "@goldenstate_cc"
   logo_path: "assets/logos/gscc_logo.png"
+  squad_logos:
+    tigers: "assets/logos/gscc_tigers.png"
+    bulls: "assets/logos/gscc_bulls.png"
+    thundercats: "assets/logos/gscc_thundercats.png"
+    bears: "assets/logos/gscc_bears.png"
+  font_variable_path: "assets/fonts/Inter-Variable.woff2"
   font_regular_path: "assets/fonts/Inter-Regular.ttf"
   font_bold_path: "assets/fonts/Inter-Bold.ttf"
   font_extrabold_path: "assets/fonts/Inter-ExtraBold.ttf"
@@ -15,11 +21,15 @@ club:
     maroon_primary: "#8C1D18"
     maroon_hover: "#A82B24"
     maroon_dark: "#6E1712"
+    crimson_signal: "#D92B2B"
+    crimson_glow: "#9E1B1B"
     gold_accent: "#C9A227"
     gold_bright: "#D4AF37"
     gold_soft: "#E9C86B"
     obsidian: "#1A1614"
+    obsidian_deep: "#0E0C0B"
     surface_dark: "#241F1C"
+    surface_glass: "#161211"
     warm_white: "#FAF7F2"
     pure_white: "#FFFFFF"
     muted_text: "#B8AEA4"
@@ -39,9 +49,10 @@ selection:
   default_mode: "gscc-only"
   max_duration_sec: 120.0
   target_duration_sec: 105.0
-  intro_sec: 2.5
-  outro_sec: 3.5
-  transition_sec: 0.25
+  intro_sec: 2.0
+  innings_break_sec: 1.4
+  outro_sec: 4.2
+  transition_sec: 0.0
 
   # Default clip lengths by event type
   clip_durations:
@@ -83,8 +94,12 @@ audio:
   music_dir: "assets/music"
   default_music: "default_hype_beat.wav"
   ground_gain: 1.0
-  music_db: -14.0
-  crossfade_sec: 0.20
+  music_db: -11.0
+  crossfade_sec: 0.18
+  target_lufs: -14.0
+  true_peak_db: -1.5
+  ground_target_lufs: -19.0
+  enable_ducking: true
 
 render:
   width: 1080
@@ -97,6 +112,9 @@ render:
   safe_top_y: 220
   safe_bottom_y: 1480
   safe_right_x: 910
+  card_reveal_delay_sec: 0.8
+  card_slide_sec: 0.32
+  export_cover_jpg: true
   prefer_videotoolbox: true
   video_bitrate: "6M"
   audio_bitrate: "192k"

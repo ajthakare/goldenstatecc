@@ -1,18 +1,30 @@
-"""Fast Intel-friendly 9:16 Broadcast Card renderer with per-clip caching and VideoToolbox."""
+"""Fast Intel-friendly v2 9:16 Broadcast Card renderer with teaser intro, slide-in cards, and -14 LUFS mastering."""
 
 from __future__ import annotations
 
 import hashlib
+import re
 import subprocess
 from pathlib import Path
 
 from gscc_highlights.audio import resolve_music_path
 from gscc_highlights.config import ClubConfig
 from gscc_highlights.models import ClipSpec, MatchInfo, ProjectManifest, VideoPart
-from gscc_highlights.overlays import render_clip_overlay, render_intro_card, render_outro_card
+from gscc_highlights.overlays import (
+    LOWER_CARD_H,
+    LOWER_CARD_X,
+    LOWER_CARD_Y_OFFSET,
+    derive_standout_performers,
+    render_clip_lower_card,
+    render_clip_top_overlay,
+    render_innings_break_card,
+    render_intro_card,
+    render_intro_overlay,
+    render_outro_card,
+)
 from gscc_highlights.video_io import get_ffmpeg_paths, probe_video
 
-OVERLAY_SCHEMA_VERSION = "v1"
+OVERLAY_SCHEMA_VERSION = "v2.1"
 
 
 def _supports_videotoolbox(ffmpeg: str) -> bool:
@@ -30,7 +42,6 @@ def _run_ffmpeg_with_fallback(cmd_vt: list[str], cmd_sw: list[str]) -> None:
     proc = subprocess.run(cmd_vt, capture_output=True, text=True)
     if proc.returncode == 0:
         return
-    # Fallback cleanly to software libx264 if hardware VideoToolbox fails on an environment
     proc2 = subprocess.run(cmd_sw, capture_output=True, text=True)
     if proc2.returncode != 0:
         raise RuntimeError(f"FFmpeg render failed:\n{proc2.stderr[-1500:]}")
@@ -44,6 +55,23 @@ def _hash_dict(*parts: object) -> str:
     return h.hexdigest()[:12]
 
 
+def _has_innings_transition(clips: list[ClipSpec]) -> bool:
+    """True when enabled clips transition chronologically from 1st innings to 2nd innings."""
+    for prev, cur in zip(clips, clips[1:]):
+        if prev.innings_number == 1 and cur.innings_number == 2:
+            return True
+    return False
+
+
+def _pick_teaser_clip(clips: list[ClipSpec], part_map: dict[int, VideoPart]) -> tuple[ClipSpec | None, VideoPart | None]:
+    """Select the highest-impact clip with a valid video part for the live-action teaser intro."""
+    candidates = [c for c in clips if c.source_video_index in part_map and c.duration_sec >= 1.5]
+    if not candidates:
+        return None, None
+    best = max(candidates, key=lambda c: (c.priority, c.duration_sec, c.innings_number, c.clip_id))
+    return best, part_map[best.source_video_index]
+
+
 def _render_still_segment(
     ffmpeg: str,
     image_path: Path,
@@ -53,6 +81,11 @@ def _render_still_segment(
 ) -> Path:
     if out_mp4.exists() and out_mp4.stat().st_size > 20_000:
         return out_mp4
+
+    fade_in = min(0.18, duration_sec * 0.2)
+    fade_out = min(0.22, duration_sec * 0.25)
+    fade_out_st = max(0.0, duration_sec - fade_out)
+    vf = f"fade=t=in:st=0:d={fade_in:.2f},fade=t=out:st={fade_out_st:.2f}:d={fade_out:.2f},fps={config.fps},format=yuv420p"
 
     base_inputs = [
         ffmpeg,
@@ -71,8 +104,8 @@ def _render_still_segment(
         f"{duration_sec:.2f}",
         "-i",
         "anullsrc=channel_layout=stereo:sample_rate=48000",
-        "-r",
-        str(config.fps),
+        "-vf",
+        vf,
         "-shortest",
     ]
     audio_out = ["-c:a", "aac", "-b:a", config.audio_bitrate, "-ar", "48000", "-ac", "2", "-movflags", "+faststart", str(out_mp4)]
@@ -82,15 +115,100 @@ def _render_still_segment(
     return out_mp4
 
 
+def _render_teaser_intro_segment(
+    ffmpeg: str,
+    video_part: VideoPart,
+    teaser_start_sec: float,
+    intro_overlay_png: Path,
+    duration_sec: float,
+    out_mp4: Path,
+    config: ClubConfig,
+) -> Path:
+    """Render 2.0s darkened live-action teaser backdrop with Stadium Floodlight intro overlay."""
+    if out_mp4.exists() and out_mp4.stat().st_size > 20_000:
+        return out_mp4
+
+    w, h = config.width, config.height
+    fade_out_st = max(0.0, duration_sec - 0.18)
+    vf = (
+        f"[0:v]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,"
+        f"boxblur=4:2,scale={w}:{h},eq=brightness=-0.22:contrast=1.10:saturation=0.35[bg];"
+        f"[bg][1:v]overlay=0:0,"
+        f"fade=t=in:st=0:d=0.22,fade=t=out:st={fade_out_st:.2f}:d=0.18,"
+        f"fps={config.fps},format=yuv420p[vout]"
+    )
+
+    base_cmd = [
+        ffmpeg,
+        "-y",
+        "-loglevel",
+        "error",
+        "-ss",
+        f"{teaser_start_sec:.3f}",
+        "-t",
+        f"{duration_sec:.2f}",
+        "-i",
+        video_part.local_path,
+        "-i",
+        str(intro_overlay_png),
+        "-f",
+        "lavfi",
+        "-t",
+        f"{duration_sec:.2f}",
+        "-i",
+        "anullsrc=channel_layout=stereo:sample_rate=48000",
+        "-filter_complex",
+        vf,
+        "-map",
+        "[vout]",
+        "-map",
+        "2:a",
+        "-shortest",
+    ]
+    audio_out = ["-c:a", "aac", "-b:a", config.audio_bitrate, "-ar", "48000", "-ac", "2", "-movflags", "+faststart", str(out_mp4)]
+    cmd_vt = base_cmd + _video_codec_args(ffmpeg, config) + audio_out
+    cmd_sw = base_cmd + ["-c:v", "libx264", "-preset", "fast", "-crf", "21", "-pix_fmt", "yuv420p"] + audio_out
+    _run_ffmpeg_with_fallback(cmd_vt, cmd_sw)
+    return out_mp4
+
+
+def _extract_teaser_frame(ffmpeg: str, video_part: VideoPart, timestamp_sec: float, out_jpg: Path) -> Path | None:
+    """Extract a single crisp frame from the #1 highlight clip for the Instagram 4:5 cover image."""
+    out_jpg.parent.mkdir(parents=True, exist_ok=True)
+    proc = subprocess.run(
+        [
+            ffmpeg,
+            "-y",
+            "-loglevel",
+            "error",
+            "-ss",
+            f"{max(0.0, timestamp_sec):.3f}",
+            "-i",
+            video_part.local_path,
+            "-frames:v",
+            "1",
+            "-q:v",
+            "2",
+            str(out_jpg),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode == 0 and out_jpg.exists() and out_jpg.stat().st_size > 2_000:
+        return out_jpg
+    return None
+
+
 def _render_single_clip(
     ffmpeg: str,
     video_part: VideoPart,
     clip: ClipSpec,
-    overlay_png: Path,
+    top_overlay_png: Path,
+    lower_card_png: Path,
     out_mp4: Path,
     config: ClubConfig,
 ) -> Path:
-    """Render one 9:16 Broadcast Card clip with 50x-faster downscaled blur backdrop."""
+    """Render one v2 9:16 Broadcast Card clip with moody backdrop and delayed slide-in lower card."""
     if out_mp4.exists() and out_mp4.stat().st_size > 20_000:
         return out_mp4
 
@@ -98,16 +216,30 @@ def _render_single_clip(
     w, h = config.width, config.height
     vw, vh, vy = config.video_width, config.video_height, config.video_y
     fade_out_start = max(0.0, dur - config.crossfade_sec)
+    vfade_out_start = max(0.0, dur - 0.10)
 
-    # Downscale to 108x192 -> boxblur -> upscale to 1080x1920 (50x faster on Intel CPU!)
+    # Delayed spoiler-free lower card slide-in (clamped for very short clips)
+    delay = min(max(0.0, config.card_reveal_delay_sec), max(0.0, dur * 0.25))
+    slide = max(0.05, config.card_slide_sec)
+    fade_in_d = min(0.20, slide)
+    card_y = min(config.safe_bottom_y - LOWER_CARD_H - 8, vy + vh + LOWER_CARD_Y_OFFSET)
+    slide_px = 56
+
+    # Moody desaturated obsidian stadium blur (50x faster via 108x192 boxblur) + eased lower-card slide-in
     vf = (
         f"[0:v]split=2[bgraw][fgraw];"
         f"[bgraw]scale=108:192:force_original_aspect_ratio=increase,crop=108:192,"
-        f"boxblur=6:2,scale={w}:{h},eq=brightness=-0.20:saturation=1.15[bg];"
+        f"boxblur=7:2,scale={w}:{h},eq=brightness=-0.28:contrast=1.08:saturation=0.32[bg];"
         f"[fgraw]scale={vw}:{vh}:force_original_aspect_ratio=decrease,"
-        f"pad={vw}:{vh}:(ow-iw)/2:(oh-ih)/2:color=#1A1614[fg];"
-        f"[bg][fg]overlay=0:{vy}[comp];"
-        f"[comp][1:v]overlay=0:0,fps={config.fps},format=yuv420p[vout]"
+        f"pad={vw}:{vh}:(ow-iw)/2:(oh-ih)/2:color=#0E0C0B[fg];"
+        f"[bg][fg]overlay=0:{vy}[comp0];"
+        f"[comp0][1:v]overlay=0:0[comp1];"
+        f"[2:v]format=rgba,fade=t=in:st={delay:.3f}:d={fade_in_d:.3f}:alpha=1[card];"
+        f"[comp1][card]overlay=x={LOWER_CARD_X}:"
+        f"y='{card_y}+{slide_px}*pow(1-clip((t-{delay:.3f})/{slide:.3f}\\,0\\,1)\\,3)':"
+        f"enable='gte(t\\,{delay:.3f})':shortest=1,"
+        f"fade=t=in:st=0:d=0.10,fade=t=out:st={vfade_out_start:.3f}:d=0.10,"
+        f"fps={config.fps},format=yuv420p[vout]"
     )
     af = (
         f"[0:a]aresample=48000,aformat=channel_layouts=stereo,"
@@ -116,7 +248,6 @@ def _render_single_clip(
         f"afade=t=out:st={fade_out_start:.2f}:d={config.crossfade_sec:.2f}[aout]"
     )
 
-    # Fast input seeking (-ss before -i) so FFmpeg jumps directly to the clip
     base_cmd = [
         ffmpeg,
         "-y",
@@ -129,7 +260,15 @@ def _render_single_clip(
         "-i",
         video_part.local_path,
         "-i",
-        str(overlay_png),
+        str(top_overlay_png),
+        "-loop",
+        "1",
+        "-r",
+        str(config.fps),
+        "-t",
+        f"{dur:.3f}",
+        "-i",
+        str(lower_card_png),
         "-filter_complex",
         f"{vf};{af}",
         "-map",
@@ -157,7 +296,15 @@ def _render_single_clip(
             "-i",
             video_part.local_path,
             "-i",
-            str(overlay_png),
+            str(top_overlay_png),
+            "-loop",
+            "1",
+            "-r",
+            str(config.fps),
+            "-t",
+            f"{dur:.3f}",
+            "-i",
+            str(lower_card_png),
             "-f",
             "lavfi",
             "-t",
@@ -169,7 +316,7 @@ def _render_single_clip(
             "-map",
             "[vout]",
             "-map",
-            "2:a",
+            "3:a",
         ]
         cmd_vt2 = base_no_audio + _video_codec_args(ffmpeg, config) + audio_tail
         cmd_sw2 = base_no_audio + ["-c:v", "libx264", "-preset", "fast", "-crf", "21", "-pix_fmt", "yuv420p"] + audio_tail
@@ -182,149 +329,133 @@ def _enforce_duration_cap(
     clips: list[ClipSpec],
     config: ClubConfig,
 ) -> list[ClipSpec]:
-    """Strictly enforce total duration <= config.max_duration_sec (120.0s)."""
-    enabled = [c for c in clips if c.enabled and c.duration_sec >= 0.5]
-    budget = config.max_duration_sec - config.intro_sec - config.outro_sec
-    total = sum(c.duration_sec for c in enabled)
-    if total <= budget:
-        return enabled
-
-    # Drop lowest-priority clips until total <= budget, preserving chronological order
-    keep = list(enabled)
-    while keep and sum(c.duration_sec for c in keep) > budget:
+    """Strictly enforce total duration <= config.max_duration_sec (including intro, break, outro)."""
+    keep = [c for c in clips if c.enabled and c.duration_sec >= 0.5]
+    while keep:
+        break_overhead = config.innings_break_sec if _has_innings_transition(keep) else 0.0
+        budget = config.max_duration_sec - config.intro_sec - config.outro_sec - break_overhead
+        if sum(c.duration_sec for c in keep) <= budget:
+            return keep
         lowest = min(keep, key=lambda c: (c.priority, c.innings_number, c.clip_id))
         keep.remove(lowest)
     return keep
 
 
-def render_reel(
-    manifest: ProjectManifest,
-    match_dir: Path,
+def _measure_integrated_lufs(ffmpeg: str, media_path: Path) -> float | None:
+    """Measure integrated EBU R128 loudness (LUFS) of a media file's audio stream."""
+    proc = subprocess.run(
+        [ffmpeg, "-hide_banner", "-i", str(media_path), "-af", "ebur128", "-f", "null", "-"],
+        capture_output=True,
+        text=True,
+    )
+    stderr = proc.stderr or ""
+    # Parse final summary section ("Summary:\n  Integrated loudness:\n    I: -26.2 LUFS")
+    matches = re.findall(r"^\s*I:\s*(-?\d+(?:\.\d+)?)\s*LUFS", stderr, flags=re.MULTILINE)
+    if not matches:
+        return None
+    try:
+        return float(matches[-1])
+    except ValueError:
+        return None
+
+
+def _cover_path_for_output(final_out: Path) -> Path:
+    stem = final_out.stem
+    if stem.endswith("_reel"):
+        stem = stem[:-5]
+    return final_out.with_name(f"{stem}_cover.jpg")
+
+
+def _mix_broadcast_audio(
+    ffmpeg: str,
+    concat_mp4: Path,
+    music_path: Path | None,
+    final_out: Path,
     config: ClubConfig,
-    output_path: Path | None = None,
-    music_override: str | None = None,
-    no_cache: bool = False,
-) -> Path:
-    """Render the final 1080x1920 Instagram Reel using per-clip caching."""
-    ffmpeg, _ = get_ffmpeg_paths()
-    cache_dir = match_dir / "rendered_clips"
-    overlay_dir = match_dir / "overlays"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    overlay_dir.mkdir(parents=True, exist_ok=True)
-
-    if no_cache:
-        for f in cache_dir.glob("*.mp4"):
-            f.unlink(missing_ok=True)
-
-    enabled_clips = _enforce_duration_cap(manifest.clips, config)
-    if not enabled_clips:
-        raise ValueError("No enabled clips available to render in clips.json.")
-
-    mi: MatchInfo = manifest.match_info
-    part_map = {vp.index: vp for vp in manifest.video_parts}
-
-    # 1. Intro Card (cached)
-    intro_key = _hash_dict(OVERLAY_SCHEMA_VERSION, "intro", mi.title, mi.series, mi.date, mi.venue, config.instagram_handle)
-    intro_png = overlay_dir / f"intro_{intro_key}.png"
-    if not intro_png.exists() or no_cache:
-        render_intro_card(mi, config, intro_png)
-    intro_mp4 = _render_still_segment(ffmpeg, intro_png, config.intro_sec, cache_dir / f"intro_{intro_key}.mp4", config)
-
-    # 2. Per-Clip Render (cached independently!)
-    segment_paths: list[Path] = [intro_mp4]
-    for clip in enabled_clips:
-        vp = part_map.get(clip.source_video_index)
-        if not vp:
-            continue
-        clip_key = _hash_dict(
-            OVERLAY_SCHEMA_VERSION,
-            vp.local_path,
-            round(clip.start_sec, 2),
-            round(clip.end_sec, 2),
-            clip.badge,
-            clip.headline,
-            clip.subtext,
-            clip.score_text,
-            mi.title,
-        )
-        ov_png = overlay_dir / f"clip_{clip.clip_id:02d}_{clip_key}.png"
-        if not ov_png.exists() or no_cache:
-            render_clip_overlay(mi, clip, config, ov_png)
-
-        clip_mp4 = cache_dir / f"clip_{clip.clip_id:02d}_{clip_key}.mp4"
-        _render_single_clip(ffmpeg, vp, clip, ov_png, clip_mp4, config)
-        segment_paths.append(clip_mp4)
-
-    # 3. Outro Card (cached)
-    outro_key = _hash_dict(
-        OVERLAY_SCHEMA_VERSION,
-        "outro",
-        mi.result_text,
-        mi.player_of_match,
-        [(i.batting_team, i.runs, i.wickets, i.overs_text) for i in mi.innings],
-        mi.top_performers,
-    )
-    outro_png = overlay_dir / f"outro_{outro_key}.png"
-    if not outro_png.exists() or no_cache:
-        render_outro_card(mi, config, outro_png)
-    outro_mp4 = _render_still_segment(ffmpeg, outro_png, config.outro_sec, cache_dir / f"outro_{outro_key}.mp4", config)
-    segment_paths.append(outro_mp4)
-
-    # 4. Concatenate all cached segments
-    concat_list = cache_dir / "concat_list.txt"
-    concat_list.write_text(
-        "\n".join(f"file '{p.resolve().as_posix()}'" for p in segment_paths) + "\n",
-        encoding="utf-8",
-    )
-    concat_mp4 = cache_dir / "concat_no_music.mp4"
-    subprocess.run(
-        [
-            ffmpeg,
-            "-y",
-            "-loglevel",
-            "error",
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-            str(concat_list),
-            "-c",
-            "copy",
-            "-movflags",
-            "+faststart",
-            str(concat_mp4),
-        ],
-        check=True,
-    )
-
-    # 5. Final Audio Mix (Ground Audio + Chosen Music Track with clean fade-in/out)
-    final_out = output_path or (config.repo_root / "output" / f"{mi.slug}_reel.mp4")
-    final_out.parent.mkdir(parents=True, exist_ok=True)
-
-    music_choice = music_override if music_override is not None else manifest.music_choice
-    music_path = resolve_music_path(music_choice, config)
-
-    if music_path is None:
-        concat_mp4.replace(final_out)
-        return final_out
-
+) -> None:
+    """Two-stage broadcast audio mastering: stem-level ground audio, auto-duck music, master to -14 LUFS."""
     probed = probe_video(concat_mp4)
     total_dur = max(1.0, probed.duration_sec)
-    fade_out_st = max(0.0, total_dur - 2.5)
-    music_db = config.music_db
+    fade_out_st = max(0.0, total_dur - 2.4)
 
-    # Loop music cleanly if shorter than reel, duck gently underneath ground cheers, fade out on outro
-    mix_filter = (
-        f"[0:a]volume=1.0[gnd];"
-        f"[1:a]aresample=48000,aformat=channel_layouts=stereo,"
-        f"volume={music_db:.1f}dB,"
-        f"afade=t=in:st=0:d=1.2,"
-        f"afade=t=out:st={fade_out_st:.2f}:d=2.5,"
-        f"atrim=0:{total_dur:.3f}[mus];"
-        f"[gnd][mus]amix=inputs=2:duration=first:dropout_transition=2:normalize=0,"
-        f"alimiter=limit=0.95[aout]"
-    )
+    measured_gnd = _measure_integrated_lufs(ffmpeg, concat_mp4)
+    if measured_gnd is not None and measured_gnd > -65.0:
+        gnd_gain_db = max(-6.0, min(24.0, config.ground_target_lufs - measured_gnd))
+    else:
+        gnd_gain_db = 0.0
+
+    target_lufs = config.target_lufs
+    tp = config.true_peak_db
+
+    if music_path is None:
+        # Ground-audio-only mode: still clean highpass + broadcast -14 LUFS mastering!
+        af = (
+            f"[0:a]aresample=48000,aformat=channel_layouts=stereo,"
+            f"highpass=f=100,volume={gnd_gain_db:.1f}dB,"
+            f"loudnorm=I={target_lufs:.1f}:TP={tp:.1f}:LRA=11,"
+            f"aresample=48000,aformat=channel_layouts=stereo[aout]"
+        )
+        subprocess.run(
+            [
+                ffmpeg,
+                "-y",
+                "-loglevel",
+                "error",
+                "-i",
+                str(concat_mp4),
+                "-filter_complex",
+                af,
+                "-map",
+                "0:v:0",
+                "-map",
+                "[aout]",
+                "-c:v",
+                "copy",
+                "-c:a",
+                "aac",
+                "-b:a",
+                config.audio_bitrate,
+                "-ar",
+                "48000",
+                "-ac",
+                "2",
+                "-movflags",
+                "+faststart",
+                str(final_out),
+            ],
+            check=True,
+        )
+        return
+
+    music_db = config.music_db
+    if config.enable_ducking:
+        mix_filter = (
+            f"[0:a]aresample=48000,aformat=channel_layouts=stereo,"
+            f"highpass=f=100,volume={gnd_gain_db:.1f}dB,alimiter=limit=0.89,asplit=2[gnd_mix][gnd_sc];"
+            f"[1:a]aresample=48000,aformat=channel_layouts=stereo,"
+            f"volume={music_db:.1f}dB,"
+            f"afade=t=in:st=0:d=0.9,"
+            f"afade=t=out:st={fade_out_st:.2f}:d=2.4,"
+            f"atrim=0:{total_dur:.3f}[mus_raw];"
+            f"[mus_raw][gnd_sc]sidechaincompress=threshold=0.06:ratio=3.5:attack=40:release=420:makeup=1[mus_duck];"
+            f"[gnd_mix][mus_duck]amix=inputs=2:duration=first:dropout_transition=2:normalize=0,"
+            f"loudnorm=I={target_lufs:.1f}:TP={tp:.1f}:LRA=11,"
+            f"aresample=48000,aformat=channel_layouts=stereo[aout]"
+        )
+    else:
+        mix_filter = (
+            f"[0:a]aresample=48000,aformat=channel_layouts=stereo,"
+            f"highpass=f=100,volume={gnd_gain_db:.1f}dB,alimiter=limit=0.89[gnd_mix];"
+            f"[1:a]aresample=48000,aformat=channel_layouts=stereo,"
+            f"volume={music_db:.1f}dB,"
+            f"afade=t=in:st=0:d=0.9,"
+            f"afade=t=out:st={fade_out_st:.2f}:d=2.4,"
+            f"atrim=0:{total_dur:.3f}[mus];"
+            f"[gnd_mix][mus]amix=inputs=2:duration=first:dropout_transition=2:normalize=0,"
+            f"loudnorm=I={target_lufs:.1f}:TP={tp:.1f}:LRA=11,"
+            f"aresample=48000,aformat=channel_layouts=stereo[aout]"
+        )
+
     subprocess.run(
         [
             ffmpeg,
@@ -359,4 +490,218 @@ def render_reel(
         ],
         check=True,
     )
+
+
+def render_reel(
+    manifest: ProjectManifest,
+    match_dir: Path,
+    config: ClubConfig,
+    output_path: Path | None = None,
+    music_override: str | None = None,
+    no_cache: bool = False,
+) -> Path:
+    """Render the final v2 1080x1920 Instagram Reel + 4:5 Cover JPEG using per-clip caching."""
+    ffmpeg, _ = get_ffmpeg_paths()
+    cache_dir = match_dir / "rendered_clips"
+    overlay_dir = match_dir / "overlays"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+
+    if no_cache:
+        for f in cache_dir.glob("*.mp4"):
+            f.unlink(missing_ok=True)
+
+    enabled_clips = _enforce_duration_cap(manifest.clips, config)
+    if not enabled_clips:
+        raise ValueError("No enabled clips available to render in clips.json.")
+
+    mi: MatchInfo = manifest.match_info
+    part_map = {vp.index: vp for vp in manifest.video_parts}
+    inn1 = next((i for i in mi.innings if i.innings_number == 1), None)
+    inn1_target = (inn1.runs + 1) if (inn1 and inn1.runs > 0) else 0
+
+    # 1. Live-Action Teaser Intro (cached) + Instagram 4:5 Cover Export
+    teaser_clip, teaser_vp = _pick_teaser_clip(enabled_clips, part_map)
+    teaser_counts = tuple(sorted((c.event_type for c in enabled_clips)))
+    teaser_start = 0.0
+    if teaser_clip and teaser_vp:
+        max_start = max(0.0, teaser_vp.duration_sec - config.intro_sec - 0.1)
+        ideal_start = teaser_clip.start_sec + min(1.2, max(0.0, (teaser_clip.duration_sec - config.intro_sec) * 0.4))
+        teaser_start = min(ideal_start, max_start)
+
+    intro_key = _hash_dict(
+        OVERLAY_SCHEMA_VERSION,
+        "intro_teaser",
+        mi.title,
+        mi.series,
+        mi.date,
+        mi.venue,
+        mi.gscc_team,
+        mi.opponent_team,
+        mi.is_derby,
+        config.intro_sec,
+        config.instagram_handle,
+        teaser_counts,
+        teaser_vp.local_path if teaser_vp else "",
+        round(teaser_start, 2),
+    )
+
+    if teaser_clip and teaser_vp and Path(teaser_vp.local_path).exists():
+        intro_ov_png = overlay_dir / f"intro_ov_{intro_key}.png"
+        if not intro_ov_png.exists() or no_cache:
+            render_intro_overlay(mi, config, intro_ov_png, clips=enabled_clips)
+        intro_mp4 = _render_teaser_intro_segment(
+            ffmpeg,
+            teaser_vp,
+            teaser_start,
+            intro_ov_png,
+            config.intro_sec,
+            cache_dir / f"intro_{intro_key}.mp4",
+            config,
+        )
+    else:
+        intro_png = overlay_dir / f"intro_{intro_key}.png"
+        if not intro_png.exists() or no_cache:
+            render_intro_card(mi, config, intro_png, clips=enabled_clips)
+        intro_mp4 = _render_still_segment(ffmpeg, intro_png, config.intro_sec, cache_dir / f"intro_{intro_key}.mp4", config)
+
+    # 2. Per-Clip Render + Auto-Inserted Innings Break (each cached independently!)
+    segment_paths: list[Path] = [intro_mp4]
+    inserted_break = False
+    prev_innings: int | None = None
+
+    for clip in enabled_clips:
+        vp = part_map.get(clip.source_video_index)
+        if not vp:
+            continue
+
+        # Auto-insert crisp 1.4s Innings Break divider when crossing from 1st -> 2nd innings
+        if not inserted_break and prev_innings == 1 and clip.innings_number == 2:
+            break_key = _hash_dict(
+                OVERLAY_SCHEMA_VERSION,
+                "innings_break",
+                [(i.innings_number, i.batting_team, i.bowling_team, i.runs, i.wickets, i.overs_text) for i in mi.innings[:2]],
+                mi.gscc_team,
+                mi.opponent_team,
+                config.innings_break_sec,
+                config.instagram_handle,
+            )
+            break_png = overlay_dir / f"break_{break_key}.png"
+            if not break_png.exists() or no_cache:
+                render_innings_break_card(mi, config, break_png)
+            break_mp4 = _render_still_segment(
+                ffmpeg,
+                break_png,
+                config.innings_break_sec,
+                cache_dir / f"break_{break_key}.mp4",
+                config,
+            )
+            segment_paths.append(break_mp4)
+            inserted_break = True
+
+        clip_key = _hash_dict(
+            OVERLAY_SCHEMA_VERSION,
+            vp.local_path,
+            round(clip.start_sec, 2),
+            round(clip.end_sec, 2),
+            clip.event_type,
+            clip.innings_number,
+            clip.over_ball,
+            clip.badge,
+            clip.headline,
+            clip.subtext,
+            clip.score_text,
+            mi.title,
+            mi.series,
+            mi.date,
+            mi.gscc_team,
+            mi.is_derby,
+            inn1_target if clip.innings_number == 2 else 0,
+            round(config.card_reveal_delay_sec, 2),
+            round(config.card_slide_sec, 2),
+        )
+        top_png = overlay_dir / f"clip_{clip.clip_id:02d}_top_{clip_key}.png"
+        low_png = overlay_dir / f"clip_{clip.clip_id:02d}_low_{clip_key}.png"
+        if not top_png.exists() or no_cache:
+            render_clip_top_overlay(mi, clip, config, top_png)
+        if not low_png.exists() or no_cache:
+            render_clip_lower_card(mi, clip, config, low_png)
+
+        clip_mp4 = cache_dir / f"clip_{clip.clip_id:02d}_{clip_key}.mp4"
+        _render_single_clip(ffmpeg, vp, clip, top_png, low_png, clip_mp4, config)
+        segment_paths.append(clip_mp4)
+        prev_innings = clip.innings_number
+
+    # 3. Full-Time Scorecard Outro (cached)
+    resolved_perfs = derive_standout_performers(mi, enabled_clips, config)
+    outro_key = _hash_dict(
+        OVERLAY_SCHEMA_VERSION,
+        "outro",
+        mi.title,
+        mi.series,
+        mi.date,
+        mi.result_text,
+        mi.player_of_match,
+        mi.gscc_team,
+        mi.opponent_team,
+        mi.is_derby,
+        [(i.batting_team, i.runs, i.wickets, i.overs_text) for i in mi.innings],
+        resolved_perfs,
+        config.outro_sec,
+        config.instagram_handle,
+    )
+    outro_png = overlay_dir / f"outro_{outro_key}.png"
+    if not outro_png.exists() or no_cache:
+        render_outro_card(mi, config, outro_png, clips=enabled_clips)
+    outro_mp4 = _render_still_segment(ffmpeg, outro_png, config.outro_sec, cache_dir / f"outro_{outro_key}.mp4", config)
+    segment_paths.append(outro_mp4)
+
+    # 4. Concatenate all cached segments (stream copy = instant!)
+    concat_list = cache_dir / "concat_list.txt"
+    concat_list.write_text(
+        "\n".join(f"file '{p.resolve().as_posix()}'" for p in segment_paths) + "\n",
+        encoding="utf-8",
+    )
+    concat_mp4 = cache_dir / "concat_no_music.mp4"
+    subprocess.run(
+        [
+            ffmpeg,
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            str(concat_list),
+            "-c",
+            "copy",
+            "-movflags",
+            "+faststart",
+            str(concat_mp4),
+        ],
+        check=True,
+    )
+
+    # 5. Final Broadcast Audio Mix (-14 LUFS + auto-ducking music under cheers)
+    final_out = output_path or (config.repo_root / "output" / f"{mi.slug}_reel.mp4")
+    final_out.parent.mkdir(parents=True, exist_ok=True)
+
+    music_choice = music_override if music_override is not None else manifest.music_choice
+    music_path = resolve_music_path(music_choice, config)
+    _mix_broadcast_audio(ffmpeg, concat_mp4, music_path, final_out, config)
+
+    # 6. Export clean Instagram 4:5 Cover JPEG alongside the MP4
+    if config.export_cover_jpg:
+        cover_path = _cover_path_for_output(final_out)
+        bg_frame: Path | None = None
+        if teaser_clip and teaser_vp and Path(teaser_vp.local_path).exists():
+            frame_jpg = overlay_dir / f"teaser_frame_{intro_key}.jpg"
+            if not frame_jpg.exists() or no_cache:
+                bg_frame = _extract_teaser_frame(ffmpeg, teaser_vp, teaser_start + 0.5, frame_jpg)
+            else:
+                bg_frame = frame_jpg
+        render_intro_card(mi, config, cover_path, clips=enabled_clips, bg_frame_path=bg_frame)
+
     return final_out

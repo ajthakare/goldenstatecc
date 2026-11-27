@@ -134,3 +134,29 @@ def test_derby_auto_includes_both_gscc_teams():
     ]
     cands = extract_highlight_candidates(info, balls, cfg, mode="gscc-only")
     assert len(cands) == 2
+
+
+def test_run_out_never_credits_bowler_and_zero_stat_sanitized():
+    cfg = load_config()
+    info = MatchInfo(
+        slug="runout_test",
+        title="GSCC Tigers vs Afghan Atalan",
+        gscc_team="GSCC Tigers",
+        opponent_team="Afghan Atalan",
+    )
+    ro_ball = _make_ball(2, 1, 17, 5, "Afghan Atalan", "GSCC Tigers", wicket=True)
+    ro_ball.bowler = "Vinay R"
+    ro_ball.dismissal_text = "Mohammad Tariq run out (Chetan K / Vinay R) 8 (6)"
+
+    zero_four = _make_ball(1, 2, 0, 2, "GSCC Tigers", "Afghan Atalan", four=True)
+    zero_four.batter_runs_after = 0
+    zero_four.batter_balls_after = 0
+    zero_four.bowler = "Mayur P"
+
+    cands = extract_highlight_candidates(info, [ro_ball, zero_four], cfg, mode="gscc-only")
+    assert len(cands) == 2
+    assert cands[0].badge == "RUN OUT!"
+    assert "strikes" not in cands[0].headline.lower()
+    assert "Chetan K / Vinay R" in cands[0].headline
+    assert "0* (0)" not in cands[1].subtext
+    assert "Mayur P" in cands[1].subtext
