@@ -28,3 +28,16 @@ local-debug/
 
 # Python venv for docs/scripts/extract-ncca-rules.py
 .venv-docs/
+
+# Social highlight-reel utility (Python env, media caches & rendered outputs)
+utils/social/highlight-reel/.venv/
+utils/social/highlight-reel/.pytest_cache/
+utils/social/highlight-reel/workspace/
+utils/social/highlight-reel/output/
+utils/social/highlight-reel/assets/music/*.wav
+utils/social/highlight-reel/assets/music/*.mp3
+utils/social/highlight-reel/assets/music/*.m4a
+__pycache__/
+*.pyc
+workspace/
+output/

@@ -1,0 +1,102 @@
+# Golden State Cricket Club — Unified Highlights Branding & Pipeline Config
+# Official brand tokens synced from https://goldenstatecc.org/
+
+club:
+  name: "Golden State Cricket Club"
+  short_name: "GSCC"
+  tagline: "BAY AREA, CALIFORNIA"
+  website: "goldenstatecc.org"
+  instagram_handle: "@goldenstate_cc"
+  logo_path: "assets/logos/gscc_logo.png"
+  font_regular_path: "assets/fonts/Inter-Regular.ttf"
+  font_bold_path: "assets/fonts/Inter-Bold.ttf"
+  font_extrabold_path: "assets/fonts/Inter-ExtraBold.ttf"
+  colors:
+    maroon_primary: "#8C1D18"
+    maroon_hover: "#A82B24"
+    maroon_dark: "#6E1712"
+    gold_accent: "#C9A227"
+    gold_bright: "#D4AF37"
+    gold_soft: "#E9C86B"
+    obsidian: "#1A1614"
+    surface_dark: "#241F1C"
+    warm_white: "#FAF7F2"
+    pure_white: "#FFFFFF"
+    muted_text: "#B8AEA4"
+
+  # Patterns used to auto-detect GSCC teams in NCCA & ticker data
+  squad_patterns:
+    - "GSCC"
+    - "Golden State"
+    - "GSCC Tigers"
+    - "GSCC Bulls"
+    - "GSCC ThunderCats"
+    - "GSCC Thundercats"
+    - "GSCC Bears"
+
+selection:
+  # Default strict GSCC-only; automatically switches to 'both' on GSCC-vs-GSCC derbies
+  default_mode: "gscc-only"
+  max_duration_sec: 120.0
+  target_duration_sec: 105.0
+  intro_sec: 2.5
+  outro_sec: 3.5
+  transition_sec: 0.25
+
+  # Default clip lengths by event type
+  clip_durations:
+    four: 5.0
+    six: 5.5
+    wicket: 5.5
+    fifty: 7.0
+    hundred: 7.5
+    winning_shot: 7.0
+
+  # Priority scores when trimming a high-scoring match to <= 120s
+  priority_weights:
+    hundred: 100
+    winning_shot: 95
+    fifty: 90
+    six: 80
+    wicket: 78
+    four: 55
+
+sync:
+  coarse_sample_sec: 4.0
+  pixel_diff_threshold: 2.5
+  bulk_jump_max_balls: 2
+  bulk_jump_max_runs: 8
+
+  # Event-aware CricClubs live-scorer lag windows (seconds BEFORE ticker flip)
+  boundary_lookback_min_sec: 3.0
+  boundary_lookback_max_sec: 18.0
+  boundary_default_offset_sec: 9.0
+
+  wicket_lookback_min_sec: 5.0
+  wicket_lookback_max_sec: 65.0
+  wicket_default_offset_sec: 30.0
+
+  # Lookback frames shown on preview_sheet.jpg for wickets & low-confidence clips
+  wicket_preview_offsets_sec: [-30, -22, -15, -8, -3]
+
+audio:
+  music_dir: "assets/music"
+  default_music: "default_hype_beat.wav"
+  ground_gain: 1.0
+  music_db: -14.0
+  crossfade_sec: 0.20
+
+render:
+  width: 1080
+  height: 1920
+  fps: 30
+  # Strict Instagram Reels Safe Zone layout
+  video_y: 520
+  video_width: 1080
+  video_height: 608
+  safe_top_y: 220
+  safe_bottom_y: 1480
+  safe_right_x: 910
+  prefer_videotoolbox: true
+  video_bitrate: "6M"
+  audio_bitrate: "192k"
