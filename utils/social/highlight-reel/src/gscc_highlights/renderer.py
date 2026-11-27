@@ -1,4 +1,4 @@
-"""Fast Intel-friendly v2 9:16 Broadcast Card renderer with teaser intro, slide-in cards, and -14 LUFS mastering."""
+"""Fast Intel-friendly v2.2 9:16 Broadcast Card renderer with smart framing, two-tier 1440p HQ clip fetch, Lanczos sharpening, slide-in cards, and -14 LUFS mastering."""
 
 from __future__ import annotations
 
@@ -9,11 +9,15 @@ from pathlib import Path
 
 from gscc_highlights.audio import resolve_music_path
 from gscc_highlights.config import ClubConfig
+from gscc_highlights.framing import (
+    LOWER_CARD_X,
+    Framing,
+    Layout,
+    build_layout,
+    resolve_framing,
+)
 from gscc_highlights.models import ClipSpec, MatchInfo, ProjectManifest, VideoPart
 from gscc_highlights.overlays import (
-    LOWER_CARD_H,
-    LOWER_CARD_X,
-    LOWER_CARD_Y_OFFSET,
     derive_standout_performers,
     render_clip_lower_card,
     render_clip_top_overlay,
@@ -22,9 +26,9 @@ from gscc_highlights.overlays import (
     render_intro_overlay,
     render_outro_card,
 )
-from gscc_highlights.video_io import get_ffmpeg_paths, probe_video
+from gscc_highlights.video_io import get_ffmpeg_paths, probe_video, resolve_hq_stream_url
 
-OVERLAY_SCHEMA_VERSION = "v2.1"
+OVERLAY_SCHEMA_VERSION = "v2.2"
 
 
 def _supports_videotoolbox(ffmpeg: str) -> bool:
@@ -32,10 +36,14 @@ def _supports_videotoolbox(ffmpeg: str) -> bool:
     return "h264_videotoolbox" in (proc.stdout or "")
 
 
+def _sw_codec_args(config: ClubConfig) -> list[str]:
+    return ["-c:v", "libx264", "-preset", "fast", "-crf", str(config.crf), "-pix_fmt", "yuv420p"]
+
+
 def _video_codec_args(ffmpeg: str, config: ClubConfig) -> list[str]:
     if config.prefer_videotoolbox and _supports_videotoolbox(ffmpeg):
         return ["-c:v", "h264_videotoolbox", "-b:v", config.video_bitrate, "-pix_fmt", "yuv420p"]
-    return ["-c:v", "libx264", "-preset", "fast", "-crf", "21", "-pix_fmt", "yuv420p"]
+    return _sw_codec_args(config)
 
 
 def _run_ffmpeg_with_fallback(cmd_vt: list[str], cmd_sw: list[str]) -> None:
@@ -110,7 +118,7 @@ def _render_still_segment(
     ]
     audio_out = ["-c:a", "aac", "-b:a", config.audio_bitrate, "-ar", "48000", "-ac", "2", "-movflags", "+faststart", str(out_mp4)]
     cmd_vt = base_inputs + _video_codec_args(ffmpeg, config) + audio_out
-    cmd_sw = base_inputs + ["-c:v", "libx264", "-preset", "fast", "-crf", "21", "-pix_fmt", "yuv420p"] + audio_out
+    cmd_sw = base_inputs + _sw_codec_args(config) + audio_out
     _run_ffmpeg_with_fallback(cmd_vt, cmd_sw)
     return out_mp4
 
@@ -130,9 +138,18 @@ def _render_teaser_intro_segment(
 
     w, h = config.width, config.height
     fade_out_st = max(0.0, duration_sec - 0.18)
+    if (config.intro_backdrop or "blurred").lower() == "sharp":
+        bg_chain = (
+            f"[0:v]scale={w}:{h}:force_original_aspect_ratio=increase:flags=lanczos,"
+            f"crop={w}:{h},eq=brightness=-0.16:contrast=1.08:saturation=0.72[bg];"
+        )
+    else:
+        bg_chain = (
+            f"[0:v]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,"
+            f"boxblur=4:2,scale={w}:{h},eq=brightness=-0.22:contrast=1.10:saturation=0.35[bg];"
+        )
     vf = (
-        f"[0:v]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,"
-        f"boxblur=4:2,scale={w}:{h},eq=brightness=-0.22:contrast=1.10:saturation=0.35[bg];"
+        f"{bg_chain}"
         f"[bg][1:v]overlay=0:0,"
         f"fade=t=in:st=0:d=0.22,fade=t=out:st={fade_out_st:.2f}:d=0.18,"
         f"fps={config.fps},format=yuv420p[vout]"
@@ -167,7 +184,7 @@ def _render_teaser_intro_segment(
     ]
     audio_out = ["-c:a", "aac", "-b:a", config.audio_bitrate, "-ar", "48000", "-ac", "2", "-movflags", "+faststart", str(out_mp4)]
     cmd_vt = base_cmd + _video_codec_args(ffmpeg, config) + audio_out
-    cmd_sw = base_cmd + ["-c:v", "libx264", "-preset", "fast", "-crf", "21", "-pix_fmt", "yuv420p"] + audio_out
+    cmd_sw = base_cmd + _sw_codec_args(config) + audio_out
     _run_ffmpeg_with_fallback(cmd_vt, cmd_sw)
     return out_mp4
 
@@ -207,14 +224,18 @@ def _render_single_clip(
     lower_card_png: Path,
     out_mp4: Path,
     config: ClubConfig,
+    framing: Framing | None = None,
+    layout: Layout | None = None,
+    hq_video_url: str | None = None,
 ) -> Path:
-    """Render one v2 9:16 Broadcast Card clip with moody backdrop and delayed slide-in lower card."""
+    """Render one v2.2 9:16 Broadcast Card clip with smart framing, Lanczos sharpening, optional 1440p HQ fetch, and slide-in card."""
     if out_mp4.exists() and out_mp4.stat().st_size > 20_000:
         return out_mp4
 
     dur = max(0.5, clip.end_sec - clip.start_sec)
     w, h = config.width, config.height
-    vw, vh, vy = config.video_width, config.video_height, config.video_y
+    layout = layout or build_layout(config, framing)
+    vw, vh, vy = config.video_width, layout.video_h, layout.video_y
     fade_out_start = max(0.0, dur - config.crossfade_sec)
     vfade_out_start = max(0.0, dur - 0.10)
 
@@ -222,16 +243,32 @@ def _render_single_clip(
     delay = min(max(0.0, config.card_reveal_delay_sec), max(0.0, dur * 0.25))
     slide = max(0.05, config.card_slide_sec)
     fade_in_d = min(0.20, slide)
-    card_y = min(config.safe_bottom_y - LOWER_CARD_H - 8, vy + vh + LOWER_CARD_Y_OFFSET)
+    card_y = layout.card_y
     slide_px = 56
 
-    # Moody desaturated obsidian stadium blur (50x faster via 108x192 boxblur) + eased lower-card slide-in
+    sharp = max(0.0, config.sharpen_amount)
+    sharp_flt = f",unsharp=5:5:{sharp:.2f}:3:3:0.0" if sharp > 0.01 else ""
+
+    if framing is not None and not framing.is_full:
+        cx = framing.crop_center_x
+        fg_chain = (
+            f"[fgraw]scale=-2:{vh}:flags=lanczos,"
+            f"crop={vw}:{vh}:'min(iw-{vw}\\,max(0\\,round({cx:.4f}*iw-{vw}/2)))':0"
+            f"{sharp_flt},eq=contrast=1.03:saturation=1.05[fg];"
+        )
+    else:
+        fg_chain = (
+            f"[fgraw]scale={vw}:{vh}:force_original_aspect_ratio=decrease:flags=lanczos"
+            f"{sharp_flt},eq=contrast=1.03:saturation=1.05,"
+            f"pad={vw}:{vh}:(ow-iw)/2:(oh-ih)/2:color=#0E0C0B[fg];"
+        )
+
+    # Moody desaturated obsidian stadium blur (50x faster via 108x192 boxblur) + Lanczos supersampled crisp foreground
     vf = (
         f"[0:v]split=2[bgraw][fgraw];"
         f"[bgraw]scale=108:192:force_original_aspect_ratio=increase,crop=108:192,"
         f"boxblur=7:2,scale={w}:{h},eq=brightness=-0.28:contrast=1.08:saturation=0.32[bg];"
-        f"[fgraw]scale={vw}:{vh}:force_original_aspect_ratio=decrease,"
-        f"pad={vw}:{vh}:(ow-iw)/2:(oh-ih)/2:color=#0E0C0B[fg];"
+        f"{fg_chain}"
         f"[bg][fg]overlay=0:{vy}[comp0];"
         f"[comp0][1:v]overlay=0:0[comp1];"
         f"[2:v]format=rgba,fade=t=in:st={delay:.3f}:d={fade_in_d:.3f}:alpha=1[card];"
@@ -241,13 +278,116 @@ def _render_single_clip(
         f"fade=t=in:st=0:d=0.10,fade=t=out:st={vfade_out_start:.3f}:d=0.10,"
         f"fps={config.fps},format=yuv420p[vout]"
     )
-    af = (
-        f"[0:a]aresample=48000,aformat=channel_layouts=stereo,"
-        f"volume={config.ground_gain:.2f},"
-        f"afade=t=in:st=0:d={config.crossfade_sec:.2f},"
-        f"afade=t=out:st={fade_out_start:.2f}:d={config.crossfade_sec:.2f}[aout]"
-    )
 
+    def _build_af(audio_input_idx: int) -> str:
+        return (
+            f"[{audio_input_idx}:a]aresample=48000,aformat=channel_layouts=stereo,"
+            f"volume={config.ground_gain:.2f},"
+            f"afade=t=in:st=0:d={config.crossfade_sec:.2f},"
+            f"afade=t=out:st={fade_out_start:.2f}:d={config.crossfade_sec:.2f}[aout]"
+        )
+
+    audio_tail = ["-c:a", "aac", "-b:a", config.audio_bitrate, "-ar", "48000", "-ac", "2", "-movflags", "+faststart", str(out_mp4)]
+
+    # Attempt 1 (Two-tier HQ): remote 1440p/1080p video + instant local audio from cached source_part
+    if hq_video_url:
+        hq_cmd = [
+            ffmpeg,
+            "-y",
+            "-loglevel",
+            "error",
+            "-reconnect",
+            "1",
+            "-reconnect_streamed",
+            "1",
+            "-reconnect_delay_max",
+            "3",
+            "-ss",
+            f"{clip.start_sec:.3f}",
+            "-t",
+            f"{dur:.3f}",
+            "-i",
+            hq_video_url,
+            "-i",
+            str(top_overlay_png),
+            "-loop",
+            "1",
+            "-r",
+            str(config.fps),
+            "-t",
+            f"{dur:.3f}",
+            "-i",
+            str(lower_card_png),
+            "-ss",
+            f"{clip.start_sec:.3f}",
+            "-t",
+            f"{dur:.3f}",
+            "-i",
+            video_part.local_path,
+            "-filter_complex",
+            f"{vf};{_build_af(3)}",
+            "-map",
+            "[vout]",
+            "-map",
+            "[aout]",
+        ]
+        try:
+            _run_ffmpeg_with_fallback(
+                hq_cmd + _video_codec_args(ffmpeg, config) + audio_tail,
+                hq_cmd + _sw_codec_args(config) + audio_tail,
+            )
+            return out_mp4
+        except RuntimeError:
+            hq_silent_cmd = [
+                ffmpeg,
+                "-y",
+                "-loglevel",
+                "error",
+                "-reconnect",
+                "1",
+                "-reconnect_streamed",
+                "1",
+                "-reconnect_delay_max",
+                "3",
+                "-ss",
+                f"{clip.start_sec:.3f}",
+                "-t",
+                f"{dur:.3f}",
+                "-i",
+                hq_video_url,
+                "-i",
+                str(top_overlay_png),
+                "-loop",
+                "1",
+                "-r",
+                str(config.fps),
+                "-t",
+                f"{dur:.3f}",
+                "-i",
+                str(lower_card_png),
+                "-f",
+                "lavfi",
+                "-t",
+                f"{dur:.3f}",
+                "-i",
+                "anullsrc=channel_layout=stereo:sample_rate=48000",
+                "-filter_complex",
+                vf,
+                "-map",
+                "[vout]",
+                "-map",
+                "3:a",
+            ]
+            try:
+                _run_ffmpeg_with_fallback(
+                    hq_silent_cmd + _video_codec_args(ffmpeg, config) + audio_tail,
+                    hq_silent_cmd + _sw_codec_args(config) + audio_tail,
+                )
+                return out_mp4
+            except RuntimeError:
+                pass  # Network hiccup or expired URL: seamlessly fall back to local cached source!
+
+    # Local cached source (primary path when already >= HQ or offline, fallback if remote HQ fails)
     base_cmd = [
         ffmpeg,
         "-y",
@@ -270,20 +410,18 @@ def _render_single_clip(
         "-i",
         str(lower_card_png),
         "-filter_complex",
-        f"{vf};{af}",
+        f"{vf};{_build_af(0)}",
         "-map",
         "[vout]",
         "-map",
         "[aout]",
     ]
-    audio_tail = ["-c:a", "aac", "-b:a", config.audio_bitrate, "-ar", "48000", "-ac", "2", "-movflags", "+faststart", str(out_mp4)]
     cmd_vt = base_cmd + _video_codec_args(ffmpeg, config) + audio_tail
-    cmd_sw = base_cmd + ["-c:v", "libx264", "-preset", "fast", "-crf", "21", "-pix_fmt", "yuv420p"] + audio_tail
+    cmd_sw = base_cmd + _sw_codec_args(config) + audio_tail
 
     try:
         _run_ffmpeg_with_fallback(cmd_vt, cmd_sw)
     except RuntimeError:
-        # Handle silent source videos (no audio stream) by injecting silent stereo track
         base_no_audio = [
             ffmpeg,
             "-y",
@@ -319,7 +457,7 @@ def _render_single_clip(
             "3:a",
         ]
         cmd_vt2 = base_no_audio + _video_codec_args(ffmpeg, config) + audio_tail
-        cmd_sw2 = base_no_audio + ["-c:v", "libx264", "-preset", "fast", "-crf", "21", "-pix_fmt", "yuv420p"] + audio_tail
+        cmd_sw2 = base_no_audio + _sw_codec_args(config) + audio_tail
         _run_ffmpeg_with_fallback(cmd_vt2, cmd_sw2)
 
     return out_mp4
@@ -349,7 +487,6 @@ def _measure_integrated_lufs(ffmpeg: str, media_path: Path) -> float | None:
         text=True,
     )
     stderr = proc.stderr or ""
-    # Parse final summary section ("Summary:\n  Integrated loudness:\n    I: -26.2 LUFS")
     matches = re.findall(r"^\s*I:\s*(-?\d+(?:\.\d+)?)\s*LUFS", stderr, flags=re.MULTILINE)
     if not matches:
         return None
@@ -388,7 +525,6 @@ def _mix_broadcast_audio(
     tp = config.true_peak_db
 
     if music_path is None:
-        # Ground-audio-only mode: still clean highpass + broadcast -14 LUFS mastering!
         af = (
             f"[0:a]aresample=48000,aformat=channel_layouts=stereo,"
             f"highpass=f=100,volume={gnd_gain_db:.1f}dB,"
@@ -499,8 +635,12 @@ def render_reel(
     output_path: Path | None = None,
     music_override: str | None = None,
     no_cache: bool = False,
+    framing_mode: str | None = None,
+    hq_clips: bool | None = None,
+    hq_url_override: str | None = None,
+    cookies_from_browser: str | None = None,
 ) -> Path:
-    """Render the final v2 1080x1920 Instagram Reel + 4:5 Cover JPEG using per-clip caching."""
+    """Render the final v2.2 1080x1920 Instagram Reel + 4:5 Cover JPEG using smart framing, per-clip caching, and optional 1440p HQ fetch."""
     ffmpeg, _ = get_ffmpeg_paths()
     cache_dir = match_dir / "rendered_clips"
     overlay_dir = match_dir / "overlays"
@@ -519,6 +659,29 @@ def render_reel(
     part_map = {vp.index: vp for vp in manifest.video_parts}
     inn1 = next((i for i in mi.innings if i.innings_number == 1), None)
     inn1_target = (inn1.runs + 1) if (inn1 and inn1.runs > 0) else 0
+
+    # Resolve per-match framing (cached in framing.json) & stacked safe-zone layout
+    framing = resolve_framing(manifest, enabled_clips, match_dir, config, ffmpeg, mode=framing_mode)
+    layout = build_layout(config, framing)
+
+    # Resolve direct 1440p/1080p YouTube video-only URL ONCE per part when local proxy is lower resolution
+    use_hq = config.hq_clip_fetch if hq_clips is None else hq_clips
+    hq_map: dict[int, tuple[str, int]] = {}
+    if use_hq:
+        used_part_ids = {c.source_video_index for c in enabled_clips}
+        for pid in sorted(used_part_ids):
+            vp = part_map.get(pid)
+            if not vp:
+                continue
+            yt_url = (hq_url_override if (pid == 0 and hq_url_override) else vp.source_url)
+            if yt_url and vp.height < config.hq_max_height:
+                resolved = resolve_hq_stream_url(
+                    yt_url,
+                    max_height=config.hq_max_height,
+                    cookies_from_browser=cookies_from_browser,
+                )
+                if resolved and resolved[1] > vp.height:
+                    hq_map[pid] = resolved
 
     # 1. Live-Action Teaser Intro (cached) + Instagram 4:5 Cover Export
     teaser_clip, teaser_vp = _pick_teaser_clip(enabled_clips, part_map)
@@ -540,10 +703,12 @@ def render_reel(
         mi.opponent_team,
         mi.is_derby,
         config.intro_sec,
+        config.intro_backdrop,
         config.instagram_handle,
         teaser_counts,
         teaser_vp.local_path if teaser_vp else "",
         round(teaser_start, 2),
+        config.crf,
     )
 
     if teaser_clip and teaser_vp and Path(teaser_vp.local_path).exists():
@@ -569,13 +734,14 @@ def render_reel(
     segment_paths: list[Path] = [intro_mp4]
     inserted_break = False
     prev_innings: int | None = None
+    total_clips = len(enabled_clips)
 
-    for clip in enabled_clips:
+    for clip_idx, clip in enumerate(enabled_clips):
         vp = part_map.get(clip.source_video_index)
         if not vp:
             continue
 
-        # Auto-insert crisp 1.4s Innings Break divider when crossing from 1st -> 2nd innings
+        # Auto-insert crisp Innings Break divider when crossing from 1st -> 2nd innings
         if not inserted_break and prev_innings == 1 and clip.innings_number == 2:
             break_key = _hash_dict(
                 OVERLAY_SCHEMA_VERSION,
@@ -583,12 +749,14 @@ def render_reel(
                 [(i.innings_number, i.batting_team, i.bowling_team, i.runs, i.wickets, i.overs_text) for i in mi.innings[:2]],
                 mi.gscc_team,
                 mi.opponent_team,
+                mi.top_performers,
                 config.innings_break_sec,
                 config.instagram_handle,
+                config.crf,
             )
             break_png = overlay_dir / f"break_{break_key}.png"
             if not break_png.exists() or no_cache:
-                render_innings_break_card(mi, config, break_png)
+                render_innings_break_card(mi, config, break_png, clips=enabled_clips)
             break_mp4 = _render_still_segment(
                 ffmpeg,
                 break_png,
@@ -599,9 +767,18 @@ def render_reel(
             segment_paths.append(break_mp4)
             inserted_break = True
 
+        hq_entry = hq_map.get(vp.index)
+        hq_url = hq_entry[0] if hq_entry else None
+        src_quality_tag = f"hq{hq_entry[1]}" if hq_entry else f"local{vp.height}"
+
         clip_key = _hash_dict(
             OVERLAY_SCHEMA_VERSION,
             vp.local_path,
+            src_quality_tag,
+            framing.video_height,
+            round(framing.crop_center_x, 4),
+            clip_idx,
+            total_clips,
             round(clip.start_sec, 2),
             round(clip.end_sec, 2),
             clip.event_type,
@@ -619,16 +796,37 @@ def render_reel(
             inn1_target if clip.innings_number == 2 else 0,
             round(config.card_reveal_delay_sec, 2),
             round(config.card_slide_sec, 2),
+            round(config.sharpen_amount, 2),
+            config.crf,
         )
         top_png = overlay_dir / f"clip_{clip.clip_id:02d}_top_{clip_key}.png"
         low_png = overlay_dir / f"clip_{clip.clip_id:02d}_low_{clip_key}.png"
         if not top_png.exists() or no_cache:
-            render_clip_top_overlay(mi, clip, config, top_png)
+            render_clip_top_overlay(
+                mi,
+                clip,
+                config,
+                top_png,
+                layout=layout,
+                clip_index=clip_idx,
+                clip_total=total_clips,
+            )
         if not low_png.exists() or no_cache:
             render_clip_lower_card(mi, clip, config, low_png)
 
         clip_mp4 = cache_dir / f"clip_{clip.clip_id:02d}_{clip_key}.mp4"
-        _render_single_clip(ffmpeg, vp, clip, top_png, low_png, clip_mp4, config)
+        _render_single_clip(
+            ffmpeg,
+            vp,
+            clip,
+            top_png,
+            low_png,
+            clip_mp4,
+            config,
+            framing=framing,
+            layout=layout,
+            hq_video_url=hq_url,
+        )
         segment_paths.append(clip_mp4)
         prev_innings = clip.innings_number
 
@@ -649,6 +847,7 @@ def render_reel(
         resolved_perfs,
         config.outro_sec,
         config.instagram_handle,
+        config.crf,
     )
     outro_png = overlay_dir / f"outro_{outro_key}.png"
     if not outro_png.exists() or no_cache:

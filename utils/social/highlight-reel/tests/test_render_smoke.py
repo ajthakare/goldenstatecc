@@ -183,12 +183,12 @@ def test_render_smoke_innings_break_cover_and_per_clip_cache(tmp_path: Path):
     assert len(strips) == 2
     assert all(p.exists() and p.stat().st_size > 10_000 for p in strips)
 
-    # Render #1 (intro 2.0 + clip1 3.5 + innings_break 1.4 + clip2 3.0 + outro 4.2 = ~14.1s)
+    # Render #1 (intro 2.0 + clip1 3.5 + innings_break 2.8 + clip2 3.0 + outro 5.5 = ~16.8s)
     out1 = render_reel(reloaded, match_dir, cfg, output_path=tmp_path / "smoke_reel.mp4")
     probed = probe_video(out1)
     assert probed.width == 1080
     assert probed.height == 1920
-    assert 12.5 <= probed.duration_sec <= 16.5
+    assert 15.0 <= probed.duration_sec <= 18.5
 
     # Innings Break segment & Cover JPEG were both generated
     assert any((match_dir / "rendered_clips").glob("break_*.mp4"))

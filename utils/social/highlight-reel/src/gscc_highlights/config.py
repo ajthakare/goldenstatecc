@@ -75,8 +75,8 @@ class ClubConfig:
     max_duration_sec: float = 120.0
     target_duration_sec: float = 105.0
     intro_sec: float = 2.0
-    innings_break_sec: float = 1.4
-    outro_sec: float = 4.2
+    innings_break_sec: float = 2.8
+    outro_sec: float = 5.5
     transition_sec: float = 0.0
     clip_durations: dict[str, float] = field(
         default_factory=lambda: {
@@ -133,11 +133,19 @@ class ClubConfig:
     safe_top_y: int = 220
     safe_bottom_y: int = 1480
     safe_right_x: int = 910
+    # 'auto' = detect action position once per match and use a bigger cropped video band; 'full' = legacy full 16:9
+    framing_mode: str = "auto"
+    # Intro backdrop: 'blurred' (moody, legacy look) or 'sharp' (crisp action frame)
+    intro_backdrop: str = "blurred"
     card_reveal_delay_sec: float = 0.8
     card_slide_sec: float = 0.32
     export_cover_jpg: bool = True
+    hq_clip_fetch: bool = True
+    hq_max_height: int = 1440
+    sharpen_amount: float = 0.42
     prefer_videotoolbox: bool = True
-    video_bitrate: str = "6M"
+    video_bitrate: str = "8M"
+    crf: int = 18
     audio_bitrate: str = "192k"
 
     def resolve(self, path: Path | str) -> Path:
@@ -254,11 +262,17 @@ def load_config(config_path: Path | str | None = None) -> ClubConfig:
         safe_top_y=int(render.get("safe_top_y", defaults.safe_top_y)),
         safe_bottom_y=int(render.get("safe_bottom_y", defaults.safe_bottom_y)),
         safe_right_x=int(render.get("safe_right_x", defaults.safe_right_x)),
+        framing_mode=str(render.get("framing_mode", defaults.framing_mode)),
+        intro_backdrop=str(render.get("intro_backdrop", defaults.intro_backdrop)),
         card_reveal_delay_sec=float(render.get("card_reveal_delay_sec", defaults.card_reveal_delay_sec)),
         card_slide_sec=float(render.get("card_slide_sec", defaults.card_slide_sec)),
         export_cover_jpg=bool(render.get("export_cover_jpg", defaults.export_cover_jpg)),
+        hq_clip_fetch=bool(render.get("hq_clip_fetch", defaults.hq_clip_fetch)),
+        hq_max_height=int(render.get("hq_max_height", defaults.hq_max_height)),
+        sharpen_amount=float(render.get("sharpen_amount", defaults.sharpen_amount)),
         prefer_videotoolbox=bool(render.get("prefer_videotoolbox", defaults.prefer_videotoolbox)),
         video_bitrate=str(render.get("video_bitrate", defaults.video_bitrate)),
+        crf=int(render.get("crf", defaults.crf)),
         audio_bitrate=str(render.get("audio_bitrate", defaults.audio_bitrate)),
     )
     return cfg

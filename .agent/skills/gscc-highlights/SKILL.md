@@ -51,14 +51,16 @@ Scorecard/ticker updates are ONLY rough timeframe helpers—live scorers frequen
    ```
 4. Apply any user tweaks or scorecard metadata updates via `tweak`:
    - Clip edits: `--shift`, `--trim`, `--drop`, `--enable`, `--headline`, `--subtext`, `--badge`, `--music`.
-   - Match / Outro scorecard overrides: `--title`, `--result`, `--potm`, `--performer` (repeatable), `--series`, `--date`, `--venue`.
+   - Match / Outro scorecard & HQ source overrides: `--title`, `--result`, `--potm`, `--performer` (repeatable), `--series`, `--date`, `--venue`, `--youtube-url`.
+   - Optional per-match framing inspection/override: `uv --directory utils/social/highlight-reel run gscc-highlights framing workspace/<match_slug>` (`--reanalyze`, `--height 608|680|740|800`, `--center 0..1`).
 
-### 4. Fast Cached `v2` Broadcast Render
+### 4. Fast Cached `v2.2` / `v3` Broadcast Render (with Automatic `1440p` HQ Clip Fetch)
 Run:
 ```bash
 uv --directory utils/social/highlight-reel run gscc-highlights render workspace/<match_slug>
 ```
-- Produces the `v2` Stadium Floodlight & Heritage Hybrid broadcast reel: `2.0s` darkened live-action teaser intro (dual Club + Squad crests), `0.8s` delayed slide-in lower cards with unmistakable event colors, auto-inserted `1.4s` Innings Break card (when both innings are present), `4.2s` Full-Time / Part 1 Recap scorecard (with Run Rates & auto-derived Ticker-Only standouts), two-stage `-14 LUFS` audio mastering with sidechain music ducking, AND an Instagram `4:5` grid cover JPEG (`<slug>_cover.jpg`).
-- Per-clip caching (`v2.1`) ensures tweaked re-renders only re-encode changed clips (~3–5s each) and music swaps take ~2–3s.
+- **Two-Tier `1440p`/`1080p` HQ Clarity:** While `prepare` scans quickly at `720p`, `render` automatically resolves the highest YouTube stream up to `1440p` once per match and streams **only the ~100s of selected clips** over HTTPS (`flags=lanczos` + subtle luma micro-sharpening + `CRF 18` / `8M` headroom), falling back cleanly to the local file when offline or when `720p` is max. Pass `--no-hq` to skip remote HQ fetch or `--hq-url <URL>` to supply a YouTube URL manually.
+- Produces the Stadium Floodlight & Heritage Hybrid broadcast reel: `2.0s` darkened live-action teaser intro (dual Club + Squad crests), per-match smart framing (`--framing auto|full`), segmented progress bar, `0.8s` delayed slide-in lower cards, auto-inserted `2.8s` Innings Break card (chase maths + GSCC contributors), `5.5s` outcome-first Full-Time / Match Summary scorecard, two-stage `-14 LUFS` audio mastering with sidechain ducking, AND an Instagram `4:5` grid cover JPEG (`<slug>_cover.jpg`).
+- Per-clip caching ensures tweaked re-renders only re-encode changed clips (~3–5s each) and music swaps take ~2–3s.
 - Enforces `<= 120.0s` hard cap, `1080×1920` (9:16), Instagram Reels Safe Zones (`y=220..1480`, `x<=910`), and unified GSCC branding (`@goldenstate_cc`).
 - Report clickable `file://` links to both the output `.mp4` and `_cover.jpg`, plus duration, resolution, and file size.

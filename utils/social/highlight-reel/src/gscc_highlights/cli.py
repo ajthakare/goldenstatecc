@@ -16,6 +16,7 @@ from gscc_highlights.audio import list_music_tracks, prompt_music_choice, resolv
 from gscc_highlights.clip_refiner import refine_clips
 from gscc_highlights.config import load_config
 from gscc_highlights.filmstrip import generate_all_filmstrips
+from gscc_highlights.framing import resolve_framing, set_manual_framing
 from gscc_highlights.models import ProjectManifest, TickerReading
 from gscc_highlights.ncca_parser import NccaCloudflareBlockedError, load_ncca_source
 from gscc_highlights.preview import generate_preview_sheet
@@ -310,6 +311,8 @@ def _cmd_tweak(args: argparse.Namespace) -> int:
         mi.date = args.date.strip()
     if args.venue is not None:
         mi.venue = args.venue.strip()
+    if args.youtube_url is not None and manifest.video_parts:
+        manifest.video_parts[0].source_url = args.youtube_url.strip()
 
     if args.music is not None:
         resolve_music_path(args.music, cfg)
@@ -322,13 +325,40 @@ def _cmd_tweak(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_framing(args: argparse.Namespace) -> int:
+    """Show / re-detect / override the per-match video framing (crop window applied to every clip)."""
+    from gscc_highlights.video_io import get_ffmpeg_paths
+
+    cfg = load_config(args.config)
+    match_dir = Path(args.match_dir).expanduser().resolve()
+    manifest = ProjectManifest.load(match_dir / "clips.json")
+    if args.height is not None or args.center is not None:
+        fr = set_manual_framing(match_dir, cfg, args.height, args.center)
+    else:
+        ffmpeg, _ = get_ffmpeg_paths()
+        enabled = [c for c in manifest.clips if c.enabled]
+        fr = resolve_framing(manifest, enabled, match_dir, cfg, ffmpeg, mode="auto", force=bool(args.reanalyze))
+    console.print(
+        f"[bold]Framing[/bold] mode={fr.mode} band={fr.video_height}px centre={fr.crop_center_x:.2f} "
+        f"visible-width={fr.crop_fraction:.0%}  {fr.note}"
+    )
+    preview = match_dir / "framing_preview.jpg"
+    if preview.exists():
+        console.print(f"Preview: {preview}")
+    return 0
+
+
 def _cmd_render(args: argparse.Namespace) -> int:
     cfg = load_config(args.config)
     match_dir = Path(args.match_dir).expanduser().resolve()
     manifest = ProjectManifest.load(match_dir / "clips.json")
 
     out_path = Path(args.output).expanduser().resolve() if args.output else None
-    console.print(f"[bold]Rendering v2 9:16 Instagram Reel (per-clip cache enabled)...[/bold]")
+    hq_enabled = getattr(args, "hq", True)
+    hq_url = getattr(args, "hq_url", None)
+    cookies = getattr(args, "cookies_from_browser", None)
+    hq_label = " + 1440p/1080p HQ clip fetch" if hq_enabled else ""
+    console.print(f"[bold]Rendering v2.2 9:16 Instagram Reel (per-clip cache{hq_label})...[/bold]")
     final_mp4 = render_reel(
         manifest=manifest,
         match_dir=match_dir,
@@ -336,6 +366,10 @@ def _cmd_render(args: argparse.Namespace) -> int:
         output_path=out_path,
         music_override=args.music,
         no_cache=args.no_cache,
+        framing_mode=getattr(args, "framing", None),
+        hq_clips=hq_enabled,
+        hq_url_override=hq_url,
+        cookies_from_browser=cookies,
     )
     probed = probe_video(final_mp4)
     size_mb = final_mp4.stat().st_size / (1024 * 1024)
@@ -447,6 +481,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp_tweak.add_argument("--series", default=None, help="Override tournament/series label")
     sp_tweak.add_argument("--date", default=None, help="Override match date label")
     sp_tweak.add_argument("--venue", default=None, help="Override venue label")
+    sp_tweak.add_argument("--youtube-url", default=None, help="Attach/override source YouTube URL on Part 1 for HQ 1440p/1080p clip fetch")
     sp_tweak.add_argument("--music", default=None, help="Change music choice")
     sp_tweak.set_defaults(func=_cmd_tweak)
 
@@ -455,6 +490,20 @@ def build_parser() -> argparse.ArgumentParser:
     sp_ren.add_argument("--music", default=None, help="Override music track / custom path / 'none'")
     sp_ren.add_argument("--output", default=None, help="Custom output MP4 path")
     sp_ren.add_argument("--no-cache", action="store_true", help="Re-encode all clips ignoring per-clip cache")
+    sp_ren.add_argument(
+        "--framing",
+        choices=["auto", "full"],
+        default=None,
+        help="Video framing: 'auto' = detect action position once per match and use a bigger cropped band (default from config), 'full' = whole 16:9 frame",
+    )
+    sp_ren.add_argument(
+        "--hq",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Automatically fetch selected clips at 1080p/1440p from YouTube when local proxy is 720p (default: true)",
+    )
+    sp_ren.add_argument("--hq-url", default=None, help="Override YouTube URL for 1080p/1440p HQ clip fetch")
+    sp_ren.add_argument("--cookies-from-browser", default=None, help="Browser cookies for HQ YouTube fetch (e.g. chrome, safari)")
     sp_ren.add_argument("--cleanup", action="store_true", help="Delete cached source_part_*.mp4 after successful render")
     sp_ren.set_defaults(func=_cmd_render)
 
@@ -471,6 +520,13 @@ def build_parser() -> argparse.ArgumentParser:
     sp_fs.add_argument("--frames", type=int, default=16, help="Frames per filmstrip (default: 16)")
     sp_fs.add_argument("--full-frame", action="store_true", help="Disable gentle pitch-band crop")
     sp_fs.set_defaults(func=_cmd_filmstrips)
+
+    sp_fr = sub.add_parser("framing", help="Show, re-detect (--reanalyze) or manually override (--height/--center) the per-match video crop")
+    sp_fr.add_argument("match_dir", help="Path to workspace/<match_slug> directory")
+    sp_fr.add_argument("--reanalyze", action="store_true", help="Force re-running action-position detection")
+    sp_fr.add_argument("--height", type=int, default=None, help="Manual video band height: 608 (full frame), 680, 740 or 800")
+    sp_fr.add_argument("--center", type=float, default=None, help="Manual crop centre 0..1 of source width (0.5 = middle)")
+    sp_fr.set_defaults(func=_cmd_framing)
 
     sp_mus = sub.add_parser("music", help="List available music tracks in assets/music/")
     sp_mus.set_defaults(func=_cmd_music)

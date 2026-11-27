@@ -129,7 +129,7 @@ def download_youtube_video(
         "--ffmpeg-location",
         str(Path(ffmpeg).parent),
         "-f",
-        "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best[height<=1080]/best",
+        "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best[height<=1080][ext=mp4]/best",
         "--merge-output-format",
         "mp4",
         "-o",
@@ -149,6 +149,59 @@ def download_youtube_video(
             return candidates[0]
         raise FileNotFoundError(f"yt-dlp finished but expected output not found: {dest_path}")
     return dest_path
+
+
+def resolve_hq_stream_url(
+    url: str,
+    max_height: int = 1440,
+    cookies_from_browser: str | None = None,
+) -> tuple[str, int] | None:
+    """Resolve a direct HTTPS high-resolution video-only stream URL (up to 1440p) ONCE per render.
+
+    Used by two-tier HQ clip fetching so full-match OCR scans stay fast/lightweight at 720p
+    while only the selected ~100s of highlight clips are fetched at 1080p/1440p for supersampled clarity.
+    """
+    deno_bin = find_deno_bin()
+    env = os.environ.copy()
+    if deno_bin:
+        env["PATH"] = f"{Path(deno_bin).parent}:{env.get('PATH', '')}"
+    yt_dlp_bin = shutil.which("yt-dlp") or str(Path(os.sys.executable).parent / "yt-dlp")
+    fmt = (
+        f"bestvideo[height<={max_height}][protocol^=http][protocol!=m3u8_native][vcodec^=vp9]/"
+        f"bestvideo[height<={max_height}][protocol^=http][protocol!=m3u8_native][vcodec^=avc1]/"
+        f"bestvideo[height<={max_height}][protocol^=http][protocol!=m3u8_native]/"
+        f"bestvideo[height<={max_height}]"
+    )
+    cmd = [
+        yt_dlp_bin,
+        "--no-playlist",
+        "--skip-download",
+        "-f",
+        fmt,
+        "--print",
+        "%(height)s\t%(url)s",
+    ]
+    if deno_bin:
+        cmd.extend(["--js-runtimes", f"deno:{deno_bin}", "--remote-components", "ejs:github"])
+    if cookies_from_browser:
+        cmd.extend(["--cookies-from-browser", cookies_from_browser])
+    cmd.append(url)
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=30)
+    except Exception:
+        return None
+    if proc.returncode != 0:
+        return None
+    for line in (proc.stdout or "").splitlines():
+        if "\t" in line:
+            h_str, stream_url = line.split("\t", 1)
+            stream_url = stream_url.strip()
+            if stream_url.startswith("http"):
+                try:
+                    return stream_url, int(float(h_str.strip()))
+                except ValueError:
+                    return stream_url, 0
+    return None
 
 
 def fetch_youtube_title(url: str, cookies_from_browser: str | None = None) -> str:

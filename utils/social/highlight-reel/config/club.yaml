@@ -50,8 +50,8 @@ selection:
   max_duration_sec: 120.0
   target_duration_sec: 105.0
   intro_sec: 2.0
-  innings_break_sec: 1.4
-  outro_sec: 4.2
+  innings_break_sec: 2.8
+  outro_sec: 5.5
   transition_sec: 0.0
 
   # Default clip lengths by event type
@@ -112,9 +112,18 @@ render:
   safe_top_y: 220
   safe_bottom_y: 1480
   safe_right_x: 910
+  # auto = detect where the action is once per match (cached in framing.json) and use a bigger cropped video band
+  # full = always show the whole 16:9 frame
+  framing_mode: auto
+  # blurred = moody blurred teaser backdrop on the intro (default) | sharp = crisp action frame
+  intro_backdrop: blurred
   card_reveal_delay_sec: 0.8
   card_slide_sec: 0.32
   export_cover_jpg: true
+  hq_clip_fetch: true
+  hq_max_height: 1440
+  sharpen_amount: 0.42
   prefer_videotoolbox: true
-  video_bitrate: "6M"
+  video_bitrate: "8M"
+  crf: 18
   audio_bitrate: "192k"
