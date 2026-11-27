@@ -14,11 +14,16 @@ from rich.table import Table
 
 from gscc_highlights.audio import list_music_tracks, prompt_music_choice, resolve_music_path
 from gscc_highlights.clip_refiner import refine_clips
-from gscc_highlights.config import load_config
+from gscc_highlights.config import ClubConfig, load_config
 from gscc_highlights.filmstrip import generate_all_filmstrips
 from gscc_highlights.framing import resolve_framing, set_manual_framing
-from gscc_highlights.models import ProjectManifest, TickerReading
-from gscc_highlights.ncca_parser import NccaCloudflareBlockedError, load_ncca_source
+from gscc_highlights.models import BallEvent, MatchInfo, ProjectManifest, TickerReading
+from gscc_highlights.ncca_parser import (
+    NCCA_MANUAL_INSTRUCTIONS,
+    NccaCloudflareBlockedError,
+    NccaFetchError,
+    load_ncca_source,
+)
 from gscc_highlights.preview import generate_preview_sheet
 from gscc_highlights.renderer import render_reel
 from gscc_highlights.selector import extract_highlight_candidates, select_highlights_for_budget
@@ -91,6 +96,64 @@ def _print_clips_table(
     )
 
 
+def _prompt_ncca_fallback(
+    exc: Exception,
+    cfg: ClubConfig,
+    ncca_url: str | None = None,
+) -> tuple[MatchInfo, list[BallEvent]] | None:
+    """Interactively ask user for NCCA Excel/HTML (with instructions) or Ticker-Only mode."""
+    console.print(f"\n[bold yellow]Could not automatically fetch NCCA ball-by-ball data:[/bold yellow]\n{exc}\n")
+    console.print("[bold]How would you like to proceed?[/bold]")
+    console.print(
+        "  [cyan]1.[/cyan] Provide NCCA Export Excel ([bold].xlsx[/bold]) — recommended\n"
+        "     [dim]How: Open the NCCA match link in your browser -> 'Info' tab -> click 'Export Excel'[/dim]"
+    )
+    console.print(
+        "  [cyan]2.[/cyan] Provide saved NCCA Ball-by-Ball HTML ([bold].html[/bold])\n"
+        "     [dim]How: Open the NCCA match link in your browser -> 'Ball by Ball' tab -> wait for deliveries -> press Cmd+S (Ctrl+S)[/dim]"
+    )
+    console.print(
+        "  [cyan]3.[/cyan] Run in [bold]Ticker-Only OCR mode[/bold] "
+        "[dim](automatic from YouTube video ticker; no NCCA file needed)[/dim]"
+    )
+    console.print("  [cyan]0.[/cyan] Cancel")
+
+    while True:
+        choice = input("\nSelect option [1/2/3/0] (default 3): ").strip() or "3"
+        if choice == "0":
+            raise SystemExit(2)
+        if choice == "3":
+            console.print("[cyan]Continuing in 100% automatic Ticker-Only OCR mode...[/cyan]")
+            return None
+        if choice in {"1", "2"}:
+            kind = "Excel (.xlsx)" if choice == "1" else "HTML (.html)"
+            raw_path = input(f"Enter path to NCCA {kind} file (or blank to go back): ").strip().strip("'\"")
+            if not raw_path:
+                continue
+            p = Path(raw_path).expanduser().resolve()
+            if not p.exists():
+                console.print(f"[red]File not found:[/red] {p}")
+                continue
+            try:
+                loaded = (
+                    load_ncca_source(cfg, ncca_excel=p)
+                    if choice == "1"
+                    else load_ncca_source(cfg, ncca_file=p, ncca_url=ncca_url)
+                )
+            except Exception as load_exc:
+                console.print(f"[red]Failed to parse {p.name}:[/red] {load_exc}")
+                continue
+            if not loaded or not loaded[1]:
+                console.print(
+                    f"[yellow]No ball-by-ball deliveries were found in {p.name}.[/yellow] "
+                    "Make sure the Ball-by-Ball tab finished loading before saving (or try Export Excel)."
+                )
+                continue
+            console.print(f"[green]Loaded {len(loaded[1])} deliveries from {p.name}.[/green]")
+            return loaded
+        console.print("[yellow]Please enter 1, 2, 3, or 0.[/yellow]")
+
+
 def _run_prepare(args: argparse.Namespace) -> tuple[Path, ProjectManifest]:
     cfg = load_config(args.config)
     youtube_urls: list[str] = list(args.youtube or [])
@@ -110,7 +173,7 @@ def _run_prepare(args: argparse.Namespace) -> tuple[Path, ProjectManifest]:
 
     console.print(f"[bold gold1]Music selected:[/bold gold1] {music_choice}")
 
-    # Step 2: Load NCCA source if provided (graceful fallback on Cloudflare)
+    # Step 2: Load NCCA source if provided (direct HTTP + browser automation; interactive/graceful fallback)
     ncca_loaded = None
     if args.ncca or args.ncca_file or args.ncca_excel or args.ncca_json:
         try:
@@ -120,13 +183,27 @@ def _run_prepare(args: argparse.Namespace) -> tuple[Path, ProjectManifest]:
                 ncca_file=Path(args.ncca_file) if args.ncca_file else None,
                 ncca_excel=Path(args.ncca_excel) if args.ncca_excel else None,
                 ncca_json=Path(args.ncca_json) if args.ncca_json else None,
+                allow_browser=getattr(args, "browser_ncca", True),
             )
-            console.print("[green]Loaded NCCA scorecard & ball-by-ball commentary.[/green]")
+            if ncca_loaded is not None and not ncca_loaded[1]:
+                raise NccaFetchError(
+                    "NCCA source loaded, but contained 0 ball-by-ball deliveries.\n"
+                    f"{NCCA_MANUAL_INSTRUCTIONS}",
+                    reason="empty_ball_by_ball",
+                )
+            if ncca_loaded is not None:
+                console.print(
+                    f"[green]Loaded NCCA scorecard & ball-by-ball commentary ({len(ncca_loaded[1])} deliveries).[/green]"
+                )
         except NccaCloudflareBlockedError as exc:
-            console.print(f"[bold yellow]Notice:[/bold yellow] {exc}")
-            if not args.allow_ticker_fallback:
-                raise SystemExit(2)
-            console.print("[cyan]Continuing in 100% automatic Ticker-Only OCR mode...[/cyan]")
+            ncca_loaded = None
+            if not args.non_interactive and sys.stdin.isatty():
+                ncca_loaded = _prompt_ncca_fallback(exc, cfg, ncca_url=args.ncca)
+            else:
+                console.print(f"[bold yellow]Notice:[/bold yellow] {exc}")
+                if not args.allow_ticker_fallback:
+                    raise SystemExit(2)
+                console.print("[cyan]Continuing in 100% automatic Ticker-Only OCR mode...[/cyan]")
 
     # Determine match directory slug
     if ncca_loaded is not None:
@@ -451,10 +528,16 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--non-interactive", action="store_true", help="Skip interactive music prompt (uses --music or default)")
         sp.add_argument("--rescan-ocr", action="store_true", help="Force re-running OCR scan even if ocr_readings.json exists")
         sp.add_argument(
+            "--browser-ncca",
+            action=argparse.BooleanOptionalAction,
+            default=True,
+            help="Automatically launch local Chrome via puppeteer-core when --ncca returns a client-rendered shell (default: true)",
+        )
+        sp.add_argument(
             "--allow-ticker-fallback",
             action=argparse.BooleanOptionalAction,
             default=True,
-            help="Automatically fall back to Ticker-Only OCR mode if NCCA blocks CLI fetch (default: true)",
+            help="Automatically fall back to Ticker-Only OCR mode if NCCA fetch fails in non-interactive mode (default: true)",
         )
 
     sp_prep = sub.add_parser("prepare", help="Analyze video(s) + NCCA and create clips.json + preview_sheet.jpg")

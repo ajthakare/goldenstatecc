@@ -1,7 +1,8 @@
 """Resilient NCCA / CricClubs scorecard & ball-by-ball parser.
 
 Supports:
-  1. Live NCCA match URL (gracefully raises NccaCloudflareBlockedError if CF challenges CLI)
+  1. Live NCCA match URL (direct HTTP + automatic local Chrome/puppeteer-core browser fetch;
+     raises NccaFetchError / NccaCloudflareBlockedError if blocked or empty)
   2. Browser-saved NCCA HTML file (--ncca-file)
   3. NCCA Export Excel file (--ncca-excel)
   4. Structured JSON file (--ncca-json)
@@ -11,6 +12,9 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
+import subprocess
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
@@ -23,8 +27,28 @@ from gscc_highlights.config import ClubConfig
 from gscc_highlights.models import BallEvent, InningsSummary, MatchInfo
 
 
+NCCA_MANUAL_INSTRUCTIONS = (
+    "Options:\n"
+    "  1. Export Excel (recommended): Open the NCCA match link in your browser -> "
+    "go to the 'Info' tab -> click 'Export Excel' -> pass --ncca-excel <file.xlsx>\n"
+    "  2. Save Ball-by-Ball HTML: Open the NCCA match link in your browser -> "
+    "click the 'Ball by Ball' tab (wait for deliveries to load) -> press Cmd+S "
+    "(Ctrl+S) -> pass --ncca-file <file.html>\n"
+    "  3. Ticker-Only OCR mode: Omit --ncca (or confirm fallback) to detect 4s, 6s, "
+    "and wickets automatically from the YouTube video's CricClubs score ticker."
+)
+
+
 class NccaCloudflareBlockedError(RuntimeError):
-    """Raised when nccacricket.org serves a Cloudflare challenge to CLI requests."""
+    """Raised when nccacricket.org blocks or fails live CLI fetching (e.g. Cloudflare/SPA)."""
+
+    def __init__(self, message: str, *, reason: str = "cloudflare") -> None:
+        super().__init__(message)
+        self.reason = reason
+
+
+class NccaFetchError(NccaCloudflareBlockedError):
+    """Raised when automated NCCA fetch (HTTP or browser) cannot retrieve ball-by-ball data."""
 
 
 BROWSER_HEADERS = {
@@ -84,11 +108,9 @@ def fetch_ncca_html(url: str, timeout: float = 20.0) -> tuple[str, str]:
             or "challenges.cloudflare.com" in resp_main.text
         ):
             raise NccaCloudflareBlockedError(
-                "nccacricket.org returned a Cloudflare challenge to direct CLI fetching. "
-                "Options:\n"
-                "  1. Open the NCCA link in your browser -> click 'Export Excel' (or Cmd+S on the Ball-by-Ball tab) "
-                "and pass --ncca-excel <file.xlsx> or --ncca-file <file.html>, OR\n"
-                "  2. Omit --ncca to run in 100% automatic Ticker-Only OCR mode."
+                "nccacricket.org returned a Cloudflare challenge to direct CLI fetching.\n"
+                f"{NCCA_MANUAL_INSTRUCTIONS}",
+                reason="cloudflare",
             )
         resp_main.raise_for_status()
 
@@ -96,7 +118,9 @@ def fetch_ncca_html(url: str, timeout: float = 20.0) -> tuple[str, str]:
         resp_bbb = client.get(bbb_url)
         if resp_bbb.status_code == 403 or "cf-mitigated" in resp_bbb.headers:
             raise NccaCloudflareBlockedError(
-                "nccacricket.org blocked the ball_by_ball tab with a Cloudflare challenge."
+                "nccacricket.org blocked the ball_by_ball tab with a Cloudflare challenge.\n"
+                f"{NCCA_MANUAL_INSTRUCTIONS}",
+                reason="cloudflare",
             )
         resp_bbb.raise_for_status()
         return resp_main.text, resp_bbb.text
@@ -333,8 +357,17 @@ def parse_ncca_html(
     """Parse browser-saved or fetched NCCA match HTML into MatchInfo + BallEvents."""
     combined_html = (scorecard_html or "") + "\n" + html_text
     soup = BeautifulSoup(html_text, "html.parser")
+    # Unwrap inline formatting tags and merge adjacent text nodes (.smooth()) so
+    # CricClubs dangerouslySetInnerHTML commentary stays on a single line.
+    for tag in soup.find_all(["b", "strong", "i", "em", "u", "font"]):
+        tag.unwrap()
+    soup.smooth()
     text = soup.get_text("\n", strip=True)
-    full_text = BeautifulSoup(combined_html, "html.parser").get_text("\n", strip=True)
+    full_soup = BeautifulSoup(combined_html, "html.parser")
+    for tag in full_soup.find_all(["b", "strong", "i", "em", "u", "font"]):
+        tag.unwrap()
+    full_soup.smooth()
+    full_text = full_soup.get_text("\n", strip=True)
 
     # 1. Match Title & Metadata
     title_tag = soup.find("title")
@@ -463,11 +496,24 @@ def parse_ncca_html(
 
             candidate_line = ln
             # Handle NCCA DOM where "16.5" and "Bowler to Batter, ..." are adjacent lines
+            # (or split across 2-3 inline spans in browser-saved Next.js HTML).
             if _OVER_BALL_RE.match(ln) and i + 1 < len(lines):
-                candidate_line = f"{ln} {lines[i + 1]}"
-                m_ball = _BALL_LINE_RE.match(candidate_line)
+                m_ball = None
+                parts: list[str] = []
+                matched_span = 0
+                for offset in range(1, min(5, len(lines) - i)):
+                    nxt_ln = lines[i + offset]
+                    if _OVER_BALL_RE.match(nxt_ln):
+                        break
+                    parts.append(nxt_ln)
+                    candidate_line = f"{ln} {' '.join(parts)}"
+                    m_try = _BALL_LINE_RE.match(candidate_line)
+                    if m_try:
+                        m_ball = m_try
+                        matched_span = offset
+                        break
                 if m_ball:
-                    i += 1
+                    i += matched_span
             else:
                 m_ball = _BALL_LINE_RE.match(candidate_line)
 
@@ -498,12 +544,423 @@ def parse_ncca_html(
                 )
             i += 1
 
-    # Also check embedded Next.js RSC payloads if DOM yielded 0 balls
-    if not balls:
-        _extract_rsc_json_objects(html_text)
+    _enrich_running_totals_and_milestones(match_info, balls)
+    return match_info, balls
+
+
+def _unwrap_api_data(payload: Any) -> dict[str, Any]:
+    """Unwrap CricClubs `{status: 'Success', data: {...}}` response envelopes."""
+    if not isinstance(payload, dict):
+        return {}
+    inner = payload.get("data")
+    if isinstance(inner, dict):
+        return inner
+    return payload
+
+
+def _format_api_date(raw_date: Any) -> str:
+    if not raw_date:
+        return ""
+    s = str(raw_date).strip()
+    # Handle ISO / timestamps like "2026-10-18T14:30:00Z" or "2026-10-18 14:30:00"
+    m_iso = re.match(r"^(\d{4}-\d{2}-\d{2})", s)
+    if m_iso:
+        try:
+            dt = datetime.strptime(m_iso.group(1), "%Y-%m-%d")
+            return f"{dt.strftime('%b')} {dt.day}, {dt.year}"
+        except ValueError:
+            pass
+    return s
+
+
+def _strip_html(raw: Any) -> str:
+    if not raw:
+        return ""
+    text = BeautifulSoup(str(raw), "html.parser").get_text(" ", strip=True)
+    return " ".join(text.split())
+
+
+def _extract_top_performers_from_scorecard(
+    scorecard: dict[str, Any],
+    match_info: MatchInfo,
+    config: ClubConfig,
+) -> list[str]:
+    """Extract formatted standout lines from CricClubs full scorecard JSON, preferring GSCC players."""
+    bat_rows: list[tuple[bool, int, int, str]] = []
+    bowl_rows: list[tuple[bool, int, int, str]] = []
+
+    for inn_num in (1, 2):
+        inn_obj = scorecard.get(f"innings{inn_num}") or scorecard.get(f"inning{inn_num}")
+        if not isinstance(inn_obj, dict):
+            continue
+        inn_sum = next((x for x in match_info.innings if x.innings_number == inn_num), None)
+        bat_team = str(inn_obj.get("teamName") or (inn_sum.batting_team if inn_sum else ""))
+        bowl_team = inn_sum.bowling_team if inn_sum else ""
+        bat_is_gscc = config.is_gscc_team(bat_team)
+        bowl_is_gscc = config.is_gscc_team(bowl_team)
+
+        for p in inn_obj.get("batting") or inn_obj.get("battingList") or []:
+            if not isinstance(p, dict):
+                continue
+            name = str(
+                p.get("playerName")
+                or p.get("name")
+                or f"{p.get('firstName', '')} {p.get('lastName', '')}".strip()
+            ).strip()
+            runs = int(p.get("runsScored") or p.get("runs") or 0)
+            balls_faced = int(p.get("ballsFaced") or p.get("balls") or 0)
+            if name and runs >= 20:
+                bat_rows.append((bat_is_gscc, runs, balls_faced, f"{name} {runs} ({balls_faced})"))
+
+        for p in inn_obj.get("bowling") or inn_obj.get("bowlingList") or []:
+            if not isinstance(p, dict):
+                continue
+            name = str(
+                p.get("playerName")
+                or p.get("name")
+                or f"{p.get('firstName', '')} {p.get('lastName', '')}".strip()
+            ).strip()
+            wkts = int(p.get("wickets") or p.get("wkts") or 0)
+            runs_c = int(p.get("runs") or p.get("runsGiven") or 0)
+            overs_s = str(p.get("overs") or "").strip()
+            if name and wkts >= 2:
+                ov_part = f" ({overs_s} ov)" if overs_s else ""
+                bowl_rows.append((bowl_is_gscc, wkts, -runs_c, f"{name} {wkts}/{runs_c}{ov_part}"))
+
+    # Prefer GSCC squad standouts unless it's a derby or no GSCC performers met threshold
+    if not match_info.is_derby:
+        gscc_bat = [r for r in bat_rows if r[0]]
+        gscc_bowl = [r for r in bowl_rows if r[0]]
+        if gscc_bat or gscc_bowl:
+            bat_rows = gscc_bat
+            bowl_rows = gscc_bowl
+
+    bat_rows.sort(key=lambda t: (t[1], -t[2]), reverse=True)
+    bowl_rows.sort(key=lambda t: (t[1], t[2]), reverse=True)
+
+    perfs: list[str] = [r[3] for r in bat_rows[:2]]
+    perfs.extend(r[3] for r in bowl_rows[:2])
+    return perfs[:3]
+
+
+def parse_ncca_api_payloads(
+    header_payload: dict[str, Any] | None,
+    commentary_payload: dict[str, Any] | None,
+    config: ClubConfig,
+    *,
+    info_payload: dict[str, Any] | None = None,
+    scorecard_payload: dict[str, Any] | None = None,
+    ncca_url: str | None = None,
+) -> tuple[MatchInfo, list[BallEvent]]:
+    """Parse captured CricClubs scorecard/header + commentary JSON responses into MatchInfo + BallEvents."""
+    header = _unwrap_api_data(header_payload)
+    info = _unwrap_api_data(info_payload)
+    scorecard = _unwrap_api_data(scorecard_payload)
+    commentary = _unwrap_api_data(commentary_payload)
+
+    team_one = header.get("teamOne") if isinstance(header.get("teamOne"), dict) else {}
+    team_two = header.get("teamTwo") if isinstance(header.get("teamTwo"), dict) else {}
+    t1_name = str(team_one.get("name") or info.get("teamOneName") or "").strip()
+    t2_name = str(team_two.get("name") or info.get("teamTwoName") or "").strip()
+    t1_code = str(team_one.get("code") or "").strip()
+    t2_code = str(team_two.get("code") or "").strip()
+
+    # Determine batting order from commentary teamName or header.battingFirst
+    c_inn1 = commentary.get("innings1Balls") or commentary.get("innings1") or {}
+    c_inn2 = commentary.get("innings2Balls") or commentary.get("innings2") or {}
+
+    inn1_team = str(c_inn1.get("teamName") or "").strip() if isinstance(c_inn1, dict) else ""
+    inn2_team = str(c_inn2.get("teamName") or "").strip() if isinstance(c_inn2, dict) else ""
+
+    batting_first = header.get("battingFirst")
+    if not inn1_team and t1_name and t2_name:
+        if batting_first is not None and str(batting_first) == str(team_two.get("id")):
+            inn1_team, inn2_team = t2_name, t1_name
+        else:
+            inn1_team, inn2_team = t1_name, t2_name
+    elif inn1_team and not inn2_team and t1_name and t2_name:
+        inn2_team = t2_name if inn1_team.lower() == t1_name.lower() else t1_name
+
+    def _code_for(name: str) -> str:
+        if name and t1_name and name.lower() == t1_name.lower() and t1_code:
+            return t1_code.upper()
+        if name and t2_name and name.lower() == t2_name.lower() and t2_code:
+            return t2_code.upper()
+        return _team_code(name) if name else ""
+
+    # Header totals: inningsOneTotal belongs to teamOne, inningsTwoTotal to teamTwo
+    tot1 = header.get("inningsOneTotal") if isinstance(header.get("inningsOneTotal"), dict) else {}
+    tot2 = header.get("inningsTwoTotal") if isinstance(header.get("inningsTwoTotal"), dict) else {}
+    totals_by_team: dict[str, dict[str, Any]] = {}
+    if t1_name and tot1:
+        totals_by_team[t1_name.lower()] = tot1
+    if t2_name and tot2:
+        totals_by_team[t2_name.lower()] = tot2
+
+    innings: list[InningsSummary] = []
+    for inn_num, bat_name, bowl_name, c_inn in (
+        (1, inn1_team, inn2_team, c_inn1),
+        (2, inn2_team, inn1_team, c_inn2),
+    ):
+        if not bat_name:
+            continue
+        tot = totals_by_team.get(bat_name.lower()) or (tot1 if inn_num == 1 else tot2) or {}
+        runs_val = int(tot.get("runs") or 0)
+        wkts_val = int(tot.get("wickets") or 0)
+        overs_val = str(tot.get("overs") or (c_inn.get("overs") if isinstance(c_inn, dict) else "") or "0").strip()
+        innings.append(
+            InningsSummary(
+                innings_number=inn_num,
+                batting_team=bat_name,
+                bowling_team=bowl_name,
+                runs=runs_val,
+                wickets=wkts_val,
+                overs_text=overs_val,
+                batting_code=_code_for(bat_name),
+            )
+        )
+
+    title = f"{t1_name} vs {t2_name}" if (t1_name and t2_name) else (
+        f"{inn1_team} vs {inn2_team}" if (inn1_team and inn2_team) else "GSCC Match Highlights"
+    )
+    match_id = str(header.get("matchId") or header.get("matchID") or info.get("matchId") or info.get("matchID") or "").strip()
+    series = str(header.get("seriesName") or info.get("seriesName") or "NCCA").strip() or "NCCA"
+    date_str = _format_api_date(
+        header.get("matchDate") or header.get("matchDateTime") or info.get("matchDateTime") or info.get("matchDate")
+    )
+    venue = str(header.get("location") or header.get("groundName") or info.get("location") or info.get("groundName") or "").strip()
+    result_text = str(
+        header.get("result") or header.get("matchResult") or header.get("resultString") or info.get("result") or ""
+    ).strip()
+
+    motm = header.get("manOfTheMatch") or info.get("manOfTheMatch") or header.get("playerOfTheMatch")
+    if isinstance(motm, dict):
+        potm = str(motm.get("playerName") or motm.get("name") or "").strip()
+    else:
+        potm = str(motm or "").strip()
+
+    match_info = MatchInfo(
+        slug=_slugify(title + ("_" + date_str if date_str else "")),
+        title=title,
+        match_id=match_id,
+        series=series,
+        date=date_str,
+        venue=venue,
+        result_text=result_text,
+        player_of_match=potm,
+        ncca_url=ncca_url,
+        innings=innings,
+    )
+    _finalize_match_teams(match_info, config)
+
+    # Parse balls from commentary oversMap for each innings
+    balls: list[BallEvent] = []
+    for inn_num, c_inn in ((1, c_inn1), (2, c_inn2)):
+        if not isinstance(c_inn, dict):
+            continue
+        inn_sum = next((x for x in match_info.innings if x.innings_number == inn_num), None)
+        bat_team = str(c_inn.get("teamName") or (inn_sum.batting_team if inn_sum else f"Innings {inn_num}")).strip()
+        bowl_team = inn_sum.bowling_team if inn_sum else ""
+
+        overs_map = c_inn.get("oversMap")
+        over_entries: list[tuple[int, str, list[dict[str, Any]]]] = []
+        if isinstance(overs_map, dict):
+            for k, ov_obj in overs_map.items():
+                if not isinstance(ov_obj, dict):
+                    continue
+                ov_num = int(ov_obj.get("overNum") if ov_obj.get("overNum") is not None else int(k) if str(k).isdigit() else 0)
+                ov_bowler = _strip_html(ov_obj.get("bowlerName") or "")
+                ov_balls = ov_obj.get("balls") if isinstance(ov_obj.get("balls"), list) else []
+                over_entries.append((ov_num, ov_bowler, ov_balls))
+            over_entries.sort(key=lambda t: t[0])
+        elif isinstance(c_inn.get("balls"), list):
+            over_entries.append((0, "", c_inn["balls"]))
+
+        for ov_num, ov_bowler, raw_balls in over_entries:
+            # CricClubs stores balls newest-first inside each over in commentary API;
+            # reverse if the first real delivery has a higher ball number than the last.
+            filtered = [
+                b for b in raw_balls
+                if isinstance(b, dict) and str(b.get("ballType") or "").strip().lower() != "auto comment ball"
+            ]
+            if len(filtered) >= 2:
+                first_b = int(filtered[0].get("ball") or 0)
+                last_b = int(filtered[-1].get("ball") or 0)
+                if first_b > last_b:
+                    filtered.reverse()
+
+            for b_obj in filtered:
+                b_over = int(b_obj.get("over") if b_obj.get("over") is not None else ov_num)
+                b_ball = int(b_obj.get("ball") or 0)
+                comm_text = _strip_html(b_obj.get("commentary") or "")
+                runs_disp = str(b_obj.get("runsDisplay") or "").strip()
+                runs_val = b_obj.get("runs")
+                bowler_name = _strip_html(b_obj.get("bowlerName") or ov_bowler)
+                batter_name = _strip_html(b_obj.get("strikerName") or b_obj.get("batsmanName") or "")
+
+                # Prefer parsing "Bowler to Batter, <rest>" from commentary
+                m_line = _BALL_LINE_RE.match(f"{b_over}.{b_ball} {comm_text}") if comm_text else None
+                if m_line:
+                    ev = _parse_ball_description(
+                        innings_num=inn_num,
+                        seq_idx=len(balls),
+                        over=b_over,
+                        ball=b_ball,
+                        bowler=m_line.group("bowler") or bowler_name,
+                        batter=m_line.group("batter") or batter_name,
+                        rest=(m_line.group("rest_comma") or m_line.group("rest_kw") or ""),
+                        batting_team=bat_team,
+                        bowling_team=bowl_team,
+                    )
+                else:
+                    # Fallback to structured fields when commentary isn't "X to Y, ..."
+                    if not bowler_name and not batter_name and not comm_text:
+                        continue
+                    disp_up = runs_disp.upper()
+                    out_method = str(b_obj.get("outMethod") or "").strip()
+                    is_wkt = disp_up == "W" or "W" in disp_up.split("+") or bool(out_method)
+                    is_wide = "WD" in disp_up or "WIDE" in comm_text.upper()
+                    is_nb = "NB" in disp_up or "NO BALL" in comm_text.upper()
+                    is_lb = "LB" in disp_up or "LEG BYE" in comm_text.upper()
+                    is_bye = ("B" in disp_up and not is_lb and not is_nb) or (
+                        "BYE" in comm_text.upper() and not is_lb
+                    )
+                    r_int = int(runs_val) if isinstance(runs_val, (int, float)) else (
+                        int(runs_disp) if runs_disp.isdigit() else 0
+                    )
+                    is_four = bool(b_obj.get("isFour")) or (runs_disp == "4" and not is_wide and not is_bye and not is_lb)
+                    is_six = bool(b_obj.get("isSix")) or (runs_disp == "6" and not is_wide)
+                    extras = r_int if (is_wide or is_lb or is_bye) else (1 if is_nb else 0)
+                    runs_bat = 0 if (is_wide or is_lb or is_bye) else (max(0, r_int - 1) if is_nb else r_int)
+                    ev = BallEvent(
+                        innings_number=inn_num,
+                        sequence_index=len(balls),
+                        over=b_over,
+                        ball=b_ball,
+                        over_ball=f"{b_over}.{b_ball}",
+                        batting_team=bat_team,
+                        bowling_team=bowl_team,
+                        batter=batter_name or f"{bat_team} Batter",
+                        bowler=bowler_name or f"{bowl_team} Bowler",
+                        runs_off_bat=runs_bat,
+                        extras=extras,
+                        total_runs_ball=runs_bat + extras,
+                        is_four=is_four,
+                        is_six=is_six,
+                        is_wicket=is_wkt,
+                        is_wide=is_wide,
+                        is_noball=is_nb,
+                        dismissal_text=comm_text if is_wkt else "",
+                        commentary=comm_text or f"{b_over}.{b_ball} {bowler_name} to {batter_name}, {runs_disp}",
+                    )
+
+                # Reinforce boundary/wicket flags from structured API fields if commentary omitted keywords
+                disp_up = runs_disp.upper()
+                if (disp_up == "W" or b_obj.get("outMethod")) and not ev.is_wicket:
+                    ev.is_wicket = True
+                    if not ev.dismissal_text:
+                        ev.dismissal_text = comm_text
+                if (b_obj.get("isFour") or runs_disp == "4") and not ev.is_wide and not ev.is_wicket:
+                    if not ("LEG BYE" in ev.commentary.upper() or "BYE" in ev.commentary.upper()):
+                        ev.is_four = True
+                        if ev.runs_off_bat == 0 and ev.total_runs_ball == 0:
+                            ev.runs_off_bat = 4
+                            ev.total_runs_ball = 4
+                if (b_obj.get("isSix") or runs_disp == "6") and not ev.is_wide and not ev.is_wicket:
+                    ev.is_six = True
+                    if ev.runs_off_bat == 0 and ev.total_runs_ball == 0:
+                        ev.runs_off_bat = 6
+                        ev.total_runs_ball = 6
+
+                balls.append(ev)
+
+    if scorecard and not match_info.top_performers:
+        match_info.top_performers = _extract_top_performers_from_scorecard(scorecard, match_info, config)
 
     _enrich_running_totals_and_milestones(match_info, balls)
     return match_info, balls
+
+
+def fetch_ncca_via_browser(
+    url: str,
+    config: ClubConfig,
+    timeout: float = 35.0,
+) -> tuple[MatchInfo, list[BallEvent]]:
+    """Fetch client-rendered NCCA scorecard & commentary via local Chrome + puppeteer-core.
+
+    Never attempts to solve or bypass Cloudflare/CAPTCHA gates; raises NccaFetchError
+    immediately if Cloudflare security verification or browser unavailability occurs.
+    """
+    node_bin = shutil.which("node")
+    if not node_bin:
+        raise NccaFetchError(
+            f"Node.js not found on PATH; cannot launch browser NCCA fetcher.\n{NCCA_MANUAL_INSTRUCTIONS}",
+            reason="browser_unavailable",
+        )
+
+    helper_script = Path(__file__).resolve().with_name("fetch_ncca_browser.mjs")
+    if not helper_script.exists():
+        raise NccaFetchError(
+            f"Browser helper script missing at {helper_script}.\n{NCCA_MANUAL_INSTRUCTIONS}",
+            reason="browser_unavailable",
+        )
+
+    try:
+        proc = subprocess.run(
+            [node_bin, str(helper_script), url, str(int(timeout * 1000))],
+            capture_output=True,
+            text=True,
+            timeout=timeout + 10.0,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise NccaFetchError(
+            f"Browser NCCA fetch timed out after {timeout:.0f}s.\n{NCCA_MANUAL_INSTRUCTIONS}",
+            reason="timeout",
+        ) from exc
+
+    raw_out = (proc.stdout or "").strip().splitlines()
+    if not raw_out:
+        err_detail = (proc.stderr or "").strip()[:300] or f"exit code {proc.returncode}"
+        raise NccaFetchError(
+            f"Browser NCCA fetch produced no output ({err_detail}).\n{NCCA_MANUAL_INSTRUCTIONS}",
+            reason="browser_error",
+        )
+
+    try:
+        result = json.loads(raw_out[-1])
+    except json.JSONDecodeError as exc:
+        raise NccaFetchError(
+            f"Browser NCCA fetch returned invalid JSON.\n{NCCA_MANUAL_INSTRUCTIONS}",
+            reason="browser_error",
+        ) from exc
+
+    if not result.get("ok"):
+        reason = str(result.get("reason") or "browser_error")
+        msg = str(result.get("message") or "Browser NCCA fetch failed.")
+        raise NccaFetchError(f"{msg}\n{NCCA_MANUAL_INSTRUCTIONS}", reason=reason)
+
+    if result.get("commentary"):
+        info, balls = parse_ncca_api_payloads(
+            result.get("header"),
+            result.get("commentary"),
+            config,
+            info_payload=result.get("info"),
+            scorecard_payload=result.get("scorecard"),
+            ncca_url=url,
+        )
+        if balls:
+            return info, balls
+
+    if result.get("html"):
+        info, balls = parse_ncca_html(result["html"], config, ncca_url=url)
+        if balls:
+            return info, balls
+
+    raise NccaFetchError(
+        f"Browser loaded the NCCA page, but no ball-by-ball deliveries were found.\n{NCCA_MANUAL_INSTRUCTIONS}",
+        reason="empty_ball_by_ball",
+    )
 
 
 def parse_ncca_excel(excel_path: Path, config: ClubConfig) -> tuple[MatchInfo, list[BallEvent]]:
@@ -685,6 +1142,8 @@ def load_ncca_source(
     ncca_file: Path | None = None,
     ncca_excel: Path | None = None,
     ncca_json: Path | None = None,
+    *,
+    allow_browser: bool = True,
 ) -> tuple[MatchInfo, list[BallEvent]] | None:
     """Load match scorecard & ball-by-ball commentary from whichever NCCA source is supplied."""
     if ncca_json:
@@ -695,6 +1154,25 @@ def load_ncca_source(
         html = Path(ncca_file).read_text(encoding="utf-8", errors="ignore")
         return parse_ncca_html(html, config, ncca_url=ncca_url)
     if ncca_url:
-        main_html, bbb_html = fetch_ncca_html(ncca_url)
-        return parse_ncca_html(bbb_html, config, scorecard_html=main_html, ncca_url=ncca_url)
+        http_err: Exception | None = None
+        try:
+            main_html, bbb_html = fetch_ncca_html(ncca_url)
+            info, balls = parse_ncca_html(bbb_html, config, scorecard_html=main_html, ncca_url=ncca_url)
+            if balls:
+                return info, balls
+        except NccaCloudflareBlockedError as exc:
+            http_err = exc
+
+        # Direct HTTP either hit Cloudflare or returned a client-rendered Next.js shell with 0 balls.
+        if allow_browser:
+            return fetch_ncca_via_browser(ncca_url, config)
+
+        if http_err is not None:
+            raise http_err
+        raise NccaFetchError(
+            "nccacricket.org returned a client-rendered page with 0 ball-by-ball deliveries "
+            "and browser fetching is disabled.\n"
+            f"{NCCA_MANUAL_INSTRUCTIONS}",
+            reason="empty_ball_by_ball",
+        )
     return None

@@ -14,7 +14,7 @@ Supports all four GSCC squads (**GSCC Tigers**, **GSCC Bulls**, **GSCC ThunderCa
 - [System Architecture](#system-architecture)
 - [Prerequisites & One-Time Setup (macOS)](#prerequisites--one-time-setup-macos)
 - [How to Run: AI Chat vs. Terminal CLI](#how-to-run-ai-chat-vs-terminal-cli)
-- [NCCA Scorecard Sources (3-Tier Fallback)](#ncca-scorecard-sources-3-tier-fallback)
+- [NCCA Scorecard Sources (Browser Automation + Fallback)](#ncca-scorecard-sources-browser-automation--fallback)
 - [CLI Reference](#cli-reference)
 - [Configuration & Customization (`config/club.yaml`)](#configuration--customization-configclubyaml)
 - [Workspace, Caching & Disk Management](#workspace-caching--disk-management)
@@ -196,16 +196,16 @@ To generate an immediate rough-draft Reel without manual filmstrip review:
 
 ---
 
-## NCCA Scorecard Sources (3-Tier Fallback)
+## NCCA Scorecard Sources (Browser Automation + Fallback)
 
-`nccacricket.org` occasionally serves a Cloudflare challenge to direct Python HTTP clients. The CLI handles this automatically with 4 input tiers:
+`nccacricket.org` is a client-rendered Next.js app (and occasionally serves a Cloudflare verification gate to automated HTTP/headless clients). The pipeline handles this across 5 tiers:
 
 | Flag | Source | Notes |
 |---|---|---|
+| `--ncca-json <file.json>` | **Automatic in AI Chat.** The `/gscc-highlights` skill opens the NCCA URL with the built-in browser agent, reads the rendered Scorecard & Ball-by-Ball tabs, and writes `workspace/<slug>/ncca_match.json`. | Zero manual downloads; preserves pre-computed `score_runs_after` on highlight-only JSONs. |
+| `--ncca <url>` | Live NCCA results URL (CLI). | Tries direct HTTP, then automatically launches local Chrome via `puppeteer-core` (`--browser-ncca`) to capture the rendered scorecard/commentary. If blocked by Cloudflare or empty, **prompts interactively** for Excel/HTML (with how-to steps) or Ticker-Only mode (or falls back in `--non-interactive` mode). |
 | `--ncca-excel <file.xlsx>` | **Recommended offline input.** Open the NCCA match page → **Info** tab → click **Export Excel**. | Zero Cloudflare friction; gives official match metadata, player names, milestones, and ball-by-ball events. |
-| `--ncca-file <file.html>` | Browser-saved (`Cmd+S`) NCCA **Ball by Ball** tab HTML. | Full offline parsing via BeautifulSoup. |
-| `--ncca-json <file.json>` | Structured match JSON (official metadata + ball highlights). | Preserves pre-computed `score_runs_after` on highlight-only JSONs. |
-| `--ncca <url>` | Live NCCA results URL. | Attempts direct fetch; if Cloudflare blocks the CLI, automatically falls back to **Ticker-Only OCR Mode** (unless `--no-allow-ticker-fallback` is passed). |
+| `--ncca-file <file.html>` | Browser-saved (`Cmd+S`) NCCA **Ball by Ball** tab HTML (wait for deliveries to load first). | Full offline parsing via BeautifulSoup (handles inline formatting spans from Next.js DOM). |
 | *(omitted)* | **Ticker-Only Mode** | Infers boundaries (`+4`/`+6`), wickets, and batters/bowlers directly from the video's CricClubs ticker wings, and auto-derives Outro `GSCC STANDOUTS` directly from selected clips. |
 
 *(NCCA wall-clock timestamps are intentionally ignored because post-match scorer edits overwrite wall-clock times in batches; video synchronization always anchors to score/over transitions on the stream ticker.)*
@@ -246,7 +246,8 @@ Run commands from `utils/social/highlight-reel/` with `uv run gscc-highlights <s
 | `--cookies-from-browser` | Optional | Pass browser cookies (`chrome`, `safari`) to `yt-dlp` for unlisted/throttled streams. |
 | `--non-interactive` | `false` | Skip interactive music prompt (uses `--music` or default beat). |
 | `--rescan-ocr` | `false` | Ignore `ocr_readings.json` cache and re-run Apple Vision OCR scan. |
-| `--allow-ticker-fallback` / `--no-allow-ticker-fallback` | `true` | Toggle automatic Ticker-Only fallback when live NCCA fetch hits Cloudflare. |
+| `--browser-ncca` / `--no-browser-ncca` | `true` | Automatically launch local Chrome via `puppeteer-core` when `--ncca` returns a client-rendered shell. |
+| `--allow-ticker-fallback` / `--no-allow-ticker-fallback` | `true` | Automatically fall back to Ticker-Only OCR mode if NCCA fetch fails in `--non-interactive` mode (interactive runs prompt for Excel/HTML or Ticker-Only). |
 
 *(Additional `run`-only flags: `--output PATH`, `--cleanup`.)*
 

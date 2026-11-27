@@ -3,11 +3,20 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
+import pytest
 from openpyxl import Workbook
 
+from gscc_highlights.cli import _prompt_ncca_fallback, build_parser
 from gscc_highlights.config import load_config
-from gscc_highlights.ncca_parser import parse_ncca_excel, parse_ncca_html
+from gscc_highlights.ncca_parser import (
+    NccaFetchError,
+    load_ncca_source,
+    parse_ncca_api_payloads,
+    parse_ncca_excel,
+    parse_ncca_html,
+)
 
 SAMPLE_HTML = """
 <!doctype html>
@@ -121,3 +130,216 @@ def test_parse_ncca_excel(tmp_path: Path):
     assert len(balls) == 2
     assert balls[0].is_wicket is True
     assert balls[1].is_six is True
+
+
+def test_parse_ncca_html_nextjs_inline_tags():
+    cfg = load_config()
+    nextjs_dom = """
+    <html><head><title>California Falcons vs GSCC Bears - Northern California Cricket Association (NCCA)</title></head>
+    <body>
+      <div>California Falcons 150/9 (20 overs)</div>
+      <div>GSCC Bears 154/2 (11.2 overs)</div>
+      <div>GSCC Bears won by 8 Wickets</div>
+      <div>1st Innings</div>
+      <div>
+        <div>W</div>
+        <div>3.1</div>
+        <div><b>Anand S</b> to <b>Suryansh K</b>, <strong>OUT!</strong> BOWLED Suryansh K b Anand S</div>
+        <span>09:30 AM</span>
+      </div>
+      <div>2nd Innings</div>
+      <div>
+        <div>6</div>
+        <div>1.2</div>
+        <div><b>Harsh P</b> to <b>Rohan G</b>, <b>6 runs SIX</b></div>
+        <span>11:15 AM</span>
+      </div>
+    </body></html>
+    """
+    info, balls = parse_ncca_html(nextjs_dom, cfg)
+    assert info.gscc_team == "GSCC Bears"
+    assert len(balls) == 2
+    assert balls[0].innings_number == 1 and balls[0].is_wicket is True and balls[0].bowler == "Anand S"
+    assert balls[1].innings_number == 2 and balls[1].is_six is True and balls[1].batter == "Rohan G"
+
+
+def test_parse_ncca_api_payloads_cricclubs_schema():
+    cfg = load_config()
+    header = {
+        "status": "Success",
+        "data": {
+            "matchId": "9011",
+            "seriesName": "2026 Winter T20 D2",
+            "matchDateTime": "2026-11-22T17:00:00Z",
+            "location": "Morgan Hill Sports Complex",
+            "result": "GSCC Bears won by 8 Wickets",
+            "manOfTheMatch": {"playerName": "Rohan G"},
+            "battingFirst": 101,
+            "teamOne": {"id": 101, "name": "California Falcons", "code": "CFL"},
+            "teamTwo": {"id": 202, "name": "GSCC Bears", "code": "GSB"},
+            "inningsOneTotal": {"runs": 150, "wickets": 9, "overs": "20.0"},
+            "inningsTwoTotal": {"runs": 154, "wickets": 2, "overs": "11.2"},
+        },
+    }
+    commentary = {
+        "status": "Success",
+        "data": {
+            "innings1Balls": {
+                "teamName": "California Falcons",
+                "overs": "20.0",
+                "oversMap": {
+                    "3": {
+                        "overNum": 3,
+                        "bowlerName": "Anand S",
+                        "balls": [
+                            # Newest-first ordering as returned by CricClubs
+                            {
+                                "over": 3,
+                                "ball": 2,
+                                "runsDisplay": "W",
+                                "runs": 0,
+                                "commentary": "Anand S to Suryansh K, <b>OUT!</b> BOWLED Suryansh K b Anand S",
+                                "ballType": "Good Ball",
+                            },
+                            {
+                                "over": 3,
+                                "ball": 1,
+                                "runsDisplay": "4",
+                                "runs": 4,
+                                "commentary": "Anand S to Suryansh K, 4 runs <b>FOUR</b>",
+                                "ballType": "Good Ball",
+                            },
+                            {
+                                "over": 3,
+                                "ball": 0,
+                                "runsDisplay": "",
+                                "runs": 0,
+                                "commentary": "Drinks break",
+                                "ballType": "Auto Comment Ball",
+                            },
+                        ],
+                    }
+                },
+            },
+            "innings2Balls": {
+                "teamName": "GSCC Bears",
+                "overs": "11.2",
+                "oversMap": {
+                    "1": {
+                        "overNum": 1,
+                        "bowlerName": "Harsh P",
+                        "balls": [
+                            {
+                                "over": 1,
+                                "ball": 2,
+                                "runsDisplay": "6",
+                                "runs": 6,
+                                "commentary": "Harsh P to Rohan G, 6 runs SIX",
+                                "ballType": "Good Ball",
+                            }
+                        ],
+                    }
+                },
+            },
+        },
+    }
+    scorecard = {
+        "status": "Success",
+        "data": {
+            "innings1": {
+                "teamName": "California Falcons",
+                "batting": [{"playerName": "Suryansh K", "runsScored": 45, "ballsFaced": 22}],
+                "bowling": [{"playerName": "Anand S", "wickets": 3, "runs": 24, "overs": "4.0"}],
+            },
+            "innings2": {
+                "teamName": "GSCC Bears",
+                "batting": [{"playerName": "Rohan G", "runsScored": 68, "ballsFaced": 31}],
+                "bowling": [{"playerName": "Harsh P", "wickets": 2, "runs": 30, "overs": "3.0"}],
+            },
+        },
+    }
+
+    info, balls = parse_ncca_api_payloads(
+        header, commentary, cfg, scorecard_payload=scorecard, ncca_url="https://www.nccacricket.org/NCCA/results/TEST"
+    )
+    assert info.title == "California Falcons vs GSCC Bears"
+    assert info.match_id == "9011"
+    assert info.date == "Nov 22, 2026"
+    assert info.venue == "Morgan Hill Sports Complex"
+    assert info.player_of_match == "Rohan G"
+    assert info.gscc_team == "GSCC Bears"
+    assert [i.batting_code for i in info.innings] == ["CFL", "GSB"]
+    assert "Rohan G 68 (31)" in info.top_performers
+    assert "Anand S 3/24 (4.0 ov)" in info.top_performers
+    # Auto Comment Ball filtered; remaining 3 balls in chronological order
+    assert len(balls) == 3
+    assert [(b.innings_number, b.over_ball, b.is_four, b.is_wicket, b.is_six) for b in balls] == [
+        (1, "3.1", True, False, False),
+        (1, "3.2", False, True, False),
+        (2, "1.2", False, False, True),
+    ]
+
+
+def test_load_ncca_source_triggers_browser_when_http_returns_empty_spa():
+    cfg = load_config()
+    empty_shell = "<html><head><title>California Falcons vs GSCC Bears - NCCA</title></head><body>Loading...</body></html>"
+    expected_info, expected_balls = parse_ncca_html(SAMPLE_HTML, cfg)
+
+    with (
+        patch("gscc_highlights.ncca_parser.fetch_ncca_html", return_value=(empty_shell, empty_shell)),
+        patch("gscc_highlights.ncca_parser.fetch_ncca_via_browser", return_value=(expected_info, expected_balls)) as mock_browser,
+    ):
+        res = load_ncca_source(cfg, ncca_url="https://www.nccacricket.org/NCCA/results/TEST")
+        assert mock_browser.called
+        assert res is not None
+        assert len(res[1]) == len(expected_balls)
+
+    with (
+        patch("gscc_highlights.ncca_parser.fetch_ncca_html", return_value=(empty_shell, empty_shell)),
+        pytest.raises(NccaFetchError) as exc_info,
+    ):
+        load_ncca_source(cfg, ncca_url="https://www.nccacricket.org/NCCA/results/TEST", allow_browser=False)
+    assert exc_info.value.reason == "empty_ball_by_ball"
+    assert "Export Excel" in str(exc_info.value)
+
+
+def test_cli_prompt_ncca_fallback_options(tmp_path: Path):
+    cfg = load_config()
+    err = NccaFetchError("Cloudflare blocked headless Chrome", reason="cloudflare")
+
+    # Option 3: Ticker-Only mode returns None
+    with patch("builtins.input", side_effect=["3"]):
+        assert _prompt_ncca_fallback(err, cfg) is None
+
+    # Option 0: Cancel raises SystemExit(2)
+    with patch("builtins.input", side_effect=["0"]):
+        with pytest.raises(SystemExit) as sysex:
+            _prompt_ncca_fallback(err, cfg)
+        assert sysex.value.code == 2
+
+    # Option 2: Saved HTML file
+    html_file = tmp_path / "match_bbb.html"
+    html_file.write_text(SAMPLE_HTML, encoding="utf-8")
+    with patch("builtins.input", side_effect=["2", str(html_file)]):
+        loaded = _prompt_ncca_fallback(err, cfg)
+        assert loaded is not None
+        assert len(loaded[1]) > 0
+
+    # Option 1: Export Excel file (also handles nonexistent path retry cleanly)
+    xlsx = tmp_path / "export.xlsx"
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Ball by Ball"
+    ws.append(["Innings", "Over", "Batting Team", "Bowling Team", "Batter", "Bowler", "Commentary"])
+    ws.append([1, "0.4", "GSCC Bears", "California Falcons", "Rohan G", "Harsh P", "4 runs FOUR"])
+    wb.save(xlsx)
+
+    with patch("builtins.input", side_effect=["1", str(tmp_path / "missing.xlsx"), "1", str(xlsx)]):
+        loaded_xl = _prompt_ncca_fallback(err, cfg)
+        assert loaded_xl is not None
+        assert len(loaded_xl[1]) == 1
+
+    # Verify CLI exposes --browser-ncca / --no-browser-ncca flag
+    parser = build_parser()
+    ns = parser.parse_args(["prepare", "--youtube", "https://youtu.be/abc", "--no-browser-ncca"])
+    assert ns.browser_ncca is False
