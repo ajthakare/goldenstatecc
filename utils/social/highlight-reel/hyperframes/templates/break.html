@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <script src="assets/gsap.min.js"></script>
+    <style>
+/*__COMMON_CSS__*/
+      /* Unified IG safe-zone axis: left=60px, width=846px (clears right-rail buttons x>910 cleanly) */
+      #stack { position: absolute; left: 60px; top: 292px; width: 846px; display: flex; flex-direction: column; align-items: center; }
+      #stack > * { flex: none; }
+      #b-pill {
+        padding: 12px 34px; border-radius: 40px; font-size: 24px; font-weight: 800; letter-spacing: 0.2em; color: var(--gold-soft);
+        background: rgba(22, 18, 17, 0.92); border: 2px solid rgba(233, 200, 107, 0.8); white-space: nowrap;
+      }
+      #b-crest { margin-top: 38px; height: 150px; display: flex; align-items: center; justify-content: center; }
+      #b-team { margin-top: 26px; font-weight: 900; letter-spacing: -0.01em; white-space: nowrap; text-align: center; }
+      #b-score { margin-top: 4px; font-weight: 900; color: var(--gold-soft); line-height: 1.02; white-space: nowrap; font-variant-numeric: tabular-nums; }
+      #b-meta { margin-top: 14px; font-size: 26px; font-weight: 600; letter-spacing: 0.08em; color: var(--muted-text); white-space: nowrap; }
+      #b-rule { margin-top: 34px; width: 400px; height: 2px; background: rgba(201, 162, 39, 0.65); }
+      #b-target {
+        margin-top: 34px; padding: 18px 56px; border-radius: 52px; font-size: 46px; font-weight: 900; letter-spacing: 0.1em; white-space: nowrap;
+        background: linear-gradient(180deg, var(--crimson-signal), var(--maroon-dark)); border: 2px solid rgba(233, 200, 107, 0.7);
+      }
+      #b-chase { margin-top: 24px; font-size: 28px; font-weight: 800; letter-spacing: 0.09em; color: var(--warm-white); white-space: nowrap; }
+      #b-rowh { margin-top: 52px; align-self: flex-start; padding-left: 4px; font-size: 20px; font-weight: 800; letter-spacing: 0.25em; color: var(--gold-soft); }
+      #b-rows { margin-top: 14px; width: 846px; padding: 5px 0; border-radius: 20px; overflow: hidden; }
+      .brow { height: 76px; display: flex; align-items: center; padding: 0 28px 0 24px; position: relative; }
+      .brow + .brow { border-top: 1px solid rgba(201, 162, 39, 0.2); }
+      .brow .tag { width: 92px; height: 34px; font-size: 18px; margin-right: 24px; }
+      .brow .nm { font-size: 32px; font-weight: 700; flex: 1; white-space: nowrap; }
+      .brow .st { font-size: 30px; font-weight: 800; color: var(--gold-soft); white-space: nowrap; font-variant-numeric: tabular-nums; }
+      #foot { position: absolute; left: 60px; width: 846px; text-align: center; top: 1408px; font-size: 24px; color: var(--gold-accent); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="__DURATION__" data-width="1080" data-height="1920">
+      <div id="bgbase" class="layer bg-break clip" data-start="0" data-duration="__DURATION__" data-track-index="0"></div>
+      <div id="stack" class="clip" data-start="0" data-duration="__DURATION__" data-track-index="1">
+        <div id="b-pill">INNINGS BREAK</div>
+        <div id="b-crest"></div>
+        <div id="b-team"></div>
+        <div id="b-score"></div>
+        <div id="b-meta"></div>
+        <div id="b-rule"></div>
+        <div id="b-target"></div>
+        <div id="b-chase"></div>
+        <div id="b-rowh"></div>
+        <div id="b-rows" class="panel"></div>
+      </div>
+      <div id="foot" class="foot clip" data-start="0" data-duration="__DURATION__" data-track-index="2"></div>
+    </div>
+    <script>
+/*__CARD_DATA__*/
+/*__COMMON_JS__*/
+      const D = C.duration;
+      const crest = $("b-crest");
+      if (C.crest) {
+        const im = el("img"); im.src = C.crest;
+        im.style.cssText = "height:150px;width:auto;filter:drop-shadow(0 8px 24px rgba(0,0,0,.55))";
+        crest.appendChild(im);
+      } else {
+        const mSz = (C.monogram && C.monogram.length >= 3) ? 44 : 50;
+        crest.appendChild(monogram(C.monogram, 150, mSz));
+      }
+      $("b-team").textContent = C.team;
+      fit($("b-team"), 830, 44, 26);
+      if (C.score) {
+        $("b-score").textContent = C.score;
+        fit($("b-score"), 820, 184, 100);
+        $("b-meta").textContent = C.meta || "";
+        fit($("b-meta"), 820, 26, 18);
+        $("b-target").textContent = C.target;
+        $("b-chase").textContent = C.chase || "";
+        fit($("b-chase"), 820, 28, 19);
+      } else {
+        $("b-score").textContent = "2ND INNINGS COMING UP";
+        fit($("b-score"), 820, 66, 38);
+        for (const id of ["b-meta", "b-rule", "b-target", "b-chase"]) $(id).style.display = "none";
+      }
+      const rows = $("b-rows");
+      if (C.rows && C.rows.length) {
+        $("b-rowh").textContent = C.rowsHeader;
+        C.rows.forEach((r) => {
+          const row = el("div", "brow");
+          const tag = el("div", "tag " + (r.role === "BAT" ? "tag-bat" : "tag-bowl"), esc(r.role));
+          const nm = el("div", "nm", esc(r.name));
+          row.appendChild(tag); row.appendChild(nm);
+          if (r.stat) row.appendChild(el("div", "st", esc(r.stat)));
+          rows.appendChild(row);
+        });
+      } else {
+        $("b-rowh").style.display = "none"; rows.style.display = "none";
+      }
+      $("foot").innerHTML = esc(C.handle) + " &nbsp;•&nbsp; " + esc(C.website);
+      const stack = $("stack");
+      const stackBottom = stack.offsetTop + stack.offsetHeight;
+      $("foot").style.top = Math.min(1446, Math.max(1404, Math.round(stackBottom + 34))) + "px";
+
+      const tl = gsap.timeline({ paused: true });
+      tl.fromTo("#b-pill", { opacity: 0, y: -20 }, { opacity: 1, y: 0, duration: 0.35, ease: "power3.out" }, 0.0);
+      tl.fromTo("#b-crest", { opacity: 0, scale: 0.7 }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(1.6)" }, 0.08);
+      tl.fromTo("#b-team", { opacity: 0, y: 22 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 0.25);
+      tl.fromTo("#b-score", { opacity: 0, scale: 0.7 }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(1.8)" }, 0.35);
+      tl.fromTo("#b-meta", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.35, ease: "power3.out" }, 0.6);
+      tl.fromTo("#b-rule", { opacity: 0, scaleX: 0 }, { opacity: 1, scaleX: 1, duration: 0.4, ease: "power3.out" }, 0.65);
+      tl.fromTo("#b-target", { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.45, ease: "back.out(2)" }, 0.75);
+      tl.fromTo("#b-chase", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.35, ease: "power3.out" }, 0.95);
+      tl.fromTo("#b-rowh", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power2.out" }, 1.1);
+      tl.fromTo("#b-rows", { opacity: 0, x: -60 }, { opacity: 1, x: 0, duration: 0.45, ease: "power3.out" }, 1.15);
+      tl.fromTo("#foot", { opacity: 0 }, { opacity: 1, duration: 0.4, ease: "power2.out" }, 1.2);
+      finish(tl, D);
+    </script>
+  </body>
+</html>

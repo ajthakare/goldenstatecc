@@ -1,0 +1,159 @@
+# Golden State Cricket Club — Unified Highlights Branding & Pipeline Config
+# Official brand tokens synced from https://goldenstatecc.org/
+
+club:
+  name: "Golden State Cricket Club"
+  short_name: "GSCC"
+  tagline: "BAY AREA, CALIFORNIA"
+  website: "goldenstatecc.org"
+  instagram_handle: "@goldenstate_cc"
+  logo_path: "assets/logos/gscc_logo.png"
+  squad_logos:
+    tigers: "assets/logos/gscc_tigers.png"
+    bulls: "assets/logos/gscc_bulls.png"
+    thundercats: "assets/logos/gscc_thundercats.png"
+    bears: "assets/logos/gscc_bears.png"
+  font_variable_path: "assets/fonts/Inter-Variable.woff2"
+  font_regular_path: "assets/fonts/Inter-Regular.ttf"
+  font_bold_path: "assets/fonts/Inter-Bold.ttf"
+  font_extrabold_path: "assets/fonts/Inter-ExtraBold.ttf"
+  colors:
+    maroon_primary: "#8C1D18"
+    maroon_hover: "#A82B24"
+    maroon_dark: "#6E1712"
+    crimson_signal: "#D92B2B"
+    crimson_glow: "#9E1B1B"
+    gold_accent: "#C9A227"
+    gold_bright: "#D4AF37"
+    gold_soft: "#E9C86B"
+    obsidian: "#1A1614"
+    obsidian_deep: "#0E0C0B"
+    surface_dark: "#241F1C"
+    surface_glass: "#161211"
+    warm_white: "#FAF7F2"
+    pure_white: "#FFFFFF"
+    muted_text: "#B8AEA4"
+
+  # Patterns used to auto-detect GSCC teams in NCCA & ticker data
+  squad_patterns:
+    - "GSCC"
+    - "Golden State"
+    - "GSCC Tigers"
+    - "GSCC Bulls"
+    - "GSCC ThunderCats"
+    - "GSCC Thundercats"
+    - "GSCC Bears"
+
+paths:
+  # Shared local workspaces & rendered outputs under GSCC/utils/social/ (gitignored)
+  workspace_dir: "../workspace"
+  output_dir: "../output"
+
+selection:
+  # Default strict GSCC-only; automatically switches to 'both' on GSCC-vs-GSCC derbies
+  default_mode: "gscc-only"
+  # Instagram Reels limit is 3:00 -> hard stop at 178s so every reel fits with a safety margin
+  max_duration_sec: 178.0
+  # Rare intra-club GSCC-vs-GSCC derbies are allowed > 3 min so both squads get fair coverage
+  derby_max_duration_sec: 240.0
+  target_duration_sec: 170.0
+  # 2.4s animated HyperFrames intro -> clips -> 2.8s Innings Break -> 5.5s Full-Time Outro
+  intro_sec: 2.4
+  innings_break_sec: 2.8
+  outro_sec: 5.5
+  card_transition_sec: 0.25
+  transition_sec: 0.0
+
+  # Default clip lengths by event type
+  clip_durations:
+    four: 5.0
+    six: 5.5
+    wicket: 6.0
+    fifty: 6.5
+    hundred: 7.5
+    winning_shot: 7.0
+
+  # Base priority scores (wicket == six at 80; drama & match-context bonuses break ties)
+  priority_weights:
+    hundred: 100
+    winning_shot: 96
+    fifty: 92
+    six: 80
+    wicket: 80
+    four: 55
+
+  # Selection v2 fairness & gentle-trim rules (only active when total highlights exceed cap)
+  min_innings_share: 0.30
+  min_wicket_share: 0.25
+  min_wickets_for_floor: 4
+  first_player_bonus: 6
+  multi_shot_batter_first_bonus: 10
+  # Diminishing returns apply ONLY to batting boundaries (bowler wickets are never capped)
+  batter_diminishing_penalties: [0, 0, 0, -12, -22, -32]
+  # When slightly over cap (<= 18s), gently trim routine fours/sixes first before dropping any clip
+  squeeze_before_drop: true
+  squeeze_max_overage_sec: 18.0
+  min_four_sec: 4.2
+  min_six_sec: 4.8
+
+sync:
+  coarse_sample_sec: 4.0
+  pixel_diff_threshold: 2.5
+  bulk_jump_max_balls: 2
+  bulk_jump_max_runs: 8
+
+  # Event-aware CricClubs live-scorer lag windows (seconds BEFORE ticker flip)
+  boundary_lookback_min_sec: 3.0
+  boundary_lookback_max_sec: 32.0
+  boundary_default_offset_sec: 14.0
+
+  wicket_lookback_min_sec: 5.0
+  wicket_lookback_max_sec: 65.0
+  wicket_default_offset_sec: 30.0
+
+  # Lookback frames shown on preview_sheet.jpg for wickets & low-confidence clips
+  wicket_preview_offsets_sec: [-30, -22, -15, -8, -3]
+
+audio:
+  music_dir: "assets/music"
+  default_music: "default_hype_beat.wav"
+  ground_gain: 1.0
+  music_db: -11.0
+  crossfade_sec: 0.18
+  target_lufs: -14.0
+  true_peak_db: -1.5
+  ground_target_lufs: -19.0
+  enable_ducking: true
+  # Subtle locally-synthesized broadcast transition SFX on Innings Break & Full-Time cards
+  enable_sfx: true
+
+render:
+  width: 1080
+  height: 1920
+  fps: 30
+  # Strict Instagram Reels Safe Zone layout
+  video_y: 520
+  video_width: 1080
+  video_height: 608
+  safe_top_y: 220
+  safe_bottom_y: 1480
+  safe_right_x: 910
+  # auto = detect where the action is once per match (cached in framing.json) and use a bigger cropped video band
+  # full = always show the whole 16:9 frame
+  framing_mode: auto
+  # sharp = crisp action frame behind the intro text (default) | blurred = moody blurred teaser backdrop
+  intro_backdrop: sharp
+  # share of the frame height kept (from the top) behind the intro so the baked-in scoreboard is cropped out (1.0 = no crop)
+  intro_crop_top: 0.76
+  # hyperframes = animated intro / innings break / full-time cards (auto-falls back to static pillow cards if unavailable)
+  card_engine: hyperframes
+  card_reveal_delay_sec: 0.8
+  card_slide_sec: 0.32
+  export_cover_jpg: true
+  hq_clip_fetch: true
+  hq_max_height: 1440
+  sharpen_amount: 0.42
+  prefer_videotoolbox: true
+  video_bitrate: "8M"
+  crf: 18
+  audio_bitrate: "192k"
