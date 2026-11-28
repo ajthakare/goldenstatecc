@@ -155,8 +155,8 @@ Roles: `member`, `admin`, `super_admin`. Members sign in at `/login`; admins too
 
 ## Push Notifications
 
-- Web Push via VAPID keys (`web-push`). Members subscribe (`push-subscribe`, `push-unsubscribe`); subscriptions in `push-subscriptions`
-- `/admin/notifications`: presets, title/body/link, preview, subscriber count (`push-send`, `push-subscriber-count`). Can target specific player IDs
+- Web Push via VAPID keys (`web-push`) and Expo push (`expo-tokens`). Members subscribe (`push-subscribe`, `push-unsubscribe`, `push-register-device`); subscriptions in `push-subscriptions`
+- `/admin/notifications`: presets, title/body/link, preview, subscriber count (`push-send`, `push-subscriber-count`). Can target everyone, reusable **Notification Groups** (`notification-groups-*`, stored in `notification-groups` with one-click quick-fill from active season C/VCs, teams, umpires, and admins, plus optional default message templates), or specific player IDs
 - Players newly assigned to an upcoming umpiring duty get a push (`umpiring-duties-update`)
 
 ## Scheduled Jobs (`schedule()` in `netlify/functions/`)
@@ -250,6 +250,7 @@ Netlify only runs these on the published deploy. Times are Pacific (cron is UTC)
 | `social-feed` | Merged Instagram + YouTube feed and the Instagram token |
 | `stream-overlay` | Current CricClubs match ID per team for the stream overlays (`match-ids`) |
 | `push-subscriptions` | One `subscriptions` list, each tagged with its player ID |
+| `notification-groups` | `groups-all`: reusable admin notification groups (members + optional default message template) |
 | `password-reset-requests` | Reset requests for super admins |
 | `winter-checkin` | Winter Check-In + Summer feedback responses |
 | `submission-metadata` | Review status for contact form submissions (the submissions themselves are in Netlify Forms) |

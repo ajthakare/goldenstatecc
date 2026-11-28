@@ -2,6 +2,7 @@
 export const prerender = false;
 
 import AdminLayout from '../../layouts/AdminLayout.astro';
+import { NOTIFICATION_URL_OPTIONS } from '../../types/notificationGroup';
 
 const cookieHeader = Astro.request.headers.get('cookie');
 let authenticated = false;
@@ -33,116 +34,240 @@ if (!isAdminUser) return Astro.redirect('/');
   <div class="notif-page">
 
     <div class="page-header">
-      <h1 class="page-title">Send Notification</h1>
-      <p class="page-description">Push a notification to players' phones and browsers</p>
+      <h1 class="page-title">Notifications</h1>
+      <p class="page-description">Push notifications to players' phones and browsers, and manage reusable recipient groups</p>
     </div>
 
-    <div class="notif-card">
-
-      <!-- Subscriber count -->
-      <div class="subscriber-bar">
-        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0"/></svg>
-        <span id="subscriber-count">Loading subscriber count...</span>
-      </div>
-
-      <!-- Quick presets -->
-      <div class="section-label">Quick presets</div>
-      <div class="presets">
-        <button class="preset-btn" data-title="Vote for Next Week's Fixtures" data-body="Check upcoming matches and mark your availability before voting closes." data-url="/myfixtures">
-          <span class="preset-icon">📅</span>
-          <div>
-            <div class="preset-title">Vote for fixtures</div>
-            <div class="preset-desc">Prompts players to mark availability</div>
-          </div>
-        </button>
-        <button class="preset-btn" data-title="Voting Closes in 2 Hours" data-body="Last chance! Mark your availability for this weekend's fixtures now." data-url="/myfixtures">
-          <span class="preset-icon">⏰</span>
-          <div>
-            <div class="preset-title">Voting closing soon</div>
-            <div class="preset-desc">Urgency reminder before deadline</div>
-          </div>
-        </button>
-        <button class="preset-btn" data-title="Practice Vote is Open" data-body="Let us know if you're coming to practice this week." data-url="/mypractice">
-          <span class="preset-icon">🏏</span>
-          <div>
-            <div class="preset-title">Practice vote open</div>
-            <div class="preset-desc">Asks players to respond for practice</div>
-          </div>
-        </button>
-      </div>
-
-      <div class="divider"></div>
-
-      <!-- Audience -->
-      <div class="section-label">Send to</div>
-      <div class="audience" role="radiogroup" aria-label="Send to">
-        <label class="audience-option"><input type="radio" name="audience" value="all" checked /> Everyone with notifications on</label>
-        <label class="audience-option"><input type="radio" name="audience" value="chosen" /> Chosen players</label>
-      </div>
-      <div id="picker" class="picker" hidden>
-        <input id="player-search" type="search" placeholder="Search players with notifications on" autocomplete="off" />
-        <div id="chosen-chips" class="chips"></div>
-        <ul id="player-list" class="player-list" aria-label="Players with notifications on"></ul>
-        <p id="picker-note" class="picker-note"></p>
-      </div>
-
-      <div class="divider"></div>
-
-      <!-- Custom fields -->
-      <div class="section-label">Message</div>
-      <div class="fields">
-        <div class="field">
-          <label for="notif-title">Title <span class="char-count" id="title-count">0 / 60</span></label>
-          <input id="notif-title" type="text" maxlength="60" placeholder="e.g. Vote for Next Week's Fixtures" />
-        </div>
-        <div class="field">
-          <label for="notif-body">Body <span class="char-count" id="body-count">0 / 140</span></label>
-          <textarea id="notif-body" maxlength="140" rows="3" placeholder="e.g. Check upcoming matches and mark your availability before voting closes."></textarea>
-        </div>
-        <div class="field">
-          <label for="notif-url">Opens</label>
-          <select id="notif-url">
-            <option value="/myfixtures">My Fixtures page</option>
-            <option value="/mypractice">My Practice page</option>
-            <option value="/fixtures">Fixtures page</option>
-            <option value="/feed">Club Feed</option>
-            <option value="/profile">Profile</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Preview -->
-      <div class="section-label" style="margin-top:1.5rem;">Preview</div>
-      <div class="preview-box">
-        <div class="preview-icon">
-          <img src="/icons/icon-192.png" alt="GSCC" width="36" height="36" style="border-radius:8px;" />
-        </div>
-        <div class="preview-content">
-          <div class="preview-title" id="preview-title">Notification title</div>
-          <div class="preview-body" id="preview-body">Notification message will appear here.</div>
-        </div>
-      </div>
-
-      <!-- Result -->
-      <div id="send-result" class="result-box" style="display:none;"></div>
-
-      <!-- Send button -->
-      <button id="send-btn" class="send-btn">
-        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
-        <span id="send-label">Send to everyone</span>
+    <!-- Top tabs -->
+    <div class="notif-tabs" role="tablist" aria-label="Notification sections">
+      <button type="button" id="tab-send" class="tab-btn active" role="tab" aria-selected="true" aria-controls="panel-send">
+        Send Notification
       </button>
-
+      <button type="button" id="tab-groups" class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-groups">
+        Manage Groups <span id="groups-tab-count" class="tab-count">0</span>
+      </button>
     </div>
+
+    <!-- TAB 1: SEND NOTIFICATION -->
+    <div id="panel-send" role="tabpanel" aria-labelledby="tab-send">
+      <div class="notif-card">
+
+        <!-- Subscriber count -->
+        <div class="subscriber-bar">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0"/></svg>
+          <span id="subscriber-count">Loading subscriber count...</span>
+        </div>
+
+        <!-- Quick presets -->
+        <div class="section-label">Quick presets</div>
+        <div class="presets">
+          <button type="button" class="preset-btn" data-title="Vote for Next Week's Fixtures" data-body="Check upcoming matches and mark your availability before voting closes." data-url="/myfixtures">
+            <span class="preset-icon">📅</span>
+            <div>
+              <div class="preset-title">Vote for fixtures</div>
+              <div class="preset-desc">Prompts players to mark availability</div>
+            </div>
+          </button>
+          <button type="button" class="preset-btn" data-title="Voting Closes in 2 Hours" data-body="Last chance! Mark your availability for this weekend's fixtures now." data-url="/myfixtures">
+            <span class="preset-icon">⏰</span>
+            <div>
+              <div class="preset-title">Voting closing soon</div>
+              <div class="preset-desc">Urgency reminder before deadline</div>
+            </div>
+          </button>
+          <button type="button" class="preset-btn" data-title="Practice Vote is Open" data-body="Let us know if you're coming to practice this week." data-url="/mypractice">
+            <span class="preset-icon">🏏</span>
+            <div>
+              <div class="preset-title">Practice vote open</div>
+              <div class="preset-desc">Asks players to respond for practice</div>
+            </div>
+          </button>
+          <button type="button" class="preset-btn" data-title="Upload Match Summary & Scorecard" data-body="Captains & VCs: please upload today's match summary and complete the scorecard." data-url="/admin/fixtures">
+            <span class="preset-icon">📋</span>
+            <div>
+              <div class="preset-title">Match summary &amp; scorecard</div>
+              <div class="preset-desc">Sunday reminder for Captains &amp; VCs</div>
+            </div>
+          </button>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Audience -->
+        <div class="section-label">Send to</div>
+        <div class="audience" role="radiogroup" aria-label="Send to">
+          <label class="audience-option"><input type="radio" name="audience" value="all" checked /> Everyone with notifications on</label>
+          <label class="audience-option"><input type="radio" name="audience" value="groups" /> Groups</label>
+          <label class="audience-option"><input type="radio" name="audience" value="chosen" /> Chosen players</label>
+        </div>
+
+        <!-- Groups picker -->
+        <div id="group-picker" class="picker" hidden>
+          <div id="send-groups-list" class="send-groups-list"></div>
+          <p id="group-picker-note" class="picker-note"></p>
+        </div>
+
+        <!-- Individual players picker -->
+        <div id="picker" class="picker" hidden>
+          <input id="player-search" type="search" placeholder="Search players with notifications on" autocomplete="off" />
+          <div id="chosen-chips" class="chips"></div>
+          <ul id="player-list" class="player-list" aria-label="Players with notifications on"></ul>
+          <div class="picker-footer">
+            <p id="picker-note" class="picker-note"></p>
+            <button type="button" id="save-chosen-as-group-btn" class="link-btn" hidden>Save selection as group →</button>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Custom fields -->
+        <div class="section-label">Message</div>
+        <div class="fields">
+          <div class="field">
+            <label for="notif-title">Title <span class="char-count" id="title-count">0 / 60</span></label>
+            <input id="notif-title" type="text" maxlength="60" placeholder="e.g. Vote for Next Week's Fixtures" />
+          </div>
+          <div class="field">
+            <label for="notif-body">Body <span class="char-count" id="body-count">0 / 140</span></label>
+            <textarea id="notif-body" maxlength="140" rows="3" placeholder="e.g. Check upcoming matches and mark your availability before voting closes."></textarea>
+          </div>
+          <div class="field">
+            <label for="notif-url">Opens</label>
+            <select id="notif-url">
+              {NOTIFICATION_URL_OPTIONS.map((opt) => (
+                <option value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <!-- Preview -->
+        <div class="section-label" style="margin-top:0.5rem;">Preview</div>
+        <div class="preview-box">
+          <div class="preview-icon">
+            <img src="/icons/icon-192.png" alt="GSCC" width="36" height="36" style="border-radius:8px;" />
+          </div>
+          <div class="preview-content">
+            <div class="preview-title" id="preview-title">Notification title</div>
+            <div class="preview-body" id="preview-body">Notification message will appear here.</div>
+          </div>
+        </div>
+
+        <!-- Result -->
+        <div id="send-result" class="result-box" style="display:none;"></div>
+
+        <!-- Send button -->
+        <button type="button" id="send-btn" class="send-btn">
+          <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+          <span id="send-label">Send to everyone</span>
+        </button>
+
+      </div>
+    </div>
+
+    <!-- TAB 2: MANAGE GROUPS -->
+    <div id="panel-groups" role="tabpanel" aria-labelledby="tab-groups" hidden>
+      <div class="groups-container">
+
+        <div class="groups-toolbar">
+          <div>
+            <h2 class="groups-heading">Notification Groups</h2>
+            <p class="groups-subheading">Create reusable recipient lists (e.g. Captains &amp; VCs, Umpires, Squads) with optional default messages.</p>
+          </div>
+          <button type="button" id="new-group-btn" class="primary-btn">+ New Group</button>
+        </div>
+
+        <div id="groups-status" class="result-box" style="display:none;"></div>
+
+        <!-- Group Create/Edit Editor -->
+        <div id="group-editor" class="notif-card editor-card" hidden>
+          <div class="editor-header">
+            <h3 id="editor-title" class="editor-heading">Create Notification Group</h3>
+            <button type="button" id="editor-close-btn" class="icon-close-btn" aria-label="Close editor">✕</button>
+          </div>
+
+          <div class="fields">
+            <div class="field">
+              <label for="group-name">Group Name <span class="char-count" id="group-name-count">0 / 60</span></label>
+              <input id="group-name" type="text" maxlength="60" placeholder="e.g. Captains & VCs" />
+            </div>
+
+            <div class="field">
+              <label for="group-desc">Description (optional) <span class="char-count" id="group-desc-count">0 / 160</span></label>
+              <input id="group-desc" type="text" maxlength="160" placeholder="e.g. Team leaders for Sunday match summaries and scorecards" />
+            </div>
+
+            <!-- Quick-fill shortcuts -->
+            <div class="field">
+              <div class="label-row">
+                <span class="field-label-text">Quick-fill members</span>
+                <button type="button" id="group-clear-members" class="link-btn">Clear all</button>
+              </div>
+              <div id="quick-fill-bar" class="quick-fill-bar"></div>
+              <p id="quick-fill-note" class="picker-note"></p>
+            </div>
+
+            <!-- Member picker (all active players) -->
+            <div class="field">
+              <label for="group-player-search">
+                Members
+                <span class="char-count" id="group-member-count">0 selected</span>
+              </label>
+              <div id="group-member-chips" class="chips"></div>
+              <input id="group-player-search" type="search" placeholder="Search all active club players..." autocomplete="off" />
+              <ul id="group-player-list" class="player-list" aria-label="Club players"></ul>
+              <p class="picker-note">You can add any active player, even if they haven't enabled notifications yet.</p>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Optional default message template -->
+            <div class="section-label">Default message template (optional)</div>
+            <div class="field">
+              <label for="group-tpl-title">Default Title <span class="char-count" id="group-tpl-title-count">0 / 60</span></label>
+              <input id="group-tpl-title" type="text" maxlength="60" placeholder="e.g. Upload Match Summary & Scorecard" />
+            </div>
+            <div class="field">
+              <label for="group-tpl-body">Default Body <span class="char-count" id="group-tpl-body-count">0 / 140</span></label>
+              <textarea id="group-tpl-body" maxlength="140" rows="2" placeholder="e.g. Captains & VCs: please upload today's match summary and complete the scorecard."></textarea>
+            </div>
+            <div class="field">
+              <label for="group-tpl-url">Default Opens</label>
+              <select id="group-tpl-url">
+                {NOTIFICATION_URL_OPTIONS.map((opt) => (
+                  <option value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div id="editor-error" class="result-box error" style="display:none;"></div>
+
+          <div class="editor-actions">
+            <button type="button" id="editor-cancel-btn" class="secondary-btn">Cancel</button>
+            <button type="button" id="editor-save-btn" class="primary-btn">Save Group</button>
+          </div>
+        </div>
+
+        <!-- Saved groups list -->
+        <div id="manage-groups-list" class="manage-groups-list">
+          <div class="empty-card">Loading groups...</div>
+        </div>
+
+      </div>
+    </div>
+
   </div>
 </AdminLayout>
 
 <style>
   .notif-page {
     width: 100%;
+    max-width: 760px;
   }
 
   .page-header {
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.25rem;
   }
 
   .page-title {
@@ -158,15 +283,77 @@ if (!isAdminUser) return Astro.redirect('/');
     margin: 0;
   }
 
+  /* Top Tabs */
+  .notif-tabs {
+    display: flex;
+    gap: 0.5rem;
+    border-bottom: 2px solid var(--color-border, #E9E4DD);
+    margin-bottom: 1.25rem;
+  }
+
+  .tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.7rem 1.1rem;
+    min-height: 44px;
+    background: transparent;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    font-family: inherit;
+    font-size: 0.925rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  .tab-btn:hover {
+    color: var(--color-text-heading);
+  }
+
+  .tab-btn.active {
+    color: #8C1D18;
+    border-bottom-color: #8C1D18;
+  }
+
+  .tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.35rem;
+    height: 1.35rem;
+    padding: 0 0.4rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    background: #FAF7F2;
+    border: 1px solid #E9E4DD;
+    color: #1A1614;
+  }
+
+  .tab-btn.active .tab-count {
+    background: #F6E7E4;
+    border-color: #E3BEB8;
+    color: #8C1D18;
+  }
+
   .notif-card {
     background: white;
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--color-border, #E9E4DD);
     border-radius: 1rem;
     padding: 1.5rem;
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    max-width: 600px;
+    max-width: 680px;
+  }
+
+  .editor-card {
+    max-width: 100%;
+    border-color: #C9A227;
+    box-shadow: 0 6px 20px rgba(26, 22, 20, 0.06);
   }
 
   .subscriber-bar {
@@ -175,32 +362,34 @@ if (!isAdminUser) return Astro.redirect('/');
     gap: 0.5rem;
     font-size: 0.8125rem;
     color: var(--color-text-muted);
-    background: var(--color-bg-card, #f9fafb);
+    background: #FAF7F2;
+    border: 1px solid #E9E4DD;
     border-radius: 0.5rem;
     padding: 0.625rem 0.875rem;
   }
 
   .section-label {
     font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--color-text-muted);
+    font-weight: 700;
+    color: #A9821B;
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
 
   .presets {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 0.5rem;
   }
 
   .preset-btn {
     display: flex;
     align-items: center;
-    gap: 0.875rem;
-    padding: 0.75rem 1rem;
-    background: var(--color-bg-card, #f9fafb);
-    border: 1px solid var(--color-border);
+    gap: 0.75rem;
+    padding: 0.75rem 0.9rem;
+    min-height: 54px;
+    background: #FAF7F2;
+    border: 1px solid var(--color-border, #E9E4DD);
     border-radius: 0.625rem;
     cursor: pointer;
     text-align: left;
@@ -209,17 +398,17 @@ if (!isAdminUser) return Astro.redirect('/');
   }
 
   .preset-btn:hover {
-    background: #e8f0f8;
+    background: #F6E7E4;
     border-color: #8C1D18;
   }
 
   .preset-btn.selected {
-    background: #dbeafe;
+    background: #F6E7E4;
     border-color: #8C1D18;
   }
 
   .preset-icon {
-    font-size: 1.25rem;
+    font-size: 1.2rem;
     flex-shrink: 0;
   }
 
@@ -237,7 +426,7 @@ if (!isAdminUser) return Astro.redirect('/');
 
   .divider {
     height: 1px;
-    background: var(--color-border);
+    background: var(--color-border, #E9E4DD);
   }
 
   .fields {
@@ -252,13 +441,21 @@ if (!isAdminUser) return Astro.redirect('/');
     gap: 0.375rem;
   }
 
-  .field label {
+  .field label,
+  .label-row {
     font-size: 0.8125rem;
     font-weight: 600;
     color: var(--color-text-body);
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .field-label-text {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-text-body);
   }
 
   .char-count {
@@ -270,10 +467,10 @@ if (!isAdminUser) return Astro.redirect('/');
   .field input,
   .field textarea,
   .field select {
-    padding: 0.5rem 0.75rem;
-    border: 1px solid var(--color-border);
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--color-border, #E9E4DD);
     border-radius: 0.5rem;
-    font-size: 0.875rem;
+    font-size: 1rem;
     font-family: inherit;
     color: var(--color-text-body);
     background: white;
@@ -298,9 +495,9 @@ if (!isAdminUser) return Astro.redirect('/');
     align-items: flex-start;
     gap: 0.75rem;
     padding: 0.875rem 1rem;
-    background: #f1f5f9;
+    background: #FAF7F2;
     border-radius: 0.75rem;
-    border: 1px solid #e2e8f0;
+    border: 1px solid #E9E4DD;
   }
 
   .preview-icon {
@@ -315,7 +512,7 @@ if (!isAdminUser) return Astro.redirect('/');
   .preview-title {
     font-size: 0.8125rem;
     font-weight: 700;
-    color: #1e293b;
+    color: #1A1614;
     margin-bottom: 0.2rem;
   }
 
@@ -334,11 +531,13 @@ if (!isAdminUser) return Astro.redirect('/');
   .result-box.success {
     background: #f0fdf4;
     color: #166534;
+    border: 1px solid #bbf7d0;
   }
 
   .result-box.error {
     background: #fef2f2;
     color: #991b1b;
+    border: 1px solid #fecaca;
   }
 
   .send-btn {
@@ -347,6 +546,7 @@ if (!isAdminUser) return Astro.redirect('/');
     justify-content: center;
     gap: 0.5rem;
     width: 100%;
+    min-height: 48px;
     padding: 0.75rem;
     background: #1A1614;
     color: white;
@@ -359,55 +559,761 @@ if (!isAdminUser) return Astro.redirect('/');
   }
 
   .send-btn:hover:not(:disabled) {
-    background: #2a4a65;
+    background: #8C1D18;
   }
 
   .send-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .primary-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    min-height: 44px;
+    padding: 0.6rem 1.1rem;
+    background: #8C1D18;
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    font-family: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .primary-btn:hover:not(:disabled) {
+    background: #6F1612;
+  }
+
+  .primary-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
   }
 
-  .audience { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; margin-bottom: 0.75rem; }
-  .audience-option { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.9rem; color: var(--color-text-body); cursor: pointer; }
-  .picker { display: grid; gap: 0.6rem; }
-  .picker input[type="search"] { width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--color-border-strong); border-radius: 8px; font: inherit; background: var(--color-bg-input); color: var(--color-text-body); }
-  .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-  .chips:empty { display: none; }
+  .secondary-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0.6rem 1rem;
+    background: white;
+    color: #1A1614;
+    border: 1px solid #D6CEC4;
+    border-radius: 0.5rem;
+    font-family: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .secondary-btn:hover {
+    background: #FAF7F2;
+  }
+
+  .link-btn {
+    background: none;
+    border: 0;
+    padding: 0.25rem 0;
+    font-family: inherit;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #8C1D18;
+    cursor: pointer;
+  }
+
+  .link-btn:hover {
+    text-decoration: underline;
+  }
+
+  .audience {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem 1.25rem;
+  }
+
+  .audience-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-height: 36px;
+    font-size: 0.925rem;
+    color: var(--color-text-body);
+    cursor: pointer;
+  }
+
+  .audience-option input[type="radio"] {
+    width: 1.05rem;
+    height: 1.05rem;
+    accent-color: #8C1D18;
+  }
+
+  .picker {
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .picker input[type="search"] {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--color-border-strong, #D6CEC4);
+    border-radius: 8px;
+    font: inherit;
+    font-size: 1rem;
+    background: white;
+    color: var(--color-text-body);
+    box-sizing: border-box;
+  }
+
+  .picker-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .chips:empty {
+    display: none;
+  }
+
   /* Rows and chips are created by the script, so these need :global() to reach them */
-  .chips :global(.chip) { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.7rem; border-radius: 999px; background: var(--color-maroon-100, #F6E7E4); color: var(--color-primary); font-size: 0.8rem; font-weight: 600; border: 0; cursor: pointer; }
-  .player-list { list-style: none; margin: 0; padding: 0; max-height: 300px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-bg-card); }
-  .player-list :global(li) { border-bottom: 1px solid var(--color-border); }
-  .player-list :global(li:last-child) { border-bottom: 0; }
-  .player-list :global(label) { display: flex; align-items: center; gap: 0.75rem; padding: 0.65rem 0.9rem; cursor: pointer; font-size: 0.925rem; color: var(--color-text-heading); }
-  .player-list :global(label:hover) { background: var(--color-surface-sunken, #FAF7F2); }
-  .player-list :global(input[type="checkbox"]) { width: 1.05rem; height: 1.05rem; margin: 0; flex: none; accent-color: var(--color-primary); }
-  .player-list :global(.name) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .player-list :global(.devices) { flex: none; font-size: 0.75rem; font-weight: 600; color: var(--color-text-muted); background: var(--color-surface-sunken, #FAF7F2); border: 1px solid var(--color-border); border-radius: 999px; padding: 0.1rem 0.55rem; white-space: nowrap; }
-  .picker-note { margin: 0; font-size: 0.8rem; color: var(--color-text-muted); }
+  .chips :global(.chip) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+    background: #F6E7E4;
+    color: #8C1D18;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border: 0;
+    cursor: pointer;
+  }
+
+  .player-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 280px;
+    overflow-y: auto;
+    border: 1px solid var(--color-border, #E9E4DD);
+    border-radius: 10px;
+    background: white;
+  }
+
+  .player-list :global(li) {
+    border-bottom: 1px solid var(--color-border, #E9E4DD);
+  }
+
+  .player-list :global(li:last-child) {
+    border-bottom: 0;
+  }
+
+  .player-list :global(label) {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.65rem 0.9rem;
+    min-height: 44px;
+    cursor: pointer;
+    font-size: 0.925rem;
+    color: var(--color-text-heading);
+    box-sizing: border-box;
+  }
+
+  .player-list :global(label:hover) {
+    background: #FAF7F2;
+  }
+
+  .player-list :global(input[type="checkbox"]) {
+    width: 1.1rem;
+    height: 1.1rem;
+    margin: 0;
+    flex: none;
+    accent-color: #8C1D18;
+  }
+
+  .player-list :global(.name) {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .player-list :global(.devices) {
+    flex: none;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #166534;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 999px;
+    padding: 0.1rem 0.55rem;
+    white-space: nowrap;
+  }
+
+  .player-list :global(.devices.muted) {
+    color: var(--color-text-muted);
+    background: #FAF7F2;
+    border-color: #E9E4DD;
+  }
+
+  .picker-note {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+  }
+
+  /* Send-tab group selector */
+  .send-groups-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .send-groups-list :global(.send-group-row) {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid #E9E4DD;
+    border-radius: 0.625rem;
+    background: #FAF7F2;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .send-groups-list :global(.send-group-row.selected) {
+    border-color: #8C1D18;
+    background: #FDF7F6;
+  }
+
+  .send-groups-list :global(.send-group-row input[type="checkbox"]) {
+    width: 1.15rem;
+    height: 1.15rem;
+    margin-top: 0.15rem;
+    flex: none;
+    accent-color: #8C1D18;
+  }
+
+  .send-groups-list :global(.send-group-info) {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .send-groups-list :global(.send-group-top) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+  }
+
+  .send-groups-list :global(.send-group-name) {
+    font-size: 0.925rem;
+    font-weight: 700;
+    color: #1A1614;
+  }
+
+  .send-groups-list :global(.send-group-desc) {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    margin-top: 0.2rem;
+  }
+
+  .send-groups-list :global(.reach-pill) {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    background: white;
+    border: 1px solid #E9E4DD;
+    color: #1A1614;
+    white-space: nowrap;
+  }
+
+  .send-groups-list :global(.reach-pill.warn) {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #991b1b;
+  }
+
+  .send-groups-list :global(.tpl-load-btn) {
+    margin-top: 0.45rem;
+    padding: 0.25rem 0.65rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 999px;
+    border: 1px solid #C9A227;
+    background: #FFFDF5;
+    color: #7D5E0D;
+    cursor: pointer;
+  }
+
+  .send-groups-list :global(.tpl-load-btn:hover) {
+    background: #FEF7DC;
+  }
+
+  /* Manage Groups Tab */
+  .groups-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .groups-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .groups-heading {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #1A1614;
+  }
+
+  .groups-subheading {
+    margin: 0.2rem 0 0;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+  }
+
+  .editor-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .editor-heading {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #1A1614;
+  }
+
+  .icon-close-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid #E9E4DD;
+    background: white;
+    color: #1A1614;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+
+  .icon-close-btn:hover {
+    background: #FAF7F2;
+  }
+
+  .quick-fill-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+
+  .quick-fill-bar :global(.qf-btn) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 36px;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    border: 1px solid #D6CEC4;
+    background: #FAF7F2;
+    color: #1A1614;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .quick-fill-bar :global(.qf-btn:hover) {
+    border-color: #8C1D18;
+    background: #F6E7E4;
+    color: #8C1D18;
+  }
+
+  .quick-fill-bar :global(.qf-btn.leadership) {
+    border-color: #C9A227;
+    background: #FFFDF5;
+    color: #7D5E0D;
+  }
+
+  .editor-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.6rem;
+    padding-top: 0.25rem;
+  }
+
+  .manage-groups-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .empty-card,
+  .manage-groups-list :global(.empty-card),
+  .send-groups-list :global(.empty-card) {
+    background: #FAF7F2;
+    border: 1px dashed #D6CEC4;
+    border-radius: 0.875rem;
+    padding: 1.25rem;
+    text-align: center;
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+  }
+
+  .manage-groups-list :global(.group-card) {
+    background: white;
+    border: 1px solid #E9E4DD;
+    border-radius: 0.875rem;
+    padding: 1.15rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+
+  .manage-groups-list :global(.group-card-head) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .manage-groups-list :global(.group-card-title) {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1A1614;
+  }
+
+  .manage-groups-list :global(.group-card-desc) {
+    font-size: 0.825rem;
+    color: var(--color-text-muted);
+    margin-top: 0.15rem;
+  }
+
+  .manage-groups-list :global(.group-card-badges) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .manage-groups-list :global(.stat-pill) {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    background: #FAF7F2;
+    border: 1px solid #E9E4DD;
+    color: #1A1614;
+  }
+
+  .manage-groups-list :global(.stat-pill.good) {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+    color: #166534;
+  }
+
+  .manage-groups-list :global(.member-preview) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .manage-groups-list :global(.member-tag) {
+    font-size: 0.775rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 6px;
+    background: #FAF7F2;
+    border: 1px solid #E9E4DD;
+    color: #1A1614;
+  }
+
+  .manage-groups-list :global(.template-preview) {
+    font-size: 0.8rem;
+    color: #57534E;
+    background: #FFFDF5;
+    border: 1px solid #EEDBA0;
+    border-radius: 0.5rem;
+    padding: 0.45rem 0.7rem;
+  }
+
+  .manage-groups-list :global(.group-card-actions) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding-top: 0.25rem;
+  }
+
+  .manage-groups-list :global(.card-btn) {
+    min-height: 40px;
+    padding: 0.4rem 0.85rem;
+    border-radius: 0.5rem;
+    border: 1px solid #D6CEC4;
+    background: white;
+    color: #1A1614;
+    font-family: inherit;
+    font-size: 0.825rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .manage-groups-list :global(.card-btn:hover) {
+    background: #FAF7F2;
+  }
+
+  .manage-groups-list :global(.card-btn.send) {
+    background: #1A1614;
+    border-color: #1A1614;
+    color: white;
+  }
+
+  .manage-groups-list :global(.card-btn.send:hover) {
+    background: #8C1D18;
+    border-color: #8C1D18;
+  }
+
+  .manage-groups-list :global(.card-btn.danger) {
+    color: #991b1b;
+    border-color: #fecaca;
+    background: #fef2f2;
+  }
+
+  .manage-groups-list :global(.card-btn.danger:hover) {
+    background: #fee2e2;
+  }
 </style>
 
 <script>
+  import type { NotificationGroup, QuickFillPreset } from '../../types/notificationGroup';
+
   type Devices = { web: number; app: number };
+  type SimplePlayer = { id: string; name: string; active: boolean };
+
   let byPlayer: Record<string, Devices> = {};
   let names: Record<string, string> = {};
+  let allActivePlayers: SimplePlayer[] = [];
+  let groups: NotificationGroup[] = [];
+  let quickFills: QuickFillPreset[] = [];
+  let activeSeasonName: string | null = null;
+
   const chosen = new Set<string>();
+  const selectedGroupIds = new Set<string>();
+
+  // Group editor state
+  let editingGroupId: string | null = null;
+  const editorMembers = new Set<string>();
 
   const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
   const audience = () => (document.querySelector('input[name="audience"]:checked') as HTMLInputElement).value;
 
-  function deviceText(d: Devices) {
-    const parts = [];
+  function deviceText(d: Devices | undefined) {
+    if (!d) return '';
+    const parts: string[] = [];
     if (d.app) parts.push(`${d.app} app`);
     if (d.web) parts.push(`${d.web} browser`);
     return parts.join(' · ');
   }
 
-  function updateSendLabel() {
-    const n = chosen.size;
-    $('send-label').textContent = audience() === 'all' ? 'Send to everyone' : n === 0 ? 'Choose players to send to' : `Send to ${n} player${n !== 1 ? 's' : ''}`;
-    ($('send-btn') as HTMLButtonElement).disabled = audience() === 'chosen' && n === 0;
+  function activeIdSet() {
+    return new Set(allActivePlayers.map((p) => p.id));
   }
 
+  function groupStats(group: NotificationGroup) {
+    const activeIds = activeIdSet();
+    const memberIds = activeIds.size > 0
+      ? group.playerIds.filter((id) => activeIds.has(id))
+      : [...group.playerIds];
+    const subscribed = memberIds.filter((id) => !!byPlayer[id]).length;
+    return { memberIds, total: memberIds.length, subscribed };
+  }
+
+  function selectedGroupsSummary() {
+    const activeIds = activeIdSet();
+    const unique = new Set<string>();
+    for (const gid of selectedGroupIds) {
+      const g = groups.find((item) => item.id === gid);
+      if (!g) continue;
+      for (const pid of g.playerIds) {
+        if (activeIds.size === 0 || activeIds.has(pid)) unique.add(pid);
+      }
+    }
+    const reachable = [...unique].filter((id) => !!byPlayer[id]).length;
+    return { groupCount: selectedGroupIds.size, uniqueMembers: unique.size, reachable };
+  }
+
+  // ---- Tabs ----
+  function switchTab(tab: 'send' | 'groups') {
+    const isSend = tab === 'send';
+    $('tab-send').classList.toggle('active', isSend);
+    $('tab-send').setAttribute('aria-selected', String(isSend));
+    $('panel-send').hidden = !isSend;
+
+    $('tab-groups').classList.toggle('active', !isSend);
+    $('tab-groups').setAttribute('aria-selected', String(!isSend));
+    $('panel-groups').hidden = isSend;
+  }
+
+  $('tab-send').addEventListener('click', () => switchTab('send'));
+  $('tab-groups').addEventListener('click', () => switchTab('groups'));
+
+  // ---- Send button & audience ----
+  function updateSendLabel() {
+    const mode = audience();
+    const btn = $('send-btn') as HTMLButtonElement;
+    if (mode === 'all') {
+      $('send-label').textContent = 'Send to everyone';
+      btn.disabled = false;
+      return;
+    }
+    if (mode === 'groups') {
+      const { groupCount, reachable } = selectedGroupsSummary();
+      if (groupCount === 0) {
+        $('send-label').textContent = 'Choose groups to send to';
+        btn.disabled = true;
+      } else {
+        $('send-label').textContent =
+          `Send to ${groupCount} group${groupCount !== 1 ? 's' : ''} (${reachable} reachable)`;
+        btn.disabled = false;
+      }
+      return;
+    }
+    const n = chosen.size;
+    $('send-label').textContent =
+      n === 0 ? 'Choose players to send to' : `Send to ${n} player${n !== 1 ? 's' : ''}`;
+    btn.disabled = n === 0;
+  }
+
+  function applyMessageTemplate(tpl: { title: string; body: string; url: string }) {
+    ($('notif-title') as HTMLInputElement).value = tpl.title;
+    ($('notif-body') as HTMLTextAreaElement).value = tpl.body;
+    const urlSelect = $('notif-url') as HTMLSelectElement;
+    if ([...urlSelect.options].some((o) => o.value === tpl.url)) {
+      urlSelect.value = tpl.url;
+    }
+    updatePreview();
+    updateCharCounts();
+  }
+
+  function renderSendGroups() {
+    const container = $('send-groups-list');
+    container.replaceChildren();
+
+    if (groups.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-card';
+      empty.textContent = 'No notification groups yet. ';
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'link-btn';
+      btn.textContent = 'Create your first group →';
+      btn.addEventListener('click', () => {
+        switchTab('groups');
+        openEditor(null);
+      });
+      empty.append(btn);
+      container.append(empty);
+      $('group-picker-note').textContent = '';
+      updateSendLabel();
+      return;
+    }
+
+    for (const g of groups) {
+      const stats = groupStats(g);
+      const isChecked = selectedGroupIds.has(g.id);
+
+      const row = document.createElement('label');
+      row.className = `send-group-row${isChecked ? ' selected' : ''}`;
+
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = isChecked;
+      box.addEventListener('change', () => {
+        if (box.checked) {
+          selectedGroupIds.add(g.id);
+          // Convenience: if title & body are empty and this group has a default template, fill it
+          const titleVal = ($('notif-title') as HTMLInputElement).value.trim();
+          const bodyVal = ($('notif-body') as HTMLTextAreaElement).value.trim();
+          if (!titleVal && !bodyVal && g.defaultMessage) {
+            applyMessageTemplate(g.defaultMessage);
+          }
+        } else {
+          selectedGroupIds.delete(g.id);
+        }
+        renderSendGroups();
+        updateSendLabel();
+      });
+
+      const info = document.createElement('div');
+      info.className = 'send-group-info';
+
+      const top = document.createElement('div');
+      top.className = 'send-group-top';
+
+      const nameEl = document.createElement('span');
+      nameEl.className = 'send-group-name';
+      nameEl.textContent = g.name;
+
+      const pill = document.createElement('span');
+      pill.className = `reach-pill${stats.subscribed === 0 ? ' warn' : ''}`;
+      pill.textContent = `${stats.total} member${stats.total !== 1 ? 's' : ''} · ${stats.subscribed} subscribed`;
+
+      top.append(nameEl, pill);
+      info.append(top);
+
+      if (g.description) {
+        const descEl = document.createElement('div');
+        descEl.className = 'send-group-desc';
+        descEl.textContent = g.description;
+        info.append(descEl);
+      }
+
+      if (g.defaultMessage) {
+        const tplBtn = document.createElement('button');
+        tplBtn.type = 'button';
+        tplBtn.className = 'tpl-load-btn';
+        tplBtn.textContent = `Load template: "${g.defaultMessage.title}"`;
+        tplBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          applyMessageTemplate(g.defaultMessage!);
+        });
+        info.append(tplBtn);
+      }
+
+      row.append(box, info);
+      container.append(row);
+    }
+
+    const summary = selectedGroupsSummary();
+    $('group-picker-note').textContent = summary.groupCount
+      ? `Selected: ${summary.groupCount} group${summary.groupCount !== 1 ? 's' : ''} · ${summary.uniqueMembers} unique player${summary.uniqueMembers !== 1 ? 's' : ''} (${summary.reachable} with notifications on).`
+      : 'Pick one or more groups. Players in multiple groups are only notified once.';
+    updateSendLabel();
+  }
+
+  // ---- Individual player picker (Send tab) ----
   function renderPicker() {
     const q = ($('player-search') as HTMLInputElement).value.trim().toLowerCase();
     const ids = Object.keys(byPlayer)
@@ -421,7 +1327,11 @@ if (!isAdminUser) return Astro.redirect('/');
       const box = document.createElement('input');
       box.type = 'checkbox';
       box.checked = chosen.has(id);
-      box.addEventListener('change', () => { box.checked ? chosen.add(id) : chosen.delete(id); renderChips(); updateSendLabel(); });
+      box.addEventListener('change', () => {
+        box.checked ? chosen.add(id) : chosen.delete(id);
+        renderChips();
+        updateSendLabel();
+      });
       const name = document.createElement('span');
       name.className = 'name';
       name.textContent = names[id];
@@ -435,6 +1345,7 @@ if (!isAdminUser) return Astro.redirect('/');
     $('picker-note').textContent = ids.length
       ? 'Only players with notifications turned on are listed.'
       : 'No players have notifications turned on yet.';
+    $('save-chosen-as-group-btn').hidden = chosen.size === 0;
   }
 
   function renderChips() {
@@ -446,12 +1357,370 @@ if (!isAdminUser) return Astro.redirect('/');
       chip.className = 'chip';
       chip.textContent = `${names[id] || 'Player'} ✕`;
       chip.setAttribute('aria-label', `Remove ${names[id] || 'player'}`);
-      chip.addEventListener('click', () => { chosen.delete(id); renderChips(); renderPicker(); updateSendLabel(); });
+      chip.addEventListener('click', () => {
+        chosen.delete(id);
+        renderChips();
+        renderPicker();
+        updateSendLabel();
+      });
+      chips.append(chip);
+    }
+    $('save-chosen-as-group-btn').hidden = chosen.size === 0;
+  }
+
+  $('save-chosen-as-group-btn').addEventListener('click', () => {
+    switchTab('groups');
+    openEditor(null, [...chosen]);
+  });
+
+  // ---- Manage Groups Tab ----
+  function renderManageGroups() {
+    $('groups-tab-count').textContent = String(groups.length);
+    const list = $('manage-groups-list');
+    list.replaceChildren();
+
+    if (groups.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-card';
+      empty.textContent = 'No groups created yet. Click "+ New Group" to create one (for example, Captains & VCs).';
+      list.append(empty);
+      return;
+    }
+
+    for (const g of groups) {
+      const stats = groupStats(g);
+      const card = document.createElement('div');
+      card.className = 'group-card';
+
+      const head = document.createElement('div');
+      head.className = 'group-card-head';
+
+      const titleWrap = document.createElement('div');
+      const titleEl = document.createElement('div');
+      titleEl.className = 'group-card-title';
+      titleEl.textContent = g.name;
+      titleWrap.append(titleEl);
+      if (g.description) {
+        const descEl = document.createElement('div');
+        descEl.className = 'group-card-desc';
+        descEl.textContent = g.description;
+        titleWrap.append(descEl);
+      }
+
+      const badges = document.createElement('div');
+      badges.className = 'group-card-badges';
+      const totalPill = document.createElement('span');
+      totalPill.className = 'stat-pill';
+      totalPill.textContent = `${stats.total} member${stats.total !== 1 ? 's' : ''}`;
+      const subPill = document.createElement('span');
+      subPill.className = `stat-pill${stats.subscribed > 0 ? ' good' : ''}`;
+      subPill.textContent = `${stats.subscribed} with notifications on`;
+      badges.append(totalPill, subPill);
+
+      head.append(titleWrap, badges);
+      card.append(head);
+
+      // Member preview chips (up to 8)
+      const preview = document.createElement('div');
+      preview.className = 'member-preview';
+      const sortedNames = stats.memberIds
+        .map((id) => names[id] || 'Unknown player')
+        .sort((a, b) => a.localeCompare(b));
+      const shown = sortedNames.slice(0, 8);
+      for (const n of shown) {
+        const tag = document.createElement('span');
+        tag.className = 'member-tag';
+        tag.textContent = n;
+        preview.append(tag);
+      }
+      if (sortedNames.length > 8) {
+        const more = document.createElement('span');
+        more.className = 'member-tag';
+        more.textContent = `+${sortedNames.length - 8} more`;
+        preview.append(more);
+      }
+      card.append(preview);
+
+      if (g.defaultMessage) {
+        const tpl = document.createElement('div');
+        tpl.className = 'template-preview';
+        tpl.textContent = `Default message: "${g.defaultMessage.title}" → ${g.defaultMessage.url}`;
+        card.append(tpl);
+      }
+
+      const actions = document.createElement('div');
+      actions.className = 'group-card-actions';
+
+      const sendBtn = document.createElement('button');
+      sendBtn.type = 'button';
+      sendBtn.className = 'card-btn send';
+      sendBtn.textContent = 'Send to group';
+      sendBtn.addEventListener('click', () => {
+        selectedGroupIds.clear();
+        selectedGroupIds.add(g.id);
+        const groupsRadio = document.querySelector('input[name="audience"][value="groups"]') as HTMLInputElement;
+        groupsRadio.checked = true;
+        $('group-picker').hidden = false;
+        $('picker').hidden = true;
+        if (g.defaultMessage) {
+          applyMessageTemplate(g.defaultMessage);
+        }
+        renderSendGroups();
+        updateSendLabel();
+        switchTab('send');
+      });
+
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className = 'card-btn';
+      editBtn.textContent = 'Edit';
+      editBtn.addEventListener('click', () => openEditor(g));
+
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'card-btn danger';
+      delBtn.textContent = 'Delete';
+      delBtn.addEventListener('click', () => deleteGroup(g));
+
+      actions.append(sendBtn, editBtn, delBtn);
+      card.append(actions);
+      list.append(card);
+    }
+  }
+
+  // ---- Group Editor ----
+  function updateEditorCounts() {
+    $('group-name-count').textContent = `${($('group-name') as HTMLInputElement).value.length} / 60`;
+    $('group-desc-count').textContent = `${($('group-desc') as HTMLInputElement).value.length} / 160`;
+    $('group-tpl-title-count').textContent = `${($('group-tpl-title') as HTMLInputElement).value.length} / 60`;
+    $('group-tpl-body-count').textContent = `${($('group-tpl-body') as HTMLTextAreaElement).value.length} / 140`;
+    const subCount = [...editorMembers].filter((id) => !!byPlayer[id]).length;
+    $('group-member-count').textContent = `${editorMembers.size} selected (${subCount} subscribed)`;
+  }
+
+  function renderQuickFills() {
+    const bar = $('quick-fill-bar');
+    bar.replaceChildren();
+    if (quickFills.length === 0) {
+      $('quick-fill-note').textContent = 'No active-season rosters or roles available for quick-fill yet.';
+      return;
+    }
+    for (const preset of quickFills) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `qf-btn ${preset.category}`;
+      btn.textContent = `+ ${preset.label} (${preset.playerIds.length})`;
+      btn.addEventListener('click', () => {
+        for (const id of preset.playerIds) editorMembers.add(id);
+        renderEditorChips();
+        renderEditorPlayerList();
+        updateEditorCounts();
+      });
+      bar.append(btn);
+    }
+    $('quick-fill-note').textContent = activeSeasonName
+      ? `Adds matching players from ${activeSeasonName} into this group (you can still add or remove anyone).`
+      : 'Adds matching players into this group (you can still add or remove anyone).';
+  }
+
+  function renderEditorChips() {
+    const chips = $('group-member-chips');
+    chips.replaceChildren();
+    const sorted = [...editorMembers].sort((a, b) => (names[a] || a).localeCompare(names[b] || b));
+    for (const id of sorted) {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'chip';
+      chip.textContent = `${names[id] || 'Player'} ✕`;
+      chip.setAttribute('aria-label', `Remove ${names[id] || 'player'}`);
+      chip.addEventListener('click', () => {
+        editorMembers.delete(id);
+        renderEditorChips();
+        renderEditorPlayerList();
+        updateEditorCounts();
+      });
       chips.append(chip);
     }
   }
 
-  // Subscriber count, devices per player, and player names
+  function renderEditorPlayerList() {
+    const q = ($('group-player-search') as HTMLInputElement).value.trim().toLowerCase();
+    const list = $('group-player-list');
+    list.replaceChildren();
+
+    const filtered = allActivePlayers.filter((p) => !q || p.name.toLowerCase().includes(q));
+    for (const p of filtered) {
+      const li = document.createElement('li');
+      const label = document.createElement('label');
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = editorMembers.has(p.id);
+      box.addEventListener('change', () => {
+        box.checked ? editorMembers.add(p.id) : editorMembers.delete(p.id);
+        renderEditorChips();
+        updateEditorCounts();
+      });
+      const nameEl = document.createElement('span');
+      nameEl.className = 'name';
+      nameEl.textContent = p.name;
+
+      const dev = document.createElement('span');
+      const d = byPlayer[p.id];
+      dev.className = d ? 'devices' : 'devices muted';
+      dev.textContent = d ? deviceText(d) : 'Not subscribed yet';
+
+      label.append(box, nameEl, dev);
+      li.append(label);
+      list.append(li);
+    }
+  }
+
+  function openEditor(group: NotificationGroup | null, prefillPlayerIds?: string[]) {
+    editingGroupId = group ? group.id : null;
+    editorMembers.clear();
+    if (group) {
+      for (const id of group.playerIds) editorMembers.add(id);
+    } else if (prefillPlayerIds) {
+      for (const id of prefillPlayerIds) editorMembers.add(id);
+    }
+
+    $('editor-title').textContent = group ? `Edit "${group.name}"` : 'Create Notification Group';
+    ($('group-name') as HTMLInputElement).value = group?.name || '';
+    ($('group-desc') as HTMLInputElement).value = group?.description || '';
+    ($('group-tpl-title') as HTMLInputElement).value = group?.defaultMessage?.title || '';
+    ($('group-tpl-body') as HTMLTextAreaElement).value = group?.defaultMessage?.body || '';
+    ($('group-tpl-url') as HTMLSelectElement).value = group?.defaultMessage?.url || '/admin/fixtures';
+    ($('group-player-search') as HTMLInputElement).value = '';
+    $('editor-error').style.display = 'none';
+    $('groups-status').style.display = 'none';
+
+    renderQuickFills();
+    renderEditorChips();
+    renderEditorPlayerList();
+    updateEditorCounts();
+
+    $('group-editor').hidden = false;
+    $('group-name').focus();
+  }
+
+  function closeEditor() {
+    editingGroupId = null;
+    $('group-editor').hidden = true;
+    $('editor-error').style.display = 'none';
+  }
+
+  $('new-group-btn').addEventListener('click', () => openEditor(null));
+  $('editor-close-btn').addEventListener('click', closeEditor);
+  $('editor-cancel-btn').addEventListener('click', closeEditor);
+  $('group-clear-members').addEventListener('click', () => {
+    editorMembers.clear();
+    renderEditorChips();
+    renderEditorPlayerList();
+    updateEditorCounts();
+  });
+  $('group-player-search').addEventListener('input', renderEditorPlayerList);
+  $('group-name').addEventListener('input', updateEditorCounts);
+  $('group-desc').addEventListener('input', updateEditorCounts);
+  $('group-tpl-title').addEventListener('input', updateEditorCounts);
+  $('group-tpl-body').addEventListener('input', updateEditorCounts);
+
+  $('editor-save-btn').addEventListener('click', async () => {
+    const name = ($('group-name') as HTMLInputElement).value.trim();
+    const description = ($('group-desc') as HTMLInputElement).value.trim();
+    const tplTitle = ($('group-tpl-title') as HTMLInputElement).value.trim();
+    const tplBody = ($('group-tpl-body') as HTMLTextAreaElement).value.trim();
+    const tplUrl = ($('group-tpl-url') as HTMLSelectElement).value;
+    const errEl = $('editor-error');
+    const saveBtn = $('editor-save-btn') as HTMLButtonElement;
+
+    errEl.style.display = 'none';
+    if (!name) {
+      errEl.textContent = 'Please enter a group name.';
+      errEl.style.display = 'block';
+      return;
+    }
+    if (editorMembers.size === 0) {
+      errEl.textContent = 'Please select at least one player for the group.';
+      errEl.style.display = 'block';
+      return;
+    }
+    if ((tplTitle && !tplBody) || (!tplTitle && tplBody)) {
+      errEl.textContent = 'Default message needs both a title and a body (or leave both blank).';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    const payload: Record<string, unknown> = {
+      ...(editingGroupId ? { id: editingGroupId } : {}),
+      name,
+      description,
+      playerIds: [...editorMembers],
+      defaultMessage: tplTitle && tplBody ? { title: tplTitle, body: tplBody, url: tplUrl } : null,
+    };
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving...';
+    try {
+      const endpoint = editingGroupId
+        ? '/.netlify/functions/notification-groups-update'
+        : '/.netlify/functions/notification-groups-create';
+      const res = await fetch(endpoint, {
+        method: editingGroupId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        errEl.textContent = data.error || 'Could not save group.';
+        errEl.style.display = 'block';
+      } else {
+        const wasEdit = !!editingGroupId;
+        closeEditor();
+        await loadGroups();
+        const statusEl = $('groups-status');
+        statusEl.className = 'result-box success';
+        statusEl.textContent = wasEdit
+          ? `Updated group "${data.group.name}".`
+          : `Created group "${data.group.name}".`;
+        statusEl.style.display = 'block';
+      }
+    } catch {
+      errEl.textContent = 'Network error. Please try again.';
+      errEl.style.display = 'block';
+    }
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Save Group';
+  });
+
+  async function deleteGroup(g: NotificationGroup) {
+    if (!confirm(`Delete notification group "${g.name}"? This cannot be undone.`)) return;
+    const statusEl = $('groups-status');
+    statusEl.style.display = 'none';
+    try {
+      const res = await fetch(`/.netlify/functions/notification-groups-delete?id=${encodeURIComponent(g.id)}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        statusEl.className = 'result-box error';
+        statusEl.textContent = data.error || 'Could not delete group.';
+        statusEl.style.display = 'block';
+        return;
+      }
+      selectedGroupIds.delete(g.id);
+      if (editingGroupId === g.id) closeEditor();
+      await loadGroups();
+      statusEl.className = 'result-box success';
+      statusEl.textContent = `Deleted group "${g.name}".`;
+      statusEl.style.display = 'block';
+    } catch {
+      statusEl.className = 'result-box error';
+      statusEl.textContent = 'Network error while deleting group.';
+      statusEl.style.display = 'block';
+    }
+  }
+
+  // ---- Data loaders ----
   async function loadSubscriberCount() {
     try {
       const res = await fetch('/.netlify/functions/push-subscriber-count');
@@ -462,6 +1731,12 @@ if (!isAdminUser) return Astro.redirect('/');
       $('subscriber-count').textContent =
         `${players} player${players !== 1 ? 's' : ''} · ${data.count} device${data.count !== 1 ? 's' : ''} (${data.app ?? 0} app, ${data.web ?? data.count} browser)`;
       renderPicker();
+      renderSendGroups();
+      renderManageGroups();
+      if (!$('group-editor').hidden) {
+        renderEditorPlayerList();
+        updateEditorCounts();
+      }
     } catch {
       $('subscriber-count').textContent = 'Could not load subscriber count';
     }
@@ -472,16 +1747,69 @@ if (!isAdminUser) return Astro.redirect('/');
       const res = await fetch('/.netlify/functions/players-list');
       if (!res.ok) return;
       const players = await res.json();
-      names = Object.fromEntries(players.map((p: any) => [p.id, `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim()]));
+      names = Object.fromEntries(
+        players.map((p: any) => [p.id, `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim()])
+      );
+      allActivePlayers = players
+        .filter(
+          (p: any) =>
+            !p.accountDeletedAt &&
+            p.isActive !== false &&
+            (!p.registrationStatus || p.registrationStatus === 'approved')
+        )
+        .map((p: any) => ({
+          id: p.id,
+          name: `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim(),
+          active: true,
+        }))
+        .filter((p: SimplePlayer) => !!p.name)
+        .sort((a: SimplePlayer, b: SimplePlayer) => a.name.localeCompare(b.name));
+
       renderPicker();
+      renderSendGroups();
+      renderManageGroups();
+      if (!$('group-editor').hidden) {
+        renderEditorChips();
+        renderEditorPlayerList();
+        updateEditorCounts();
+      }
     } catch {}
+  }
+
+  async function loadGroups() {
+    try {
+      const res = await fetch('/.netlify/functions/notification-groups-list');
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      groups = Array.isArray(data.groups) ? data.groups : [];
+      quickFills = Array.isArray(data.quickFills) ? data.quickFills : [];
+      activeSeasonName = data.activeSeasonName || null;
+
+      // Drop any stale selectedGroupIds
+      const validIds = new Set(groups.map((g) => g.id));
+      for (const id of [...selectedGroupIds]) {
+        if (!validIds.has(id)) selectedGroupIds.delete(id);
+      }
+
+      renderSendGroups();
+      renderManageGroups();
+      if (!$('group-editor').hidden) renderQuickFills();
+    } catch {
+      $('manage-groups-list').innerHTML = '<div class="empty-card">Could not load notification groups.</div>';
+    }
   }
 
   loadSubscriberCount();
   loadNames();
+  loadGroups();
 
   document.querySelectorAll('input[name="audience"]').forEach((r) =>
-    r.addEventListener('change', () => { $('picker').hidden = audience() !== 'chosen'; updateSendLabel(); })
+    r.addEventListener('change', () => {
+      const mode = audience();
+      $('group-picker').hidden = mode !== 'groups';
+      $('picker').hidden = mode !== 'chosen';
+      updateSendLabel();
+    })
   );
   $('player-search').addEventListener('input', renderPicker);
 
@@ -490,11 +1818,11 @@ if (!isAdminUser) return Astro.redirect('/');
     btn.addEventListener('click', () => {
       document.querySelectorAll('.preset-btn').forEach((b) => b.classList.remove('selected'));
       btn.classList.add('selected');
-      ($('notif-title') as HTMLInputElement).value = btn.dataset.title || '';
-      ($('notif-body') as HTMLTextAreaElement).value = btn.dataset.body || '';
-      ($('notif-url') as HTMLSelectElement).value = btn.dataset.url || '/myfixtures';
-      updatePreview();
-      updateCharCounts();
+      applyMessageTemplate({
+        title: btn.dataset.title || '',
+        body: btn.dataset.body || '',
+        url: btn.dataset.url || '/myfixtures',
+      });
     });
   });
 
@@ -519,7 +1847,7 @@ if (!isAdminUser) return Astro.redirect('/');
     const url = ($('notif-url') as HTMLSelectElement).value;
     const resultEl = $('send-result');
     const sendBtn = $('send-btn') as HTMLButtonElement;
-    const toChosen = audience() === 'chosen';
+    const mode = audience();
 
     if (!title || !body) {
       resultEl.className = 'result-box error';
@@ -527,7 +1855,12 @@ if (!isAdminUser) return Astro.redirect('/');
       resultEl.style.display = 'block';
       return;
     }
-    if (toChosen && chosen.size === 0) return;
+    if (mode === 'chosen' && chosen.size === 0) return;
+    if (mode === 'groups' && selectedGroupIds.size === 0) return;
+
+    const payload: Record<string, unknown> = { title, body, url };
+    if (mode === 'groups') payload.groupIds = [...selectedGroupIds];
+    else if (mode === 'chosen') payload.playerIds = [...chosen];
 
     sendBtn.disabled = true;
     $('send-label').textContent = 'Sending...';
@@ -537,15 +1870,18 @@ if (!isAdminUser) return Astro.redirect('/');
       const res = await fetch('/.netlify/functions/push-send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, body, url, ...(toChosen ? { playerIds: [...chosen] } : {}) }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       resultEl.style.display = 'block';
       if (res.ok) {
         resultEl.className = 'result-box success';
+        const groupSuffix = Array.isArray(data.groups) && data.groups.length
+          ? ` (${data.groups.join(', ')})`
+          : '';
         resultEl.textContent = !data.total
-          ? 'No devices to send to: nobody chosen has notifications on.'
-          : `Sent to ${data.sent} of ${data.total} device${data.total !== 1 ? 's' : ''}.${data.expired > 0 ? ` (${data.expired} expired removed)` : ''}`;
+          ? `No devices to send to: nobody in the selected audience${groupSuffix} has notifications on.`
+          : `Sent to ${data.sent} of ${data.total} device${data.total !== 1 ? 's' : ''}${groupSuffix}.${data.expired > 0 ? ` (${data.expired} expired removed)` : ''}`;
         loadSubscriberCount();
       } else {
         resultEl.className = 'result-box error';
