@@ -22,6 +22,7 @@ const STORES = [
   'audit-logs',
   'password-reset-requests',
   'push-subscriptions',
+  'notification-groups',
   'submission-metadata',
 ];
 
