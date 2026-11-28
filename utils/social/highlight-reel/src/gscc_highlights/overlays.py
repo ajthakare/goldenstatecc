@@ -343,6 +343,7 @@ def _make_stadium_canvas(
     *,
     transparent_scrim: bool = False,
     mood: str = "intro",
+    decor: bool = False,  # decorative gold stripes/chevrons removed by default (looked busy)
 ) -> Image.Image:
     """Build Stadium Floodlight & Heritage Hybrid backdrop (or dark translucent scrim over live video)."""
     w, h = config.width, config.height
@@ -405,6 +406,9 @@ def _make_stadium_canvas(
 
     rgba = np.stack([r, g, b, a], axis=-1).astype(np.uint8)
     img = Image.fromarray(rgba, mode="RGBA").resize((w, h), Image.Resampling.BICUBIC)
+
+    if not decor:
+        return img
 
     # Subtle architectural stadium accents (inspired by GSCC's insta_story_template.png)
     draw = ImageDraw.Draw(img)
@@ -664,7 +668,12 @@ def _decompose_clip_copy(clip: ClipSpec) -> tuple[str, str, str]:
     # 2. De-boilerplate repetitive headlines into bold Hero-Player typography
     m_four = re.match(r"^(.+?)\s+finds the boundary!?$", raw_head, flags=re.IGNORECASE)
     m_six = re.match(r"^(.+?)\s+launches it for 6!?$", raw_head, flags=re.IGNORECASE)
-    m_strike = re.match(r"^(.+?)\s+strikes!?(?:\s*\(Run Out\))?$", raw_head, flags=re.IGNORECASE)
+    m_strike = re.match(
+        r"^(.+?)\s+(?:strikes(?:\s*\(Run Out\))?|cleans up .+|claims \d+\w+ wicket|grabs a \d+\w+|"
+        r"completes a 5-for|wraps up the innings|traps .+ LBW|HAT-TRICK|—\s*(?:caught & bowled|stumped))!?$",
+        raw_head,
+        flags=re.IGNORECASE,
+    )
 
     if m_four:
         hero = m_four.group(1).strip()
@@ -869,7 +878,7 @@ def _potm_is_gscc(match_info: MatchInfo, config: ClubConfig, performers: Sequenc
 
 
 _HOW_OUT_RE = re.compile(
-    r"^(?P<bat>.+?)\s+(?P<how>(?:c & b|c|b|lbw|st|hit wicket)\b.*?)\s+(?P<score>\d+\*?\s*\(\d+(?:\s+balls?)?\))\s*$"
+    r"^(?P<bat>.+?)\s+(?P<how>(?:c\s*&\s*b|c|b|lbw|st|hit wicket)\b.*?)\s+(?P<score>\d+\*?\s*\(\d+(?:\s+balls?)?\))\s*$"
 )
 _TICKER_OUT_RE = re.compile(r"^(?P<bat>.+?)\s+OUT\s*\((?P<runs>\d+)\s+off\s+(?P<balls>\d+)\)\s*$", flags=re.IGNORECASE)
 
@@ -886,7 +895,7 @@ def _decompose_card_copy(clip: ClipSpec) -> tuple[str, str, str]:
         return m.group("bat").strip(), score, m.group("how").strip()
     m = _TICKER_OUT_RE.match(raw_sub)
     if m:
-        bowler = " ".join((clip.headline or "").split())
+        bowler = hero if hero and hero != raw_sub else " ".join((clip.headline or "").split())
         bowler = re.sub(r"\s+strikes!?$", "", bowler, flags=re.IGNORECASE)
         return m.group("bat").strip(), f"{m.group('runs')} ({m.group('balls')})", (f"Bowler: {bowler}" if bowler else "")
     return hero, stat, detail
@@ -1233,6 +1242,14 @@ def render_innings_break_card(
 # ---------------------------------------------------------------------------
 
 
+def render_clip_backdrop(config: ClubConfig, out_path: Path) -> Path:
+    """Static brand backdrop (no decorative lines) shown behind the video band of every clip."""
+    img = _make_stadium_canvas(config, transparent_scrim=False, mood="break", decor=False)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    img.convert("RGB").save(out_path)
+    return out_path
+
+
 def render_clip_top_overlay(
     match_info: MatchInfo,
     clip: ClipSpec,
@@ -1241,6 +1258,7 @@ def render_clip_top_overlay(
     layout: Layout | None = None,
     clip_index: int | None = None,
     clip_total: int | None = None,
+    innings_split: int | None = None,
 ) -> Path:
     """Render static transparent 1080x1920 RGBA overlay: slim Top Bar, video hairlines and reel progress bar."""
     w, h = config.width, config.height
@@ -1331,22 +1349,23 @@ def render_clip_top_overlay(
     draw.rectangle([(0, vy1 - 2), (w, vy1)], fill=_hex_rgba(c.gold_accent, 235))
     draw.rectangle([(0, vy2), (w, vy2 + 2)], fill=_hex_rgba(c.gold_accent, 235))
 
-    # --- 3. REEL PROGRESS BAR (segment per highlight; current one lit) ---
+    # --- 3. REEL PROGRESS: one thin bar + innings-break notch + "N / TOTAL" counter ---
     if layout.progress_y is not None and clip_total and clip_index is not None and clip_total > 1:
-        gap = 6
-        seg_w = (LOWER_CARD_W - gap * (clip_total - 1)) // clip_total
-        if seg_w >= 8:
-            for i in range(clip_total):
-                x0 = LOWER_CARD_X + i * (seg_w + gap)
-                if i == clip_index:
-                    col = _hex_rgba(c.gold_soft, 255)
-                elif i < clip_index:
-                    col = _hex_rgba(c.gold_accent, 170)
-                else:
-                    col = _hex_rgba(c.warm_white, 62)
-                draw.rounded_rectangle(
-                    [(x0, layout.progress_y), (x0 + seg_w, layout.progress_y + 8)], radius=4, fill=col
-                )
+        bx0, bx1, by0 = LOWER_CARD_X, LOWER_CARD_X + LOWER_CARD_W, layout.progress_y
+        draw.rounded_rectangle([(bx0, by0), (bx1, by0 + 6)], radius=3, fill=_hex_rgba(c.warm_white, 60))
+        done_x = bx0 + int((bx1 - bx0) * (clip_index + 1) / clip_total)
+        draw.rounded_rectangle([(bx0, by0), (done_x, by0 + 6)], radius=3, fill=_hex_rgba(c.gold_soft, 255))
+        label_left = ""
+        if innings_split is not None and 0 < innings_split < clip_total:
+            nx = bx0 + int((bx1 - bx0) * innings_split / clip_total)
+            draw.rectangle([(nx - 1, by0 - 5), (nx + 1, by0 + 11)], fill=_hex_rgba(c.pure_white, 210))
+            label_left = "1ST INN  |  2ND INN"
+        f_cnt = _load_font(config, 22, "extrabold")
+        cnt = f"{clip_index + 1} / {clip_total}"
+        cw_, _, _ = _measure_tracked(draw, cnt, f_cnt, tracking=2)
+        _draw_text_top(draw, bx1 - cw_, by0 + 20, cnt, f_cnt, _hex_rgba(c.gold_soft), tracking=2)
+        if label_left:
+            _draw_text_top(draw, bx0, by0 + 22, label_left, _load_font(config, 18, "bold"), _hex_rgba(c.muted_text), tracking=3)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     img.save(out_path)
@@ -1704,13 +1723,15 @@ def render_outro_card(
             _draw_text_top(sd, nx, ry + (p_row_h - nm_h) / 2, pname, f_nm, _hex_rgba(c.pure_white))
 
         img.alpha_composite(st_panel, (bx, cur_y))
+        cur_y += st_h
 
-    # 7. Crisp footer strictly inside IG safe zone
+    # 7. Crisp footer strictly inside IG safe zone (always clears the Standouts box!)
     f_foot = _load_font(config, 23, "bold")
+    foot_y = min(1448, max(1410, cur_y + 28))
     _draw_centered_top(
         draw,
         cx,
-        1400,
+        foot_y,
         f"FOLLOW {config.instagram_handle}   •   {config.website}",
         f_foot,
         _hex_rgba(c.gold_soft),

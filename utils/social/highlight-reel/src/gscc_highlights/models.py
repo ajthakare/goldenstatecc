@@ -80,6 +80,9 @@ class HighlightCandidate:
     headline: str
     subtext: str
     is_gscc_highlight: bool
+    must_keep: bool = False
+    player_key: str = ""
+    selection_reasons: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -98,7 +101,7 @@ class TickerReading:
 class ClipSpec:
     clip_id: int
     enabled: bool
-    status: str  # "ok" | "low_confidence" | "bulk_jump" | "missing_in_video"
+    status: str  # "ok" | "low_confidence" | "bulk_jump" | "missing_in_video" | "cut_for_budget"
     confidence: str  # "high" | "medium" | "low"
     source_video_index: int
     ticker_flip_sec: float | None
@@ -115,6 +118,9 @@ class ClipSpec:
     priority: int
     note: str = ""
     lookback_anchors: list[float] = field(default_factory=list)
+    must_keep: bool = False
+    player_key: str = ""
+    selection_reason: str = ""
 
     @property
     def duration_sec(self) -> float:

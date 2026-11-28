@@ -73,8 +73,13 @@ def parse_manual_ticker_box(spec: str, width: int, height: int) -> TickerBoxes:
     )
 
 
-def _find_red_overs_rect(frame_bgr: np.ndarray) -> tuple[int, int, int, int] | None:
-    """Locate the solid crimson-red 'OVERS' box in the bottom 32% of a frame."""
+def _find_red_overs_rect(frame_bgr: np.ndarray) -> tuple[int, int, int, int, str] | None:
+    """Locate the solid crimson-red 'OVERS' box in the bottom 32% of a frame.
+
+    Supports both CricClubs themes:
+    - 'side': navy score box to the LEFT of the red OVERS box (classic theme)
+    - 'stacked': navy score box directly ABOVE the wider red RR/OVERS strip (2026 theme)
+    """
     h, w = frame_bgr.shape[:2]
     y_start = int(h * 0.68)
     roi = frame_bgr[y_start:h, :]
@@ -89,16 +94,14 @@ def _find_red_overs_rect(frame_bgr: np.ndarray) -> tuple[int, int, int, int] | N
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    best: tuple[float, tuple[int, int, int, int]] | None = None
+    best: tuple[float, tuple[int, int, int, int, str]] | None = None
     for cnt in contours:
         x, y, bw, bh = cv2.boundingRect(cnt)
-        # CricClubs red OVERS box is roughly 4-12% of width, 2-8% of height, aspect 1.5-5.0
-        if not (w * 0.035 <= bw <= w * 0.14 and h * 0.018 <= bh <= h * 0.085):
+        if not (w * 0.035 <= bw <= w * 0.25 and h * 0.018 <= bh <= h * 0.085):
             continue
         aspect = bw / max(1, bh)
-        if not (1.4 <= aspect <= 5.5):
+        if not (1.4 <= aspect <= 11.0):
             continue
-        # Must sit roughly horizontally near center (0.35..0.68 of width)
         cx_rel = (x + bw / 2.0) / w
         if not (0.35 <= cx_rel <= 0.68):
             continue
@@ -106,18 +109,35 @@ def _find_red_overs_rect(frame_bgr: np.ndarray) -> tuple[int, int, int, int] | N
         if fill_ratio < 0.55:
             continue
 
-        # Check for dark-navy/blue pixels immediately to the left of the red box
+        # Layout A (classic side-by-side): dark-navy/blue immediately to the LEFT
         lx1 = max(0, x - bw)
         lx2 = max(lx1 + 1, x)
         left_patch = hsv[y : min(roi.shape[0], y + bh), lx1:lx2]
-        blue_mask = cv2.inRange(left_patch, np.array([95, 50, 30]), np.array([138, 255, 230]))
-        blue_ratio = float(np.count_nonzero(blue_mask)) / max(1, blue_mask.size)
-        if blue_ratio < 0.25:
+        blue_left = float(
+            np.count_nonzero(cv2.inRange(left_patch, np.array([95, 50, 30]), np.array([138, 255, 230])))
+        ) / max(1, left_patch.size)
+
+        # Layout B (stacked 2026 bar): dark-navy/blue directly ABOVE the red RR/OVERS bar
+        ay1 = max(0, y - int(bh * 1.9))
+        ay2 = max(ay1 + 1, y)
+        above_patch = hsv[ay1:ay2, x : min(roi.shape[1], x + bw)]
+        above_px = max(1, above_patch.shape[0] * above_patch.shape[1])
+        blue_above = float(
+            np.count_nonzero(cv2.inRange(above_patch, np.array([95, 60, 40]), np.array([138, 255, 230])))
+        ) / above_px
+
+        if aspect <= 5.5 and bw <= w * 0.14 and blue_left >= 0.25:
+            layout_kind = "side"
+            blue_ratio = blue_left
+        elif blue_above >= 0.40:
+            layout_kind = "stacked"
+            blue_ratio = blue_above
+        else:
             continue
 
-        score = fill_ratio * (0.5 + blue_ratio) * (1.0 - abs(cx_rel - 0.53))
+        score = fill_ratio * (0.5 + blue_ratio) * (1.0 - abs(cx_rel - 0.52))
         if best is None or score > best[0]:
-            best = (score, (x, y + y_start, bw, bh))
+            best = (score, (x, y + y_start, bw, bh, layout_kind))
 
     return best[1] if best else None
 
@@ -147,7 +167,7 @@ def locate_ticker(
     t1 = max(t0 + 10.0, duration * 0.92)
     sample_times = np.linspace(t0, t1, num=num_samples)
 
-    detections: list[tuple[int, int, int, int]] = []
+    detections: list[tuple[int, int, int, int, str]] = []
     for t in sample_times:
         cap.set(cv2.CAP_PROP_POS_MSEC, float(t) * 1000.0)
         ok, frame = cap.read()
@@ -161,17 +181,28 @@ def locate_ticker(
     if len(detections) < 2:
         return default_cricclubs_boxes(width, height)
 
-    arr = np.array(detections, dtype=np.float32)
+    stacked_votes = sum(1 for d in detections if d[4] == "stacked")
+    layout_kind = "stacked" if stacked_votes >= len(detections) / 2 else "side"
+    matching = [d[:4] for d in detections if d[4] == layout_kind] or [d[:4] for d in detections]
+
+    arr = np.array(matching, dtype=np.float32)
     rx, ry, rw, rh = [int(round(v)) for v in np.median(arr, axis=0)]
 
-    # Expand red OVERS box into full center scorebox (navy left + blue CRR above + red OVERS)
-    # In CricClubs layout: navy box width ~= 1.15 * rw to the left, blue CRR height ~= rh above
-    pad_x = max(4, int(rw * 0.08))
-    pad_y = max(4, int(rh * 0.15))
-    cx = max(0, rx - int(rw * 1.15) - pad_x)
-    cy = max(0, ry - int(rh * 1.05) - pad_y)
-    cw = min(width - cx, int(rw * 2.25) + 2 * pad_x)
-    ch = min(height - cy, int(rh * 2.15) + 2 * pad_y)
+    if layout_kind == "stacked":
+        # Stacked 2026 CricClubs theme: navy score (~1.55*rh) sits directly above the red RR/OVERS bar
+        pad_x = max(2, int(rw * 0.02))
+        cx = max(0, rx - pad_x)
+        cy = max(0, ry - int(rh * 1.55))
+        cw = min(width - cx, rw + 2 * pad_x)
+        ch = min(height - cy, int(rh * 2.65))
+    else:
+        # Classic side-by-side CricClubs layout: navy left + blue CRR above + red OVERS
+        pad_x = max(4, int(rw * 0.08))
+        pad_y = max(4, int(rh * 0.15))
+        cx = max(0, rx - int(rw * 1.15) - pad_x)
+        cy = max(0, ry - int(rh * 1.05) - pad_y)
+        cw = min(width - cx, int(rw * 2.25) + 2 * pad_x)
+        ch = min(height - cy, int(rh * 2.15) + 2 * pad_y)
 
     # Wings sit immediately left & right of center_box (slight overlap prevents clipping 1st char of bowler name)
     wing_w = int(cw * 1.45)

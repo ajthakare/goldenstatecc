@@ -52,10 +52,12 @@ paths:
 selection:
   # Default strict GSCC-only; automatically switches to 'both' on GSCC-vs-GSCC derbies
   default_mode: "gscc-only"
-  # 3-4 min hard stop (225s = 3m45s) so matches don't drop boundaries unnecessarily
-  max_duration_sec: 225.0
-  target_duration_sec: 180.0
-  intro_sec: 2.0
+  # Instagram Reels limit is 3:00 -> hard stop at 178s so every reel fits with a safety margin
+  max_duration_sec: 178.0
+  # Rare intra-club GSCC-vs-GSCC derbies are allowed > 3 min so both squads get fair coverage
+  derby_max_duration_sec: 240.0
+  target_duration_sec: 170.0
+  intro_sec: 2.9
   innings_break_sec: 2.8
   outro_sec: 5.5
   transition_sec: 0.0
@@ -69,14 +71,28 @@ selection:
     hundred: 7.5
     winning_shot: 7.0
 
-  # Priority scores when trimming a mega high-scoring match to <= max_duration_sec
+  # Base priority scores (wicket == six at 80; drama & match-context bonuses break ties)
   priority_weights:
     hundred: 100
-    winning_shot: 95
-    fifty: 90
+    winning_shot: 96
+    fifty: 92
     six: 80
-    wicket: 78
+    wicket: 80
     four: 55
+
+  # Selection v2 fairness & gentle-trim rules (only active when total highlights exceed cap)
+  min_innings_share: 0.30
+  min_wicket_share: 0.25
+  min_wickets_for_floor: 4
+  first_player_bonus: 6
+  multi_shot_batter_first_bonus: 10
+  # Diminishing returns apply ONLY to batting boundaries (bowler wickets are never capped)
+  batter_diminishing_penalties: [0, 0, 0, -12, -22, -32]
+  # When slightly over cap (<= 18s), gently trim routine fours/sixes first before dropping any clip
+  squeeze_before_drop: true
+  squeeze_max_overage_sec: 18.0
+  min_four_sec: 4.2
+  min_six_sec: 4.8
 
 sync:
   coarse_sample_sec: 4.0
@@ -123,6 +139,10 @@ render:
   framing_mode: auto
   # sharp = crisp action frame behind the intro text (default) | blurred = moody blurred teaser backdrop
   intro_backdrop: sharp
+  # share of the frame height kept (from the top) behind the intro so the baked-in scoreboard is cropped out (1.0 = no crop)
+  intro_crop_top: 0.76
+  # hyperframes = animated intro / innings break / full-time cards (auto-falls back to static pillow cards if unavailable)
+  card_engine: hyperframes
   card_reveal_delay_sec: 0.8
   card_slide_sec: 0.32
   export_cover_jpg: true

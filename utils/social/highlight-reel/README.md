@@ -1,6 +1,6 @@
 # GSCC Instagram Highlights Reel Generator
 
-Automated local utility for **Golden State Cricket Club (`@goldenstate_cc`)** that turns 2–3.5 hour NCCA YouTube match livestreams and NCCA scorecards into pro-broadcast **1–4 minute `1080×1920` (9:16) Instagram Reels** plus ready-to-post **`4:5` Instagram Cover JPEGs**—without burning through AI video-scanning quota.
+Automated local utility for **Golden State Cricket Club (`@goldenstate_cc`)** that turns 2–3.5 hour NCCA YouTube match livestreams and NCCA scorecards into pro-broadcast **under-3-minute (`≤ 178s`, or `≤ 240s` on rare GSCC derbies) `1080×1920` (9:16) Instagram Reels**, ready-to-post **`4:5` Instagram Cover JPEGs**, and **auto-generated Instagram captions**—without burning through AI video-scanning quota.
 
 Supports all four GSCC squads (**GSCC Tigers**, **GSCC Bulls**, **GSCC ThunderCats**, **GSCC Bears**) with bundled high-res squad crests, `Inter Variable` typography, and automatic balanced both-teams mode on intra-club GSCC-vs-GSCC derbies.
 
@@ -10,7 +10,7 @@ Supports all four GSCC squads (**GSCC Tigers**, **GSCC Bulls**, **GSCC ThunderCa
 
 ## Table of Contents
 
-- [Key Capabilities (`v2` Broadcast Suite)](#key-capabilities-v2-broadcast-suite)
+- [Key Capabilities (`v4` Broadcast Suite)](#key-capabilities-v4-broadcast-suite)
 - [System Architecture](#system-architecture)
 - [Prerequisites & One-Time Setup (macOS)](#prerequisites--one-time-setup-macos)
 - [How to Run: AI Chat vs. Terminal CLI](#how-to-run-ai-chat-vs-terminal-cli)
@@ -25,19 +25,18 @@ Supports all four GSCC squads (**GSCC Tigers**, **GSCC Bulls**, **GSCC ThunderCa
 
 ---
 
-## Key Capabilities (`v2` Broadcast Suite)
+## Key Capabilities (`v4` Broadcast Suite)
 
 | Feature | How It Works |
 |---|---|
 | **99% Local (0 Video AI Tokens)** | Downloads streams, auto-locates the CricClubs scorebox, scans 2–3.5 hr footage locally with keyframe-only FFmpeg + native macOS Apple Vision OCR, and renders with VideoToolbox hardware acceleration. |
-| **Stadium Floodlight & Heritage Hybrid (`v2`)** | Borderless deep-obsidian (`#0E0C0B`) + warm crimson/gold ambient floodlight graphics powered by bundled **`Inter Variable`** (weights `400–900`) and retina **`512px` GSCC Club + Squad crests** (`Tigers`, `Bulls`, `ThunderCats`, `Bears`). |
-| **2.0s Live-Action Teaser Intro + `4:5` Cover** | Opens directly on darkened live-action motion from the #1 highlight behind a dual-crest, 3-tier `VS` matchup lockup and auto-computed teaser strip (`8 WICKETS • 10 FOURS`), and exports a matching `<slug>_cover.jpg` centered for Instagram's `4:5` profile grid. |
-| **Auto-Inserted `2.8s` Innings Break Card** | Automatically drops a crisp `INNINGS BREAK` divider (`160/9 • RR 8.00 • TARGET 161`) whenever clips transition chronologically from 1st to 2nd innings. |
-| **Slim Live-Context Top Bar + Delayed Slide-In Cards** | Compact top bar shows live cache-safe match phase (`1ST INN • POWERPLAY`, `NEED 1 OFF 13`); lower callout card slides up after a spoiler-free `0.8s` run-up delay with unmistakable color coding (`FOUR!` Warm White, `MAXIMUM 6` / milestones Radiant Gold, `WICKET!` / `RUN OUT!` Signal Crimson), Hero-Player layout, and zero 46-char truncation. |
-| **Broadcast Full-Time / Part 1 Recap Scorecard** | `5.5s` outro with outcome-first headline (`LOST BY 2 WICKETS` + chase context), smart status pill (`FULL TIME` vs `MATCH SUMMARY` when the stream stops midway), neutral Player-of-the-Match line when he is an opponent, split-hierarchy scores + auto-computed Run Rates + winner accent, separated `PLAYER OF THE MATCH` badge, and aligned `BAT`/`BOWL` `GSCC STANDOUTS` (auto-derived from clips in Ticker-Only mode so there are never empty voids). |
+| **Animated HyperFrames Cards (`v4`)** | `2.9s` live-action intro (sharp cropped backdrop hiding the baked-in scoreboard), `2.8s` Innings Break card (chase maths + GSCC contributors), and `5.5s` outcome-first Full-Time Scorecard rendered via HTML/CSS/GSAP templates (`hyperframes/templates/`) with automatic Pillow fallback (`card_engine: hyperframes \| pillow`) + matching `4:5` Instagram Cover JPEG (`<slug>_cover.jpg`). |
+| **Clean Brand Backdrop & Progress (`v4`)** | Static obsidian/maroon brand backdrop behind the match video (replacing muddy blurred footage, with decorative stripes/chevrons removed), per-match smart framing (`framing.py`), a single thin progress bar with an innings-break notch + `N / TOTAL` counter, batter-first wicket hero cards, and `0.8s` delayed slide-in callouts. |
+| **Dynamic Broadcast Badges** | Automatically upgrades standard pills for big moments: `BOWLED!`, `CAUGHT & BOWLED`, `STUMPED!`, `RUN OUT!`, `3RD WICKET!`, `4TH WICKET!`, `HAT-TRICK!`, `ALL OUT!`, `BACK-TO-BACK 6!`, and `3 SIXES IN A ROW!`. |
+| **Selection v2 (`≤ 178s` / `≤ 240s` Derby)** | Aligns all candidates before budgeting (missing/bulk-jump balls never waste slots); keeps 100% when everything fits; gently trims routine fours (`≥ 4.2s`) and sixes (`≥ 4.8s`) first when slightly over cap (`≤ 18s`); otherwise ranks by cricket drama (`wicket == six` at `80` base + set batters, partnerships broken, multi-wicket overs, hauls, back-to-back boundaries, death overs), protects must-keep anchors, enforces `≥ 30%` innings time & `≥ 25%` wickets floors, never caps bowler wickets, shares batting slots across teammates, and keeps dropped clips as `cut_for_budget` for instant `--enable` or `reselect`. |
 | **Broadcast `-14 LUFS` Audio & Sidechain Ducking** | Prompts for music first (built-in 124 BPM beat, custom `.mp3`/`.wav`/`.m4a`, or `none`), high-passes and stem-levels quiet ground audio, automatically ducks music under crowd cheers/appeals, and masters the final mix to Instagram's `-14 LUFS` / `-1.5 dBTP` standard. |
-| **All 4 GSCC Squads, Derbies & Safe Zones** | Strict `gscc-only` default (auto `both` on intra-club derbies), configurable `≤ 225.0s` (3–4 min) cap in chronological order so boundaries aren't needlessly dropped, and verified Instagram Reels Safe Zones (`y = 220..1480`, lower-right `x ≤ 910`). |
-| **Instant Per-Clip Caching & Two-Tier `1440p` HQ Fetch** | Full-match `prepare` stays fast/compact at `720p`, while `render` automatically streams only the selected ~100s of clips directly from YouTube at up to **`1440p`/`1080p`** (`7.5 Mbps` VP9/H.264), downscales via `flags=lanczos` + subtle luma micro-sharpening (`CRF 18` / `8M`), and caches every segment in `rendered_clips/` (~2s music swaps, ~3–5s single-clip tweaks). |
+| **Auto Instagram Captions & Single-Folder Guards** | Writes `<slug>_caption.txt` next to every reel (result, scores, standouts, full-match link, hashtags; `gscc-highlights caption <match>` regenerates it) and enforces a single canonical `utils/social/workspace/` + `utils/social/output/` layout (`paths.py` + `consolidate`). |
+| **Instant Per-Clip Caching & Two-Tier `1440p` HQ Fetch** | Full-match `prepare` stays fast/compact at `720p`, while `render` automatically streams only the selected clips directly from YouTube at up to **`1440p`/`1080p`** (`7.5 Mbps` VP9/H.264), downscales via `flags=lanczos` + subtle luma micro-sharpening (`CRF 18` / `8M`), and caches every segment in `rendered_clips/` (~2s music swaps, ~3–5s single-clip tweaks). |
 
 ---
 
@@ -56,27 +55,27 @@ flowchart TB
         VIO["1. Video Ingest<br/>video_io.py<br/>yt-dlp + deno EJS<br/>source_part_N.mp4"]
         LOC["2. Ticker Auto-Locator<br/>ticker_locator.py<br/>OpenCV HSV red/navy<br/>18-frame median box"]
         OCR["3. Fast Scorebox OCR<br/>ticker_ocr.py<br/>FFmpeg -skip_frame nokey (4s)<br/>8-crop Apple Vision Fast<br/>CRR x overs disambiguation"]
-        ALIGN["4. Parse, Rank & Align<br/>ncca_parser, selector, clip_refiner<br/>Strict gscc-only + Run-Out detect<br/>Impact-ranked <= 120s + DP align"]
+        ALIGN["4. Parse, Align & Select v2<br/>ncca_parser, selector, clip_refiner<br/>Align first -> drama/fairness <= 178s<br/>Gentle trim + motion/audio lag refiner"]
         VIO --> LOC --> OCR --> ALIGN
     end
 
     CACHE_OCR[("ocr_readings.json<br/>Cached Score States<br/>(skips 3-min rescan)")]
-    MANIFEST[("clips.json + preview_sheet.jpg<br/>models.py, preview.py<br/>Editable Clip Manifest")]
+    MANIFEST[("clips.json + preview_sheet.jpg<br/>models.py, preview.py<br/>Editable Manifest + Cut Reasons")]
 
     subgraph PINPOINT["Phase 2: Visual Delivery Pinpointing — filmstrips -> tweak (Solves 10-65s Scorer Lag)"]
         direction LR
         FS["5. Pitch Action Filmstrips<br/>filmstrip.py (0 AI Tokens)<br/>16-frame (4x4) JPEGs<br/>70s wickets / 32s boundaries"]
         VERIFY["6. Visual Delivery Check<br/>AI Chat (SKILL.md) or Human<br/>~15-25 small JPEGs (< 0.5% quota)<br/>Run-up -> release -> shot/out -> umpire"]
-        TWEAK["7. Lock Bounds & Metadata<br/>cli.py tweak (0 AI Tokens)<br/>--trim, --shift, --drop, --headline<br/>--result, --potm, --performer, --music"]
+        TWEAK["7. Lock Bounds, Framing & Cut<br/>cli.py tweak / reselect / framing<br/>--trim, --shift, --drop, --enable<br/>--result, --potm, --performer, --music"]
         FS --> VERIFY --> TWEAK
     end
 
-    subgraph RENDER["Phase 3: Cached v2 9:16 Broadcast Render — gscc-highlights render (0 AI Tokens)"]
+    subgraph RENDER["Phase 3: Cached v4 9:16 Broadcast Render — gscc-highlights render (0 AI Tokens)"]
         direction LR
-        OVL["8. v2 Broadcast Overlays<br/>overlays.py (Inter Variable + Crests)<br/>Teaser Intro, Innings Break, Top Bar,<br/>Slide-In Lower Card, Full-Time Outro"]
-        ENC["9. Per-Clip Cached Encode<br/>renderer.py (rendered_clips/)<br/>SHA-256 v2.1 clip cache<br/>Moody 108x192 blur + 0.8s slide-in"]
-        MIX["10. Broadcast Audio Master<br/>audio.py, renderer.py<br/>Ground highpass + sidechain duck<br/>-14 LUFS / -1.5 dBTP + 4:5 Cover"]
-        OUT(["Final Instagram Reel + Cover<br/>output/&lt;slug&gt;_reel.mp4 (<= 120s)<br/>output/&lt;slug&gt;_cover.jpg (4:5 grid)"])
+        OVL["8. v4 Overlays & HyperFrames<br/>overlays.py, hf_cards.py<br/>Animated Intro/Break/Outro +<br/>Brand Backdrop + Progress Bar"]
+        ENC["9. Per-Clip Cached HQ Encode<br/>renderer.py (rendered_clips/)<br/>SHA-256 v4.0 clip cache<br/>1440p HQ fetch + 0.8s slide-in"]
+        MIX["10. Audio Master & Caption<br/>audio.py, renderer.py, captions.py<br/>Ground highpass + sidechain duck<br/>-14 LUFS + 4:5 Cover + Caption"]
+        OUT(["Final Reel, Cover & Caption<br/>output/&lt;slug&gt;_reel.mp4 (<= 178s)<br/>_cover.jpg (4:5) + _caption.txt"])
         OVL --> ENC --> MIX --> OUT
     end
 
@@ -101,11 +100,11 @@ flowchart TB
 | **2. Video Ingest** | `video_io.py` | Local (`yt-dlp` + `deno` + `static-ffmpeg`, 0 tokens) | 1+ YouTube URLs / MP4s → `list[VideoPart]` (`source_part_N.mp4`, resolution, fps, `?t=` offset) |
 | **3. Ticker Auto-Detection** | `ticker_locator.py` | Local OpenCV HSV heuristics (0 tokens) | 18 sampled frames → `TickerBoxes(center_box, left_wing, right_wing)` |
 | **4. Fast Scorebox OCR** | `ticker_ocr.py` | Local FFmpeg + Apple Vision (0 tokens) | Keyframe-only 4s crop → inner pixel-diff (`2.5`) → 8-crop batched Apple Vision `Fast` → `ocr_readings.json` |
-| **5. Selection & Alignment** | `selector.py`, `ticker_ocr.py` | Local deterministic DP/monotonic match (0 tokens) | Strict GSCC filtering + run-out fielder credit + `≤ 120s` packing (incl. Innings Break) → gap-tolerant alignment |
-| **6. Initial Lag Estimate** | `clip_refiner.py`, `preview.py` | Local 1fps diff + `>300Hz` cheer audio (0 tokens) | Rough `[start_sec, end_sec]` + `clips.json` + `preview_sheet.jpg` |
+| **5. Align & Selection v2** | `selector.py`, `ticker_ocr.py` | Local deterministic DP/monotonic match (0 tokens) | Strict GSCC filtering + dynamic badges + align-before-select → Selection v2 (`≤ 178s` / `≤ 240s` derby, gentle trim-first, fairness floors) |
+| **6. Initial Lag Estimate** | `clip_refiner.py`, `preview.py` | Local 1fps diff + `>300Hz` cheer + 2fps motion burst (0 tokens) | Rough `[start_sec, end_sec]` + `clips.json` (incl. `cut_for_budget` reasons) + `preview_sheet.jpg` |
 | **7. Action Filmstrips** | `filmstrip.py` | Local OpenCV + Pillow (0 tokens) | 16-frame pitch-focused JPEGs (`70s` wicket lookback / `32s` boundary lookback) in `filmstrips/` |
 | **8. Visual Delivery Pinpointing** | AI Agent (via `SKILL.md`) or Human | ~15–25 small JPEGs (`< 0.5%` video quota; 0 CLI) | Visually verified bowler run-up → ball release → shot/wicket → umpire signal locked via `tweak --trim` |
-| **9. Cached `v2` Broadcast Render** | `overlays.py`, `audio.py`, `renderer.py` | Local Pillow + FFmpeg VideoToolbox (0 tokens) | Teaser intro, delayed slide-in lower cards, Innings Break, Full-Time Scorecard, `-14 LUFS` ducked mix → `output/<slug>_reel.mp4` + `<slug>_cover.jpg` |
+| **9. Cached `v4` Broadcast Render** | `hf_cards.py`, `overlays.py`, `framing.py`, `captions.py`, `renderer.py` | Local HyperFrames + Pillow + FFmpeg VideoToolbox (0 tokens) | Animated HyperFrames Intro/Break/Outro, brand backdrop, thin progress bar, `-14 LUFS` ducked mix → `utils/social/output/<slug>_reel.mp4`, `_cover.jpg`, `_caption.txt` |
 
 ---
 
@@ -180,7 +179,7 @@ open workspace/<match_slug>/filmstrips/
 ~/.local/bin/uv run gscc-highlights render workspace/<match_slug>
 ```
 
-Outputs are written to `output/<match_slug>_reel.mp4` and `output/<match_slug>_cover.jpg`.
+Outputs are written to `utils/social/output/<match_slug>_reel.mp4`, `utils/social/output/<match_slug>_cover.jpg`, and `utils/social/output/<match_slug>_caption.txt`.
 
 #### One-Command Fast Preview (`run`)
 
@@ -220,10 +219,14 @@ Run commands from `utils/social/highlight-reel/` with `uv run gscc-highlights <s
 
 | Subcommand | Purpose |
 |---|---|
-| `prepare` | Downloads/probes video(s), locates score ticker, runs Apple Vision OCR, aligns NCCA events (or runs Ticker-Only Mode), creates `clips.json` & `preview_sheet.jpg`. |
-| `filmstrips` | Generates 16-frame pitch-focused timestamped action strips in `workspace/<slug>/filmstrips/` for delivery-to-shot/wicket verification. |
-| `tweak` | Applies shifts, exact trims, drops/enables, headline/subtext/badge overrides, match scorecard metadata updates, or music changes to `clips.json` and refreshes `preview_sheet.jpg`. |
-| `render` | Composites and encodes `output/<slug>_reel.mp4` (`1080×1920`, `30fps`, `≤ 120s`, `-14 LUFS`) + `output/<slug>_cover.jpg` using per-clip caching and VideoToolbox hardware acceleration. |
+| `prepare` | Downloads/probes video(s), locates score ticker, runs Apple Vision OCR, aligns all NCCA/Ticker-Only events first, runs Selection v2 (`≤ 178s` / `≤ 240s` derby), refines kept clips, and creates `clips.json` & `preview_sheet.jpg`. |
+| `filmstrips` | Generates 16-frame pitch-focused timestamped action strips in `utils/social/workspace/<slug>/filmstrips/` for delivery-to-shot/wicket verification. |
+| `tweak` | Applies shifts, exact trims, drops/enables (auto-refines restored `cut_for_budget` clips), headline/subtext/badge overrides, match scorecard metadata updates, or music changes to `clips.json` and refreshes `preview_sheet.jpg`. |
+| `reselect` | Re-runs Selection v2 on an existing workspace's `clips.json` (e.g. `--max-duration 90` or `178`) without re-running OCR, toggling `cut_for_budget` clips and refreshing `preview_sheet.jpg`. |
+| `framing` | Shows, re-detects (`--reanalyze`), or manually overrides (`--height`/`--center`) the per-match video crop window (`framing.json` + `framing_preview.jpg`). |
+| `render` | Composites and encodes `utils/social/output/<slug>_reel.mp4` (`1080×1920`, `30fps`, `≤ 178s` / `≤ 240s` derby, `-14 LUFS`), `<slug>_cover.jpg`, and `<slug>_caption.txt` using HyperFrames cards, per-clip caching, HQ clip fetch, and VideoToolbox hardware acceleration. |
+| `caption` | (Re)writes `utils/social/output/<slug>_caption.txt` (result, scores, standouts, full-match link, hashtags) without re-rendering video. |
+| `consolidate` | Merges any stray `workspace/` or `output/` folders into the single canonical `utils/social/workspace/` and `utils/social/output/` (dry-run by default; pass `--apply` to move). |
 | `run` | Convenience command combining `prepare` and `render` back-to-back. |
 | `music` | Synthesizes `default_hype_beat.wav` if missing and lists all available tracks in `assets/music/`. |
 
@@ -241,7 +244,7 @@ Run commands from `utils/social/highlight-reel/` with `uv run gscc-highlights <s
 | `--music CHOICE` | Interactive | Filename in `assets/music/`, full path to custom `.mp3`/`.wav`/`.m4a`, or `none` (ground audio only). |
 | `--start-time SEC` | From `?t=` / `0` | Seconds to skip pre-match warmup before OCR scanning. |
 | `--ticker-box X,Y,W,H` | Auto-detected | Manual center scorebox pixel bounds for non-standard stream graphics. |
-| `--max-duration SEC` | `225.0` | Hard maximum reel duration in seconds (3m45s default; includes intro, innings break, and outro). |
+| `--max-duration SEC` | `178.0` (`240.0` derby) | Hard maximum reel duration in seconds (under Instagram's 3:00 limit; includes intro, innings break, and outro). |
 | `--title TEXT` | Auto | Override match title displayed on Intro Card and Top Broadcast Bar. |
 | `--cookies-from-browser` | Optional | Pass browser cookies (`chrome`, `safari`) to `yt-dlp` for unlisted/throttled streams. |
 | `--non-interactive` | `false` | Skip interactive music prompt (uses `--music` or default beat). |
@@ -269,7 +272,7 @@ Run commands from `utils/social/highlight-reel/` with `uv run gscc-highlights <s
 | `--shift ID=DELTA` | `--shift 4=-8` | Shift `start_sec` and `end_sec` of clip `ID` by `DELTA` seconds. Repeatable. |
 | `--trim ID=START:END` | `--trim 10=7692.5:7700.0` | Set exact bounds, enable clip, and mark status `ok (high)`. Repeatable. |
 | `--drop ID` | `--drop 13` | Disable clip `ID` without deleting it from `clips.json`. Repeatable. |
-| `--enable ID` | `--enable 5` | Re-enable a disabled or `bulk_jump`-flagged clip. Repeatable. |
+| `--enable ID` | `--enable 5` | Re-enable a disabled, `bulk_jump`, or `cut_for_budget` clip (automatically refines restored budget-cut clips). Repeatable. |
 | `--headline ID=TEXT` | `--headline "21=Clutch Run Out!"` | Override bold hero headline on the lower callout card. Repeatable. |
 | `--subtext ID=TEXT` | `--subtext "21=Direct hit from cover"` | Override detail text line on the lower callout card. Repeatable. |
 | `--badge ID=TEXT` | `--badge "10=MASSIVE SIX"` | Override colored event pill (`MAXIMUM 6`, `WICKET!`, `RUN OUT!`, `FOUR!`, `HALF CENTURY 50*`, etc.). Repeatable. |
@@ -328,11 +331,24 @@ paths:
 
 selection:
   default_mode: "gscc-only"
-  max_duration_sec: 225.0
-  intro_sec: 2.0
+  max_duration_sec: 178.0          # Under Instagram 3:00 Reels limit
+  derby_max_duration_sec: 240.0    # Extended cap for rare intra-club GSCC derbies
+  target_duration_sec: 170.0
+  intro_sec: 2.9
   innings_break_sec: 2.8
   outro_sec: 5.5
   transition_sec: 0.0
+  priority_weights: { hundred: 100, winning_shot: 96, fifty: 92, six: 80, wicket: 80, four: 55 }
+  min_innings_share: 0.30
+  min_wicket_share: 0.25
+  min_wickets_for_floor: 4
+  first_player_bonus: 6
+  multi_shot_batter_first_bonus: 10
+  batter_diminishing_penalties: [0, 0, 0, -12, -22, -32]  # batting boundaries only; bowlers never capped
+  squeeze_before_drop: true        # gently trim routine 4s (>=4.2s) & 6s (>=4.8s) if <=18s over cap
+  squeeze_max_overage_sec: 18.0
+  min_four_sec: 4.2
+  min_six_sec: 4.8
 
 audio:
   music_db: -11.0
@@ -344,6 +360,8 @@ audio:
 render:
   framing_mode: auto
   intro_backdrop: sharp
+  intro_crop_top: 0.76             # crops out baked-in bottom scoreboard on intro
+  card_engine: hyperframes         # animated intro/break/outro (auto-falls back to pillow)
   card_reveal_delay_sec: 0.8
   card_slide_sec: 0.32
   export_cover_jpg: true
@@ -368,15 +386,18 @@ Each match creates a gitignored workspace folder alongside the final rendered Re
 utils/social/workspace/<match_slug>/
 ├── source_part_1.mp4          # Downloaded YouTube stream (~1.2–2.3 GB for 2–3.5 hr 720p)
 ├── ocr_readings.json          # Cached Apple Vision score transitions (skips 3-min rescan)
-├── clips.json                 # Editable ProjectManifest (timestamps, headlines, scorecard metadata, music)
-├── preview_sheet.jpg          # Contact sheet of selected clips (3-frame boundary / 5-frame wicket)
+├── clips.json                 # Editable ProjectManifest (timestamps, scores/reasons, metadata, music)
+├── framing.json               # Cached per-match action crop window (+ framing_preview.jpg)
+├── preview_sheet.jpg          # Contact sheet of selected clips + cut_for_budget summary
 ├── filmstrips/                # 16-frame full-frame action JPEGs (clip_XX.jpg, zoom strips)
-├── overlays/                  # Cached v2.1 Pillow RGBA PNG layers & teaser frame
+├── hyperframes/               # Cached rendered HyperFrames intro / innings break / outro cards
+├── overlays/                  # Cached v4 Pillow RGBA PNG layers & static brand backdrop
 └── rendered_clips/            # SHA-256 cached 9:16 segment MP4s (instant tweaks & ~2s music swaps)
 
 utils/social/output/
-├── <match_slug>_reel.mp4      # Final 1080x1920 @ 30fps Instagram Reel (<= 225s, ~-14 LUFS)
-└── <match_slug>_cover.jpg     # Clean 1080x1920 cover centered for Instagram's 4:5 profile grid
+├── <match_slug>_reel.mp4      # Final 1080x1920 @ 30fps Instagram Reel (<= 178s, ~-14 LUFS)
+├── <match_slug>_cover.jpg     # Clean 1080x1920 cover centered for Instagram's 4:5 profile grid
+└── <match_slug>_caption.txt   # Ready-to-paste Instagram caption, standouts, full-match link & hashtags
 ```
 
 - **While tweaking clips:** Keep `utils/social/workspace/<match_slug>/` intact so `ocr_readings.json` and `rendered_clips/` keep iterations near-instant. All CLI subcommands (`filmstrips`, `tweak`, `framing`, `render`) accept either a bare `<match_slug>` or full path.
@@ -398,12 +419,13 @@ utils/social/output/
 | Rendering `v2` Broadcast Reel, `-14 LUFS` mix & `4:5` cover | **0** | Local Pillow + FFmpeg VideoToolbox |
 | Pure Terminal CLI mode (manual filmstrip review) | **0 total** | 100% local/offline execution |
 
-### Verified Real-Match Benchmarks (`v2`)
+### Verified Real-Match Benchmarks (`v2`–`v4`)
 
 Tested end-to-end on an Intel MacBook Pro (Core i5-8259U, macOS 15, ~2.5–3.5 min local OCR scan):
 
-| Match | Stream Length & Camera | Highlights Found & Pinpointed | Final `v2` Reel Output |
+| Match | Stream Length & Camera | Highlights Found & Pinpointed | Final Reel Output |
 |---|---|---|---|
+| **All Stars Lions & Cubs vs GSCC Tigers** (2026 Winter T20 WB-D2, `v4`) | 3h 12m stream (`720p` scan proxy + **`1440p` HQ per-clip fetch**), full NCCA JSON + Selection v2 + HyperFrames | 23 in-video GSCC events (10 wickets incl. Shraddhan `4/13`, Vinay `4/37`, all-out + Ritesh `50 (31)`, back-to-back 6s) | `170.4s` (`2m 50.4s`, `≤ 178s`), `1080×1920 @ 30fps`, `166.6 MB` + `4:5` Cover JPG + Caption TXT |
 | **GSCC Bulls vs Livermore Monks** (2026 Winter T20 WB-D3) | 2h 12m 720p wide tripod (`534, 559, 212, 76` scorebox), Ticker-Only Part 1 | 12/12 GSCC events on tape (all 7 wickets incl. diving run-out + all 5 Sharan C boundaries/sixes) | `103.7s` (`1m 43.7s`), `1080×1920 @ 30fps`, `27.9 MB`, **`-15.6 LUFS`** + `4:5` Cover JPG |
 | **GSCC Tigers vs Afghan Atalan** (2026 Summer T20 D1 Final) | 3h 39m stream (`720p` scan proxy + **`1440p` HQ per-clip fetch**, `7.5 Mbps` VP9), full NCCA metadata | 21/21 official NCCA highlights matched (~94% OCR parse rate); 17 clips + `2.8s` Innings Break + `5.5s` Outcome Scorecard | `116.1s` (`1m 56.1s`), `1080×1920 @ 30fps`, `7.6 Mbps` (`108.5 MB`), **`-14.4 LUFS`** + `4:5` Cover JPG |
 
@@ -443,27 +465,33 @@ utils/social/highlight-reel/
 │   │   ├── gscc_thundercats.png    # GSCC ThunderCats crest (512px)
 │   │   └── gscc_bears.png          # GSCC Bears crest (512px)
 │   └── music/README.txt            # Drop-in folder for custom tracks (default beat auto-generated)
+├── hyperframes/
+│   ├── templates/                  # Animated HTML/CSS/GSAP intro, innings break & full-time cards
+│   └── assets/                     # Bundled GSAP + Inter-Variable.woff2 for offline HyperFrames renders
 ├── src/gscc_highlights/       # Core pipeline modules
-└── tests/                     # Automated pytest suite (12 tests)
+└── tests/                     # Automated pytest suite (40 tests)
 ```
 
 ### Module Map (`src/gscc_highlights/`)
 
-- **`cli.py`**: Argument parser and subcommand orchestration (`prepare`, `filmstrips`, `tweak` incl. scorecard metadata flags, `render`, `run`, `music`).
+- **`cli.py`**: Argument parser and subcommand orchestration (`prepare`, `filmstrips`, `tweak`, `reselect`, `framing`, `render`, `caption`, `consolidate`, `run`, `music`).
 - **`config.py`**: Root discovery, typed `ClubConfig` loader for `config/club.yaml`, safe `is_gscc_team()` matching (`GSB`/`GST`/`GSTC`/`GSBR`), and `squad_logo_path()` crest resolution.
-- **`models.py`**: Dataclasses (`VideoPart`, `InningsSummary`, `BallEvent`, `HighlightCandidate`, `TickerReading`, `ClipSpec`, `MatchInfo`, `ProjectManifest`) and JSON serialization for `clips.json`.
+- **`paths.py`**: Single-workspace / single-output path guards (`utils/social/workspace/` & `utils/social/output/`), stray-folder warnings, and `consolidate` migration helper.
+- **`models.py`**: Dataclasses (`VideoPart`, `InningsSummary`, `BallEvent`, `HighlightCandidate`, `TickerReading`, `ClipSpec`, `MatchInfo`, `ProjectManifest`) and backward-compatible JSON serialization for `clips.json`.
 - **`video_io.py`**: Prebuilt `static-ffmpeg` & `~/.deno/bin/deno` resolution, `yt-dlp` EJS flags, `?t=` offset parsing, and multi-part probing.
-- **`ncca_parser.py`**: 3-tier NCCA parser (live URL with `NccaCloudflareBlockedError`, saved HTML, Export Excel via `openpyxl`, structured JSON).
+- **`ncca_parser.py`**: 5-tier NCCA parser (live URL + local Chrome `puppeteer-core`, saved HTML, Export Excel via `openpyxl`, structured JSON, graceful fallback).
 - **`ticker_locator.py`**: OpenCV HSV red `OVERS` + dark-navy scorebox detection across 18 sampled frames (bottom 32% band), taking the median box with expanded wing regions.
-- **`ticker_ocr.py`**: Keyframe-only 4s coarse scanner, single-threaded 8-crop Apple Vision `Fast` batching, `CRR × overs` slash-as-`1` disambiguation, temporal denoising, score-reset innings segmentation, gap-tolerant DP alignment, and Ticker-Only Mode.
-- **`selector.py`**: Co-occurring event deduplication, run-out fielder detection (never misattributing run-outs to the bowler), `0* (0)` Ticker-Only stat sanitization, strict `gscc-only` filtering, automatic derby detection, and `≤ 120s` packing aligned with `renderer.py` (including Innings Break reserve).
-- **`clip_refiner.py`**: 1fps ticker-flip refinement, `prev_ball_flip_sec`-bounded wicket lookbacks, and high-pass (`300–4500 Hz`) cheer scoring to reject wind rumble.
-- **`filmstrip.py`**: `4×4` (16-frame) pitch-focused timestamped JPEG grids (`y=12%..76%, x=5%..95%`) with `--window` micro-zoom support.
-- **`preview.py`**: `preview_sheet.jpg` contact sheet generator (3-frame boundary / 5-frame wicket lookback).
+- **`ticker_ocr.py`**: Keyframe-only 4s coarse scanner, single-threaded 8-crop Apple Vision `Fast` batching, `CRR × overs` slash-as-`1` disambiguation, temporal denoising, score-reset innings segmentation, gap-tolerant DP alignment (propagating Selection v2 metadata), and Ticker-Only Mode.
+- **`selector.py`**: Selection v2 drama/fairness engine (`≤ 178s` normal / `≤ 240s` derby), dynamic broadcast badges (`BOWLED!`, `CAUGHT & BOWLED`, `STUMPED!`, `3RD/4TH WICKET!`, `HAT-TRICK!`, `ALL OUT!`, `BACK-TO-BACK 6!`), gentle trim-first when slightly over cap, uncapped bowler wickets, batting diminishing returns + teammate first-shot boost, `≥ 30%` innings / `≥ 25%` wicket floors, and shared `enforce_budget_on_clips()` used by `prepare`, `reselect`, and `renderer.py`.
+- **`clip_refiner.py`**: 1fps ticker-flip refinement, `prev_ball_flip_sec`-bounded wicket lookbacks, and fused high-pass (`300–4500 Hz`) audio cheer + 2fps visual motion-burst delivery detection.
+- **`filmstrip.py`**: `4×4` (16-frame) pitch-focused timestamped JPEG grids with `--window` micro-zoom support.
+- **`preview.py`**: `preview_sheet.jpg` contact sheet generator (3-frame boundary / 5-frame wicket lookback, Selection v2 score/reason lines, and `cut_for_budget` footer).
 - **`framing.py`**: Per-match motion-profile framing detector (`framing.json` + `framing_preview.jpg`) selecting the tallest safe video band (`608`–`800px`) and horizontal crop centre, plus shared `Layout` geometry.
-- **`overlays.py`**: Stadium Floodlight & Heritage Hybrid `1080×1920` Pillow renderer using bundled `Inter Variable` + club/squad crests, optical bbox-corrected text placement, 2× anti-aliased clipped rounded panels, live-action teaser intro overlay, `4:5` cover exporter, Innings Break card (chase maths + GSCC contributors), split Top Bar + segmented progress bar + delayed slide-in Lower Callout Card, and outcome-first Full-Time / Match Summary Scorecard with auto-derived Ticker-Only standouts.
+- **`hf_cards.py`**: Zero-setup HyperFrames runtime manager (`/var/tmp/gscc-hyperframes-<uid>` with portable Node 22 + headless Chrome, telemetry disabled) rendering animated intro, innings break, and full-time cards with automatic Pillow fallback.
+- **`captions.py`**: Auto-generates Instagram `<slug>_caption.txt` (result, scores, standouts, clean YouTube full-match link, hashtags) after every render or via `gscc-highlights caption`.
+- **`overlays.py`**: `v4` `1080×1920` Pillow renderer using bundled `Inter Variable` + club/squad crests, clean brand clip backdrop (`decor=False`), thin continuous progress bar + innings-break notch + `N / TOTAL` counter, batter-first wicket lower cards, `4:5` cover exporter, and static fallback Intro / Innings Break / Full-Time cards.
 - **`audio.py`**: NumPy + `wave` 124 BPM royalty-free hype beat synthesizer, `assets/music/` scanner, and music-first prompt.
-- **`renderer.py`**: Per-clip SHA-256 cache (`OVERLAY_SCHEMA_VERSION = "v2.2"`), smart framing (`framing.py`), two-tier `1440p`/`1080p` direct HQ clip fetch + `flags=lanczos` + luma micro-sharpening (`CRF 18` / `8M`), live-action teaser intro + cover frame export, moody `108×192` desaturated blur backdrop, `0.8s` delayed cubic ease-out lower-card slide-in, auto-inserted `2.8s` Innings Break, `h264_videotoolbox` with `libx264` fallback, hard `≤ 120.0s` cap, and two-stage `-14 LUFS` / `-1.5 dBTP` broadcast audio mastering with ground-stem leveling and sidechain music ducking.
+- **`renderer.py`**: Per-clip SHA-256 cache (`OVERLAY_SCHEMA_VERSION = "v4.0"`), HyperFrames animated cards with Pillow fallback, smart framing (`framing.py`), static brand backdrop, two-tier `1440p`/`1080p` direct HQ clip fetch + `flags=lanczos` + luma micro-sharpening (`CRF 18` / `8M`), `0.8s` delayed cubic ease-out lower-card slide-in, `h264_videotoolbox` with `libx264` fallback, unified Selection v2 budget enforcement (`≤ 178s` / `≤ 240s` derby), and two-stage `-14 LUFS` / `-1.5 dBTP` broadcast audio mastering with sidechain ducking.
 
 ### Critical Engineering Invariants (For Contributors & AI Agents)
 
@@ -497,3 +525,30 @@ cd utils/social/highlight-reel
 | `render.intro_backdrop` | `config/club.yaml` | `sharp` (default: crisp action frame behind the intro text) or `blurred` (moody legacy look). |
 
 Other v3 behaviours: generic series labels such as bare `NCCA` are hidden; the intro shows a stakes chip (`WON BY…` on a GSCC win, a score line on other results, `CHASING N` on a partial stream); highlight cards show a big live score, the dismissed batter as the hero line on wickets, and a reel progress bar; the innings-break card shows chase maths (`N OFF 120 BALLS • RRR`) and GSCC's own bowlers/batters.
+
+
+---
+
+## v4: HyperFrames Cards, Brand Backdrop, Captions
+
+| Feature | Details |
+|---|---|
+| **Animated cards via [HyperFrames](https://github.com/heygen-com/hyperframes)** | The intro (`2.9s`), innings break and full-time card are HTML/CSS/GSAP templates in `hyperframes/templates/` rendered in headless Chrome and re-encoded to match every other segment. Content comes from the same helpers as the static cards (`hf_cards.py`), so result / chase maths / standouts logic lives in one place. `render.card_engine: hyperframes` (default) auto-falls back to the static Pillow cards if Node/Chrome can't be set up; set `pillow` to force the static cards. |
+| **Zero-setup runtime** | First run downloads a portable Node 22 (only if your Node is older) and headless Chrome into `/var/tmp/gscc-hyperframes-<uid>` (mode 700; HyperFrames refuses to run Chrome/FFmpeg from folders other users could write, e.g. a world-writable home dir). Telemetry is disabled. |
+| **Intro backdrop** | Sharp action frame with the top `render.intro_crop_top` (default `0.76`) of the frame kept, so the baked-in CricClubs scoreboard is cropped out, centred on the per-match action position from `framing.json`. `render.intro_backdrop: blurred` restores the moody blurred look. |
+| **Brand backdrop on clips** | The muddy blurred copy of the footage behind the video band is replaced by a static brand backdrop (no decorative lines). Decorative stripes/chevrons are removed from all cards. |
+| **Reel progress** | One thin bar with an innings-break notch and an `N / TOTAL` counter instead of one dash per clip. |
+| **Instagram caption** | `<slug>_caption.txt` is written next to every reel (result line, scores, standouts, full-match YouTube link, hashtags). `gscc-highlights caption <match>` regenerates it without re-rendering. When the stream stops midway, supply the NCCA scorecard (`--ncca-excel`, `--ncca-file`, `--ncca-json` or `--ncca`) so the result, final scores, Player of the Match and standouts come from NCCA. |
+| **Selection v2 (`≤ 178s` / `≤ 240s` derby)** | Aligns all candidates before budgeting so missing/bulk-jump balls never waste slots; keeps 100% when everything fits; gently trims routine fours (`≥ 4.2s`) and sixes (`≥ 4.8s`) first when slightly over cap (`≤ 18s`); otherwise ranks by cricket drama (`wicket == six` at `80` base + set batters, broken partnerships, multi-wicket overs, hauls, back-to-back boundaries, death overs), protects must-keep anchors (centuries, boundary fifties, close-game/six winning shots, hat-tricks, all-out 10th wickets), enforces `≥ 30%` innings time and `≥ 25%` wickets floors, never caps bowler wickets, shares batting slots across teammates (`+10` first-clip boost for 2+ boundary batters; diminishing returns on batting boundaries only), and keeps cut clips in `clips.json` as `cut_for_budget` for instant `tweak --enable <id>` or `gscc-highlights reselect <match> --max-duration <sec>`. |
+
+
+---
+
+## One Workspace, One Output
+
+All match data lives in **`utils/social/workspace/<match_slug>/`** and all reels/covers/captions in **`utils/social/output/`**; never anywhere else. Guards (`paths.py`):
+
+- New match folders always resolve to the canonical workspace (bare slugs and paths that don't exist yet never create anything relative to the current directory).
+- An explicit `--output` inside the repo but outside `utils/social/output/` is redirected there (paths outside the repo, e.g. temp dirs, are respected).
+- Every CLI run warns if a stray `workspace/` or `output/` folder exists (repo root, `utils/`, `highlight-reel/`, current directory).
+- `gscc-highlights consolidate` merges strays into the canonical folders: dry-run by default, `--apply` to move, never overwrites existing files. Existing stray folders keep working when addressed by explicit path, so in-flight sessions are not broken.

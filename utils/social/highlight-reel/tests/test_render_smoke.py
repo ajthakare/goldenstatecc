@@ -58,6 +58,7 @@ def _make_synthetic_video(dest: Path, duration_sec: float = 12.0) -> Path:
 
 def test_overlays_respect_instagram_safe_zones(tmp_path: Path):
     cfg = load_config()
+    cfg.card_engine = "pillow"  # fast, offline: HyperFrames cards are exercised separately
     info = MatchInfo(
         slug="smoke_match",
         title="Livermore Monks vs GSCC Bulls",
@@ -114,6 +115,7 @@ def test_overlays_respect_instagram_safe_zones(tmp_path: Path):
 
 def test_render_smoke_innings_break_cover_and_per_clip_cache(tmp_path: Path):
     cfg = load_config()
+    cfg.card_engine = "pillow"  # fast, offline: HyperFrames cards are exercised separately
     ensure_default_hype_beat(cfg)
     src_mp4 = _make_synthetic_video(tmp_path / "source_part_1.mp4", duration_sec=12.0)
     vp = probe_video(src_mp4, index=0)
@@ -215,6 +217,7 @@ def test_shared_workspace_and_output_paths_under_utils_social():
     from gscc_highlights.cli import _resolve_match_dir
 
     cfg = load_config()
+    cfg.card_engine = "pillow"  # fast, offline: HyperFrames cards are exercised separately
     assert cfg.workspace_root == (cfg.repo_root.parent / "workspace").resolve()
     assert cfg.output_root == (cfg.repo_root.parent / "output").resolve()
     assert cfg.workspace_root.name == "workspace"

@@ -26,7 +26,7 @@ _TEAM_VS_RE = re.compile(r"\b([A-Z]{2,4})\s*[vV][sSa-z.,]*")
 _TEAM_LEADING_RE = re.compile(r"^\W*([A-Z]{2,4})\b")
 _SCORE_RAW_RE = re.compile(r"(?<!\.)\b([0-9lI|Oo]{1,3})\s*/\s*([0-9lI|Oo]{1,2})\b(?!\.)")
 _SCORE_NOSLASH_RE = re.compile(r"^\W*([0-9lI|Oo]{3,6})\W*$")
-_CRR_RE = re.compile(r"CRR\s*[:\-]?\s*([0-9lI|Oo]+(?:\.[0-9lI|Oo]*)?)", re.IGNORECASE)
+_CRR_RE = re.compile(r"\bC?RR\s*[:\-]?\s*([0-9lI|Oo]+(?:\.[0-9lI|Oo]*)?)", re.IGNORECASE)
 _OVERS_LABELED_RE = re.compile(r"OVERS?\s*[:\-]?\s*([0-9lI|Oo]{1,2}(?:\.[0-6lI|Oo])?)", re.IGNORECASE)
 _OVERS_BARE_RE = re.compile(r"\b([0-9lI|Oo]{1,2}\.[0-6lI|Oo])\b")
 _VISION_WARNED = False
@@ -207,30 +207,30 @@ def parse_center_box_text(
     if not joined.strip():
         return None
 
-    # 1. Batting team code from top-left token ("LVM v GSB", "LVMvr,", "LVMvG", ".GSB")
+    # 1. Batting team code from top-left token ("LVM v GSB", "LVMvr,", "LVMvG", ".GSB", "ALC")
     batting_code = ""
     for ln in lines:
         up = ln.upper()
-        if "CRR" in up or "OVER" in up or "/" in ln:
+        if "CRR" in up or "OVER" in up or re.match(r"^\W*RR\b", up):
             continue
-        if re.fullmatch(r"[\W0-9lI|Oo]+", ln):
+        if re.fullmatch(r"[\W0-9lI|Oo/]+", ln):
             continue
         m_team = _TEAM_VS_RE.search(ln)
         if m_team:
             batting_code = m_team.group(1).upper()
             break
         m_lead = _TEAM_LEADING_RE.search(ln)
-        if m_lead and m_lead.group(1) not in {"CRR", "OV", "OVR", "RUN"}:
+        if m_lead and m_lead.group(1) not in {"CRR", "RR", "OV", "OVR", "RUN"}:
             batting_code = m_lead.group(1).upper()
             break
 
-    # 2. Overs & CRR (used both for timeline and to verify slash-as-'1' scores!)
+    # 2. Overs & CRR/RR (used both for timeline and to verify slash-as-'1' scores!)
     overs_str = ""
     m_ov = _OVERS_LABELED_RE.search(joined)
     if m_ov:
         overs_str = _digits_fix(m_ov.group(1))
     else:
-        no_crr = re.sub(r"CRR\s*[:\-]?\s*[0-9lI|Oo]+(?:\.[0-9lI|Oo]*)?", "", joined, flags=re.IGNORECASE)
+        no_crr = re.sub(r"\bC?RR\s*[:\-]?\s*[0-9lI|Oo]+(?:\.[0-9lI|Oo]*)?", "", joined, flags=re.IGNORECASE)
         m_bare = _OVERS_BARE_RE.search(no_crr)
         if m_bare:
             overs_str = _digits_fix(m_bare.group(1))
@@ -277,9 +277,10 @@ def parse_center_box_text(
         best_cand: tuple[float, int, int] | None = None
         for ln in lines:
             up = ln.upper()
-            if "CRR" in up or "OVER" in up or "." in ln:
+            if "CRR" in up or "OVER" in up or "." in ln or re.match(r"^\W*RR\b", up):
                 continue
-            m_ns = _SCORE_NOSLASH_RE.match(ln.strip())
+            cleaned_ln = re.sub(r"^\W*[A-Z]{2,4}[\W|Il1]*\s+", "", ln.strip())
+            m_ns = _SCORE_NOSLASH_RE.match(cleaned_ln)
             if not m_ns:
                 continue
             digits = _digits_fix(m_ns.group(1))
@@ -387,8 +388,8 @@ def scan_video_ticker(
     if not changed_samples:
         return []
 
-    # Stage B: Single-threaded 8-crop batched Apple Vision Fast OCR (~2.2s per 8 crops;
-    # single-threaded avoids macOS CoreVideo/Metal multi-thread deadlock!)
+    # Stage B: Single-threaded 8-crop batched Apple Vision Accurate OCR (~2.3s per 8 crops;
+    # batched Accurate keeps ~285ms/crop speed while reading tiny white-on-red OVERS/RR text at ~99% accuracy)
     batch_size = 8
     batches = [changed_samples[i : i + batch_size] for i in range(0, len(changed_samples), batch_size)]
 
@@ -396,7 +397,7 @@ def scan_video_ticker(
     done_samples = 0
     for batch_idx, batch in enumerate(batches):
         crops = [item[1] for item in batch]
-        ocr_lists = ocr_batch_apple_vision(crops, fast=True, upscale=2, cols=4)
+        ocr_lists = ocr_batch_apple_vision(crops, fast=False, upscale=2, cols=4, trim_margin=0.02)
         for (ts_val, _), lines in zip(batch, ocr_lists):
             rd = parse_center_box_text(lines, video_part.index, ts_val)
             if rd is not None:
@@ -524,6 +525,76 @@ def segment_readings_by_innings(
     return {k: v for k, v in by_inn.items() if v}
 
 
+def _detect_scorer_undo_anchor(
+    inn_readings: list[TickerReading],
+    best_idx: int,
+    start_idx: int,
+    ball: BallEvent,
+    *,
+    min_delay_sec: float = 12.0,
+    max_lookback_sec: float = 240.0,
+) -> tuple[TickerReading, TickerReading | None] | None:
+    """Detect CricClubs live-scorer undo/re-entry lag for a matched delivery.
+
+    Example real-world pattern (Over 10.6 Likith SIX):
+      10511s: 89/4 (10.5)  <- true previous ball
+      10571s: 90/4 (11.0)  <- scorer accidentally entered 1 run for 10.6
+      10631s: 89/4 (10.5)  <- scorer undoes 10.6
+      10655s: 95/4 (11.0)  <- scorer re-enters 10.6 as a 6 (84s after first flip!)
+
+    Returns ``(first_entry, true_prev)`` if a delayed scorer correction is detected so the
+    aligner anchors near the real delivery instead of the late re-entry.
+    """
+    matched = inn_readings[best_idx]
+    target_r = ball.score_runs_after
+    target_w = ball.score_wickets_after
+    target_lb = ball.legal_balls_after
+    if target_lb <= 0:
+        return None
+
+    expected_pre_r = target_r - max(0, ball.total_runs_ball)
+    earliest_idx: int | None = None
+
+    for k in range(best_idx - 1, max(-1, start_idx - 1), -1):
+        cand = inn_readings[k]
+        if cand.video_index != matched.video_index:
+            break
+        dt = matched.timestamp_sec - cand.timestamp_sec
+        if dt > max_lookback_sec:
+            break
+        if dt < min_delay_sec:
+            continue
+
+        # Must have already reached this legal ball earlier with a different score/wicket state
+        if cand.legal_balls < target_lb:
+            continue
+        if cand.runs == target_r and cand.wickets == target_w:
+            continue
+
+        # Confirm this was an undo/correction rather than a valid pre-ball extra (wide/no-ball):
+        # either an explicit backward revert occurred between cand and matched, OR cand's score
+        # doesn't match the expected pre-ball total leading into matched.
+        has_explicit_undo = any(
+            (u.legal_balls > 0 and u.legal_balls < cand.legal_balls)
+            or u.runs < cand.runs
+            or u.wickets < cand.wickets
+            for u in inn_readings[k + 1 : best_idx]
+        )
+        if has_explicit_undo or cand.runs != expected_pre_r:
+            earliest_idx = k
+
+    if earliest_idx is None:
+        return None
+
+    first_entry = inn_readings[earliest_idx]
+    true_prev = (
+        inn_readings[earliest_idx - 1]
+        if earliest_idx > 0 and inn_readings[earliest_idx - 1].video_index == first_entry.video_index
+        else None
+    )
+    return first_entry, true_prev
+
+
 def align_highlights_to_readings(
     candidates: list[HighlightCandidate],
     readings: list[TickerReading],
@@ -546,6 +617,7 @@ def align_highlights_to_readings(
         b = cand.ball_event
         inn_readings = by_inn.get(b.innings_number, [])
         score_text = f"{b.batting_team} {b.score_runs_after}/{b.score_wickets_after} ({b.over_ball} ov)"
+        sel_reason = " • ".join(cand.selection_reasons)
 
         # Fast direct path when timestamps were already observed in Ticker-Only Mode
         if b.observed_flip_sec is not None:
@@ -575,6 +647,9 @@ def align_highlights_to_readings(
                     subtext=cand.subtext,
                     score_text=score_text,
                     priority=cand.priority,
+                    must_keep=cand.must_keep,
+                    player_key=cand.player_key,
+                    selection_reason=sel_reason,
                 )
             )
             continue
@@ -600,6 +675,9 @@ def align_highlights_to_readings(
                     score_text=score_text,
                     priority=cand.priority,
                     note=f"Innings {b.innings_number} not observed in video ticker.",
+                    must_keep=cand.must_keep,
+                    player_key=cand.player_key,
+                    selection_reason=sel_reason,
                 )
             )
             continue
@@ -666,6 +744,9 @@ def align_highlights_to_readings(
                                 f"Scorer bulk-entered overs ({prev_rd.runs}/{prev_rd.wickets} -> "
                                 f"{cur_rd.runs}/{cur_rd.wickets} at {cur_rd.timestamp_sec:.0f}s); disabled to avoid wrong clip."
                             ),
+                            must_keep=cand.must_keep,
+                            player_key=cand.player_key,
+                            selection_reason=sel_reason,
                         )
                     )
                     best_idx = -1
@@ -692,6 +773,9 @@ def align_highlights_to_readings(
                     score_text=score_text,
                     priority=cand.priority,
                     note=f"Over {b.over_ball} ({target_r}/{target_w}) not found in stream recording.",
+                    must_keep=cand.must_keep,
+                    player_key=cand.player_key,
+                    selection_reason=sel_reason,
                 )
             )
             continue
@@ -702,6 +786,21 @@ def align_highlights_to_readings(
         last_matched_idx[b.innings_number] = best_idx
         matched = inn_readings[best_idx]
         prev_rd = inn_readings[best_idx - 1] if best_idx > 0 else None
+        effective_flip_sec = matched.timestamp_sec
+        undo_note = ""
+
+        # Check for scorer undo / delayed re-entry (e.g. entered 1 run, undid 60s later, re-entered 6)
+        undo_hit = _detect_scorer_undo_anchor(inn_readings, best_idx, start_idx, b)
+        if undo_hit is not None:
+            first_entry, true_prev = undo_hit
+            effective_flip_sec = first_entry.timestamp_sec
+            prev_rd = true_prev
+            undo_note = (
+                f"Scorer undo/correction detected ({first_entry.runs}/{first_entry.wickets} at "
+                f"{first_entry.timestamp_sec:.0f}s -> {matched.runs}/{matched.wickets} at "
+                f"{matched.timestamp_sec:.0f}s); anchored to earlier flip."
+            )
+
         prev_ts = prev_rd.timestamp_sec if (prev_rd and prev_rd.video_index == matched.video_index) else None
 
         # Detect bulk jump directly onto the matched frame
@@ -717,7 +816,7 @@ def align_highlights_to_readings(
             if cand.event_type == "wicket"
             else config.boundary_default_offset_sec
         )
-        center_t = max(0.0, matched.timestamp_sec - default_offset)
+        center_t = max(0.0, effective_flip_sec - default_offset)
         half = cand.desired_duration_sec / 2.0
 
         clips.append(
@@ -725,9 +824,13 @@ def align_highlights_to_readings(
                 clip_id=clip_num,
                 enabled=not is_bulk,
                 status="bulk_jump" if is_bulk else ("ok" if best_score <= 0.5 else "low_confidence"),
-                confidence="low" if (is_bulk or best_score > 0.5) else ("medium" if cand.event_type == "wicket" else "high"),
+                confidence=(
+                    "low"
+                    if (is_bulk or best_score > 0.5)
+                    else ("medium" if (cand.event_type == "wicket" or undo_note) else "high")
+                ),
                 source_video_index=matched.video_index,
-                ticker_flip_sec=matched.timestamp_sec,
+                ticker_flip_sec=effective_flip_sec,
                 prev_ball_flip_sec=prev_ts,
                 start_sec=round(max(0.0, center_t - half), 2),
                 end_sec=round(center_t + half, 2),
@@ -742,8 +845,11 @@ def align_highlights_to_readings(
                 note=(
                     f"Bulk score jump detected ({prev_rd.runs}/{prev_rd.wickets} -> {matched.runs}/{matched.wickets}); verify before enabling."
                     if is_bulk and prev_rd
-                    else ""
+                    else undo_note
                 ),
+                must_keep=cand.must_keep,
+                player_key=cand.player_key,
+                selection_reason=sel_reason,
             )
         )
 

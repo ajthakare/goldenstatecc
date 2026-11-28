@@ -76,9 +76,10 @@ class ClubConfig:
 
     # Selection rules
     default_mode: str = "gscc-only"
-    max_duration_sec: float = 225.0
-    target_duration_sec: float = 180.0
-    intro_sec: float = 2.0
+    max_duration_sec: float = 178.0
+    derby_max_duration_sec: float = 240.0
+    target_duration_sec: float = 170.0
+    intro_sec: float = 2.9
     innings_break_sec: float = 2.8
     outro_sec: float = 5.5
     transition_sec: float = 0.0
@@ -95,13 +96,24 @@ class ClubConfig:
     priority_weights: dict[str, int] = field(
         default_factory=lambda: {
             "hundred": 100,
-            "winning_shot": 95,
-            "fifty": 90,
+            "winning_shot": 96,
+            "fifty": 92,
             "six": 80,
-            "wicket": 78,
+            "wicket": 80,
             "four": 55,
         }
     )
+    # Selection v2 fairness, drama & gentle-trim parameters
+    min_innings_share: float = 0.30
+    min_wicket_share: float = 0.25
+    min_wickets_for_floor: int = 4
+    first_player_bonus: int = 6
+    multi_shot_batter_first_bonus: int = 10
+    batter_diminishing_penalties: list[int] = field(default_factory=lambda: [0, 0, 0, -12, -22, -32])
+    squeeze_before_drop: bool = True
+    squeeze_max_overage_sec: float = 18.0
+    min_four_sec: float = 4.2
+    min_six_sec: float = 4.8
 
     # Sync / OCR rules
     coarse_sample_sec: float = 4.0
@@ -141,6 +153,10 @@ class ClubConfig:
     framing_mode: str = "auto"
     # Intro backdrop: 'blurred' (moody, legacy look) or 'sharp' (crisp action frame)
     intro_backdrop: str = "sharp"
+    # Fraction of the source frame height kept (from the top) behind the intro so the baked-in scoreboard is cropped out
+    intro_crop_top: float = 0.76
+    # Intro / innings break / full-time card engine: 'hyperframes' (animated, auto-falls back) or 'pillow' (static)
+    card_engine: str = "hyperframes"
     card_reveal_delay_sec: float = 0.8
     card_slide_sec: float = 0.32
     export_cover_jpg: bool = True
@@ -235,6 +251,7 @@ def load_config(config_path: Path | str | None = None) -> ClubConfig:
         output_dir=Path(paths.get("output_dir", defaults.output_dir)),
         default_mode=sel.get("default_mode", defaults.default_mode),
         max_duration_sec=float(sel.get("max_duration_sec", defaults.max_duration_sec)),
+        derby_max_duration_sec=float(sel.get("derby_max_duration_sec", defaults.derby_max_duration_sec)),
         target_duration_sec=float(sel.get("target_duration_sec", defaults.target_duration_sec)),
         intro_sec=float(sel.get("intro_sec", defaults.intro_sec)),
         innings_break_sec=float(sel.get("innings_break_sec", defaults.innings_break_sec)),
@@ -244,6 +261,20 @@ def load_config(config_path: Path | str | None = None) -> ClubConfig:
         or defaults.clip_durations,
         priority_weights={k: int(v) for k, v in sel.get("priority_weights", {}).items()}
         or defaults.priority_weights,
+        min_innings_share=float(sel.get("min_innings_share", defaults.min_innings_share)),
+        min_wicket_share=float(sel.get("min_wicket_share", defaults.min_wicket_share)),
+        min_wickets_for_floor=int(sel.get("min_wickets_for_floor", defaults.min_wickets_for_floor)),
+        first_player_bonus=int(sel.get("first_player_bonus", defaults.first_player_bonus)),
+        multi_shot_batter_first_bonus=int(
+            sel.get("multi_shot_batter_first_bonus", defaults.multi_shot_batter_first_bonus)
+        ),
+        batter_diminishing_penalties=[
+            int(x) for x in sel.get("batter_diminishing_penalties", defaults.batter_diminishing_penalties)
+        ],
+        squeeze_before_drop=bool(sel.get("squeeze_before_drop", defaults.squeeze_before_drop)),
+        squeeze_max_overage_sec=float(sel.get("squeeze_max_overage_sec", defaults.squeeze_max_overage_sec)),
+        min_four_sec=float(sel.get("min_four_sec", defaults.min_four_sec)),
+        min_six_sec=float(sel.get("min_six_sec", defaults.min_six_sec)),
         coarse_sample_sec=float(sync.get("coarse_sample_sec", defaults.coarse_sample_sec)),
         pixel_diff_threshold=float(sync.get("pixel_diff_threshold", defaults.pixel_diff_threshold)),
         bulk_jump_max_balls=int(sync.get("bulk_jump_max_balls", defaults.bulk_jump_max_balls)),
@@ -279,6 +310,8 @@ def load_config(config_path: Path | str | None = None) -> ClubConfig:
         safe_right_x=int(render.get("safe_right_x", defaults.safe_right_x)),
         framing_mode=str(render.get("framing_mode", defaults.framing_mode)),
         intro_backdrop=str(render.get("intro_backdrop", defaults.intro_backdrop)),
+        intro_crop_top=float(render.get("intro_crop_top", defaults.intro_crop_top)),
+        card_engine=str(render.get("card_engine", defaults.card_engine)),
         card_reveal_delay_sec=float(render.get("card_reveal_delay_sec", defaults.card_reveal_delay_sec)),
         card_slide_sec=float(render.get("card_slide_sec", defaults.card_slide_sec)),
         export_cover_jpg=bool(render.get("export_cover_jpg", defaults.export_cover_jpg)),

@@ -13,11 +13,13 @@ from rich.console import Console
 from rich.table import Table
 
 from gscc_highlights.audio import list_music_tracks, prompt_music_choice, resolve_music_path
+from gscc_highlights.captions import write_caption
 from gscc_highlights.clip_refiner import refine_clips
 from gscc_highlights.config import ClubConfig, load_config
 from gscc_highlights.filmstrip import generate_all_filmstrips
 from gscc_highlights.framing import resolve_framing, set_manual_framing
 from gscc_highlights.models import BallEvent, MatchInfo, ProjectManifest, TickerReading
+from gscc_highlights.paths import consolidate, guard_output_path, resolve_match_dir, stray_warning
 from gscc_highlights.ncca_parser import (
     NCCA_MANUAL_INSTRUCTIONS,
     NccaCloudflareBlockedError,
@@ -26,7 +28,11 @@ from gscc_highlights.ncca_parser import (
 )
 from gscc_highlights.preview import generate_preview_sheet
 from gscc_highlights.renderer import render_reel
-from gscc_highlights.selector import extract_highlight_candidates, select_highlights_for_budget
+from gscc_highlights.selector import (
+    effective_max_duration_sec,
+    enforce_budget_on_clips,
+    extract_highlight_candidates,
+)
 from gscc_highlights.ticker_locator import TickerBoxes, locate_ticker
 from gscc_highlights.ticker_ocr import (
     align_highlights_to_readings,
@@ -68,6 +74,7 @@ def _print_clips_table(
     table.add_column("Badge", style="yellow")
     table.add_column("Window (s)", justify="right")
     table.add_column("Dur", justify="right")
+    table.add_column("Score / Why")
     table.add_column("Headline")
 
     enabled_clips = [c for c in manifest.clips if c.enabled]
@@ -77,6 +84,9 @@ def _print_clips_table(
 
     for c in manifest.clips:
         win = f"{c.start_sec:.1f}-{c.end_sec:.1f}" if c.status != "missing_in_video" else "MISSING"
+        star = "*" if c.must_keep else ""
+        why = c.selection_reason or (c.note[:42] if c.note and not c.enabled else "")
+        score_why = f"{c.priority}{star}" + (f" • {why}" if why else "")
         table.add_row(
             str(c.clip_id),
             "YES" if c.enabled else "no",
@@ -85,15 +95,29 @@ def _print_clips_table(
             c.badge,
             win,
             f"{c.duration_sec:.1f}s",
+            score_why,
             c.headline,
         )
     console.print(table)
     est = enabled_total + intro + break_dur + outro
     break_str = f" + break {break_dur:.1f}s" if break_dur > 0 else ""
+    inn1 = [c for c in enabled_clips if c.innings_number == 1]
+    inn2 = [c for c in enabled_clips if c.innings_number == 2]
+    wkts = sum(1 for c in enabled_clips if c.event_type == "wicket")
+    cut_cnt = sum(1 for c in manifest.clips if c.status == "cut_for_budget")
     console.print(
         f"[bold]Estimated reel length:[/bold] {est:.1f}s "
         f"(intro {intro:.1f}s + {len(enabled_clips)} clips{break_str} + outro {outro:.1f}s, cap {max_dur:.0f}s)"
     )
+    parts = []
+    if inn1:
+        parts.append(f"Inn 1: {len(inn1)} ({sum(c.duration_sec for c in inn1):.1f}s)")
+    if inn2:
+        parts.append(f"Inn 2: {len(inn2)} ({sum(c.duration_sec for c in inn2):.1f}s)")
+    parts.append(f"Wickets: {wkts}")
+    if cut_cnt:
+        parts.append(f"Cut for budget: {cut_cnt} (use `tweak --enable <id>` to restore)")
+    console.print(f"[dim]Balance: {'  •  '.join(parts)}[/dim]")
 
 
 def _prompt_ncca_fallback(
@@ -282,17 +306,46 @@ def _run_prepare(args: argparse.Namespace) -> tuple[Path, ProjectManifest]:
             match_info.title = args.title
 
     mode = args.mode or ("both" if match_info.is_derby else cfg.default_mode)
+    cap_sec = effective_max_duration_sec(cfg, is_derby=match_info.is_derby, override=args.max_duration)
     candidates = extract_highlight_candidates(match_info, balls, cfg, mode=mode)
-    selected = select_highlights_for_budget(candidates, cfg, max_duration_sec=args.max_duration)
 
+    # Align ALL candidates first (in-memory) so missing/bulk-jump balls never steal budget from real clips!
+    clips = align_highlights_to_readings(candidates, all_readings, match_info, cfg)
+    kept_pre, trimmed_pre, cut_pre = enforce_budget_on_clips(
+        clips,
+        cfg,
+        max_duration_sec=cap_sec,
+        is_derby=match_info.is_derby,
+        mutate=True,
+    )
+    derby_note = " (GSCC derby cap)" if (match_info.is_derby and args.max_duration is None) else ""
     console.print(
         f"[bold]Found {len(candidates)} qualifying highlights ({mode}); "
-        f"selected {len(selected)} within <= {args.max_duration or cfg.max_duration_sec:.0f}s cap.[/bold]"
+        f"selected {len(kept_pre)} in-video clips within <= {cap_sec:.0f}s{derby_note}"
+        + (f" ({len(cut_pre)} saved as cut_for_budget)" if cut_pre else "")
+        + (f" (gently trimmed {len(trimmed_pre)} boundary clips)" if trimmed_pre else "")
+        + ".[/bold]"
     )
 
-    clips = align_highlights_to_readings(selected, all_readings, match_info, cfg)
     console.print("[bold]Refining exact delivery & cheer timing (compensating for live scorer lag)...[/bold]")
-    clips = refine_clips(clips, video_parts, boxes_by_video, cfg)
+    refine_clips([c for c in clips if c.enabled], video_parts, boxes_by_video, cfg)
+
+    # Post-refinement budget check (in case refined clips slightly exceed cap -> gentle trim first!)
+    kept_post, trimmed_post, cut_post = enforce_budget_on_clips(
+        clips,
+        cfg,
+        max_duration_sec=cap_sec,
+        is_derby=match_info.is_derby,
+        mutate=True,
+    )
+    if trimmed_post:
+        console.print(
+            f"[cyan]Gently trimmed {len(trimmed_post)} boundary clip(s) post-refinement to stay under {cap_sec:.0f}s.[/cyan]"
+        )
+    if cut_post:
+        console.print(
+            f"[yellow]Cut {len(cut_post)} additional clip(s) post-refinement to stay under {cap_sec:.0f}s.[/yellow]"
+        )
 
     manifest = ProjectManifest(
         version=1,
@@ -308,7 +361,7 @@ def _run_prepare(args: argparse.Namespace) -> tuple[Path, ProjectManifest]:
     preview_path = generate_preview_sheet(manifest, match_dir / "preview_sheet.jpg", cfg)
     _print_clips_table(
         manifest,
-        args.max_duration or cfg.max_duration_sec,
+        cap_sec,
         cfg.intro_sec,
         cfg.outro_sec,
         cfg.innings_break_sec,
@@ -324,15 +377,19 @@ def _cmd_prepare(args: argparse.Namespace) -> int:
 
 
 def _resolve_match_dir(raw_arg: str, cfg: ClubConfig) -> Path:
-    """Resolve a match workspace from an explicit path, relative path, or bare match slug."""
-    p = Path(raw_arg).expanduser()
-    if p.exists():
-        return p.resolve()
-    # Allow bare slug (e.g. 'gscc_bulls_vs_livermore_monks') or 'workspace/<slug>' shorthand
-    cand = cfg.workspace_root / p.name
-    if cand.exists():
-        return cand.resolve()
-    return p.resolve()
+    """Resolve a match workspace (canonical utils/social/workspace/<slug> unless an existing explicit path is given)."""
+    path, warn = resolve_match_dir(raw_arg, cfg)
+    if warn:
+        console.print(f"[yellow]{warn}[/yellow]")
+    return path
+
+
+def _guarded_output(raw: str | None, cfg: ClubConfig) -> Path | None:
+    """Keep every reel in the single output folder (redirects stray in-repo output paths)."""
+    path, warn = guard_output_path(cfg, raw)
+    if warn:
+        console.print(f"[yellow]{warn}[/yellow]")
+    return path
 
 
 def _cmd_tweak(args: argparse.Namespace) -> int:
@@ -367,11 +424,26 @@ def _cmd_tweak(args: argparse.Namespace) -> int:
     for cid in args.drop or []:
         clip_map[int(cid)].enabled = False
 
+    newly_enabled_cut = []
     for cid in args.enable or []:
         c = clip_map[int(cid)]
+        was_cut = c.status == "cut_for_budget"
         c.enabled = True
-        if c.status == "bulk_jump":
+        if c.status in {"bulk_jump", "cut_for_budget"}:
             c.status = "ok"
+        if was_cut:
+            if c.selection_reason.startswith("Cut:"):
+                c.selection_reason = ""
+            elif " • Cut:" in c.selection_reason:
+                c.selection_reason = c.selection_reason.split(" • Cut:", 1)[0]
+            if c.ticker_flip_sec is not None:
+                newly_enabled_cut.append(c)
+
+    if newly_enabled_cut:
+        existing_parts = [vp for vp in manifest.video_parts if Path(vp.local_path).exists()]
+        if existing_parts:
+            console.print(f"[cyan]Refining {len(newly_enabled_cut)} restored clip(s)...[/cyan]")
+            refine_clips(newly_enabled_cut, existing_parts, {}, cfg)
 
     for item in args.headline or []:
         cid_s, text = item.split("=", 1)
@@ -409,8 +481,57 @@ def _cmd_tweak(args: argparse.Namespace) -> int:
 
     manifest.save(clips_json)
     preview_path = generate_preview_sheet(manifest, match_dir / "preview_sheet.jpg", cfg)
-    _print_clips_table(manifest, cfg.max_duration_sec, cfg.intro_sec, cfg.outro_sec, cfg.innings_break_sec)
+    cap_sec = effective_max_duration_sec(cfg, is_derby=manifest.match_info.is_derby)
+    _print_clips_table(manifest, cap_sec, cfg.intro_sec, cfg.outro_sec, cfg.innings_break_sec)
     console.print(f"[green]Updated {clips_json} and refreshed {preview_path}[/green]")
+    return 0
+
+
+def _cmd_reselect(args: argparse.Namespace) -> int:
+    """Re-run Selection v2 on an existing workspace's clips.json (e.g. for a 90s or 178s cut)."""
+    cfg = load_config(args.config)
+    match_dir = _resolve_match_dir(args.match_dir, cfg)
+    clips_json = match_dir / "clips.json"
+    manifest = ProjectManifest.load(clips_json)
+
+    prev_cut_ids = {c.clip_id for c in manifest.clips if c.status == "cut_for_budget"}
+    cap_sec = effective_max_duration_sec(
+        cfg,
+        is_derby=manifest.match_info.is_derby,
+        override=args.max_duration,
+    )
+    kept, trimmed, cut = enforce_budget_on_clips(
+        manifest.clips,
+        cfg,
+        max_duration_sec=cap_sec,
+        is_derby=manifest.match_info.is_derby,
+        include_cut_for_budget=True,
+        mutate=True,
+    )
+
+    restored = [c for c in kept if c.clip_id in prev_cut_ids and c.ticker_flip_sec is not None]
+    if restored:
+        existing_parts = [vp for vp in manifest.video_parts if Path(vp.local_path).exists()]
+        if existing_parts:
+            console.print(f"[cyan]Refining {len(restored)} restored clip(s)...[/cyan]")
+            refine_clips(restored, existing_parts, {}, cfg)
+            # Re-verify cap after refining restored clips
+            kept, trimmed, cut = enforce_budget_on_clips(
+                manifest.clips,
+                cfg,
+                max_duration_sec=cap_sec,
+                is_derby=manifest.match_info.is_derby,
+                include_cut_for_budget=False,
+                mutate=True,
+            )
+
+    manifest.save(clips_json)
+    preview_path = generate_preview_sheet(manifest, match_dir / "preview_sheet.jpg", cfg)
+    _print_clips_table(manifest, cap_sec, cfg.intro_sec, cfg.outro_sec, cfg.innings_break_sec)
+    console.print(
+        f"[green]Reselected {len(kept)} clips for <= {cap_sec:.0f}s "
+        f"(gently trimmed {len(trimmed)}, cut {len(cut)}) -> {clips_json} & {preview_path}[/green]"
+    )
     return 0
 
 
@@ -442,7 +563,7 @@ def _cmd_render(args: argparse.Namespace) -> int:
     match_dir = _resolve_match_dir(args.match_dir, cfg)
     manifest = ProjectManifest.load(match_dir / "clips.json")
 
-    out_path = Path(args.output).expanduser().resolve() if args.output else None
+    out_path = _guarded_output(args.output, cfg)
     hq_enabled = getattr(args, "hq", True)
     hq_url = getattr(args, "hq_url", None)
     cookies = getattr(args, "cookies_from_browser", None)
@@ -465,12 +586,16 @@ def _cmd_render(args: argparse.Namespace) -> int:
     stem = final_mp4.stem[:-5] if final_mp4.stem.endswith("_reel") else final_mp4.stem
     cover_jpg = final_mp4.with_name(f"{stem}_cover.jpg")
     cover_line = f"\n  Cover JPG:  {cover_jpg}" if cover_jpg.exists() else ""
+    cap_sec = effective_max_duration_sec(cfg, is_derby=manifest.match_info.is_derby)
     console.print(
         f"\n[bold green]Reel ready![/bold green] {final_mp4}\n"
         f"  Resolution: {probed.width}x{probed.height} @ {probed.fps:.0f}fps\n"
-        f"  Duration:   {probed.duration_sec:.1f}s (<= {cfg.max_duration_sec:.0f}s)\n"
+        f"  Duration:   {probed.duration_sec:.1f}s (<= {cap_sec:.0f}s)\n"
         f"  Size:       {size_mb:.1f} MB{cover_line}"
     )
+
+    caption_path = write_caption(manifest, cfg, final_mp4)
+    console.print(f"  Caption:    {caption_path}")
 
     if args.cleanup:
         for vp in manifest.video_parts:
@@ -478,6 +603,35 @@ def _cmd_render(args: argparse.Namespace) -> int:
             if p.parent == match_dir and p.name.startswith("source_part_"):
                 p.unlink(missing_ok=True)
                 console.print(f"  Cleaned raw source: {p.name}")
+    return 0
+
+
+def _cmd_caption(args: argparse.Namespace) -> int:
+    """(Re)write the Instagram caption + hashtags for a match without re-rendering."""
+    cfg = load_config(args.config)
+    match_dir = _resolve_match_dir(args.match_dir, cfg)
+    manifest = ProjectManifest.load(match_dir / "clips.json")
+    out = _guarded_output(args.output, cfg) or cfg.output_root / f"{manifest.match_info.slug}_reel.mp4"
+    path = write_caption(manifest, cfg, out)
+    console.print(path.read_text(encoding="utf-8"))
+    console.print(f"[bold green]Saved:[/bold green] {path}")
+    return 0
+
+
+def _cmd_consolidate(args: argparse.Namespace) -> int:
+    """Merge stray workspace/ + output/ folders into the single canonical ones (dry-run unless --apply)."""
+    cfg = load_config(args.config)
+    plan, conflicts = consolidate(cfg, apply=bool(args.apply))
+    if not plan and not conflicts:
+        console.print(f"[green]Nothing to do: only {cfg.workspace_root} and {cfg.output_root} exist.[/green]")
+        return 0
+    verb = "Moved" if args.apply else "Would move"
+    for src, dst in plan:
+        console.print(f"  {verb}: {src}  ->  {dst}")
+    for c in conflicts:
+        console.print(f"  [yellow]Conflict (left in place, canonical copy kept): {c}[/yellow]")
+    if not args.apply:
+        console.print("\n[bold]Dry-run only.[/bold] Re-run with --apply once no render/prepare is running.")
     return 0
 
 
@@ -535,7 +689,7 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--music", default=None, help="Music track name in assets/music/, custom audio file path, or 'none'")
         sp.add_argument("--start-time", type=float, default=None, help="Override scan start offset in seconds")
         sp.add_argument("--ticker-box", default=None, help="Manual center scorebox override 'x,y,w,h'")
-        sp.add_argument("--max-duration", type=float, default=None, help="Override max reel duration (default 225s / 3m45s)")
+        sp.add_argument("--max-duration", type=float, default=None, help="Override max reel duration (default 178s; 240s on GSCC derbies)")
         sp.add_argument("--title", default=None, help="Override match title shown on intro/header")
         sp.add_argument("--cookies-from-browser", default=None, help="Browser name for yt-dlp cookies (e.g. chrome, safari)")
         sp.add_argument("--non-interactive", action="store_true", help="Skip interactive music prompt (uses --music or default)")
@@ -581,6 +735,11 @@ def build_parser() -> argparse.ArgumentParser:
     sp_tweak.add_argument("--music", default=None, help="Change music choice")
     sp_tweak.set_defaults(func=_cmd_tweak)
 
+    sp_resel = sub.add_parser("reselect", help="Re-run Selection v2 on an existing workspace (e.g. --max-duration 90 or 178)")
+    sp_resel.add_argument("match_dir", help="Match slug or path to workspace/<match_slug>")
+    sp_resel.add_argument("--max-duration", type=float, default=None, help="Target max duration in seconds (default 178s; 240s on GSCC derbies)")
+    sp_resel.set_defaults(func=_cmd_reselect)
+
     sp_ren = sub.add_parser("render", help="Render 9:16 Instagram Reel MP4 from workspace/<match_slug>/clips.json")
     sp_ren.add_argument("match_dir", help="Path to workspace/<match_slug> directory")
     sp_ren.add_argument("--music", default=None, help="Override music track / custom path / 'none'")
@@ -625,6 +784,15 @@ def build_parser() -> argparse.ArgumentParser:
     sp_fr.add_argument("--center", type=float, default=None, help="Manual crop centre 0..1 of source width (0.5 = middle)")
     sp_fr.set_defaults(func=_cmd_framing)
 
+    sp_cap = sub.add_parser("caption", help="Write the Instagram caption + hashtags (<slug>_caption.txt) without re-rendering")
+    sp_cap.add_argument("match_dir", help="Match slug or path to workspace/<match_slug>")
+    sp_cap.add_argument("--output", default=None, help="Reel MP4 path the caption should sit next to (default: output/<slug>_reel.mp4)")
+    sp_cap.set_defaults(func=_cmd_caption)
+
+    sp_con = sub.add_parser("consolidate", help="Merge stray workspace/ and output/ folders into utils/social/workspace and utils/social/output (dry-run unless --apply)")
+    sp_con.add_argument("--apply", action="store_true", help="Actually move files (default is a dry-run)")
+    sp_con.set_defaults(func=_cmd_consolidate)
+
     sp_mus = sub.add_parser("music", help="List available music tracks in assets/music/")
     sp_mus.set_defaults(func=_cmd_music)
 
@@ -634,6 +802,13 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.func is not _cmd_consolidate:
+        try:
+            warning = stray_warning(load_config(args.config))
+        except Exception:  # never let a guard break a render
+            warning = None
+        if warning:
+            console.print(f"[bold yellow]{warning}[/bold yellow]")
     return int(args.func(args))
 
 

@@ -586,6 +586,10 @@ ls netlify/functions/ | grep -E "(check|fix|debug|migrate)"
 
 For questions or issues, contact: gsbengalsinc@gmail.com
 
+## Social highlight reels (`utils/social/`)
+
+- Match workspaces live ONLY in `utils/social/workspace/<match_slug>/` and rendered reels/covers/captions ONLY in `utils/social/output/` (both gitignored). Never create another `workspace/` or `output/` folder (repo root, `utils/`, `highlight-reel/`, cwd). Use bare `<match_slug>` with the `gscc-highlights` CLI; `gscc-highlights consolidate` merges strays. See `.agent/skills/gscc-highlights/SKILL.md`.
+
 ---
 
 **Last Updated:** October 2026

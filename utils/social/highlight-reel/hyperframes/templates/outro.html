@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <script src="assets/gsap.min.js"></script>
+    <style>
+/*__COMMON_CSS__*/
+      #stack { position: absolute; left: 0; top: 226px; width: 1080px; display: flex; flex-direction: column; align-items: center; }
+      #stack > * { flex: none; }
+      #o-crests { height: 118px; }
+      #o-pill { margin-top: 22px; }
+      #o-head { margin-top: 26px; font-weight: 900; letter-spacing: -0.01em; white-space: nowrap; text-align: center; line-height: 1.08; }
+      #o-ctx { margin-top: 10px; font-weight: 500; color: rgba(250, 247, 242, 0.88); white-space: nowrap; }
+      #o-meta { margin-top: 8px; font-weight: 500; color: var(--muted-text); white-space: nowrap; }
+      #o-board { margin-top: 28px; margin-left: -114px; width: 846px; overflow: hidden; }
+      .orow { height: 146px; position: relative; display: flex; align-items: center; padding: 0 34px 0 30px; }
+      .orow + .orow { border-top: 1px solid rgba(201, 162, 39, 0.25); }
+      .orow .winbar { position: absolute; left: 0; top: 16px; bottom: 16px; width: 8px; }
+      .orow .crest { width: 76px; height: 76px; display: flex; align-items: center; justify-content: center; margin-right: 24px; flex: none; }
+      .orow .crest img { max-width: 76px; max-height: 76px; }
+      .orow .nm { flex: 1; font-weight: 800; white-space: nowrap; }
+      .orow .win { font-size: 18px; font-weight: 800; letter-spacing: 0.17em; margin-top: 8px; }
+      .orow .sc { text-align: right; flex: none; }
+      .orow .sc .big { font-size: 76px; font-weight: 900; line-height: 1; }
+      .orow .sc .sub { font-size: 22px; font-weight: 600; color: var(--muted-text); margin-top: 10px; }
+      #o-potm { margin-top: 24px; margin-left: -114px; width: 846px; }
+      .potm-big { height: 68px; display: flex; align-items: center; padding: 0 16px; border-radius: 16px; border: 2px solid rgba(212, 175, 55, 0.7); background: rgba(22, 18, 17, 0.92); }
+      .potm-big .lbl { padding: 0 14px; height: 38px; display: flex; align-items: center; border-radius: 10px; background: var(--gold-soft); color: #14100e; font-size: 19px; font-weight: 900; letter-spacing: 0.1em; margin-right: 22px; white-space: nowrap; }
+      .potm-big .who { font-size: 32px; font-weight: 800; white-space: nowrap; }
+      .potm-small { font-size: 21px; font-weight: 600; color: var(--muted-text); letter-spacing: 0.1em; padding-left: 4px; }
+      .potm-small b { color: rgba(250, 247, 242, 0.92); font-weight: 600; letter-spacing: 0.02em; margin-left: 10px; }
+      #o-stand-h { margin-top: 24px; margin-left: -110px; width: 846px; font-size: 22px; font-weight: 800; letter-spacing: 0.25em; color: var(--gold-soft); }
+      #o-stand { margin-top: 14px; margin-left: -114px; width: 846px; padding: 6px 0; overflow: hidden; border-radius: 22px; }
+      .srow { height: 80px; display: flex; align-items: center; padding: 0 28px 0 24px; }
+      .srow + .srow { border-top: 1px solid rgba(201, 162, 39, 0.2); }
+      .srow .tag { width: 92px; height: 36px; font-size: 19px; margin-right: 24px; }
+      .srow .nm { flex: 1; font-size: 34px; font-weight: 700; white-space: nowrap; }
+      .srow .st { font-size: 32px; font-weight: 800; color: var(--gold-soft); white-space: nowrap; }
+      #foot { top: 1418px; font-size: 23px; color: var(--gold-soft); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="__DURATION__" data-width="1080" data-height="1920">
+      <div id="bgbase" class="layer bg-outro clip" data-start="0" data-duration="__DURATION__" data-track-index="0"></div>
+      <div id="stack" class="clip" data-start="0" data-duration="__DURATION__" data-track-index="1">
+        <div id="o-crests"></div>
+        <div id="o-pill"><span class="pill-gold" id="o-pilltxt"></span></div>
+        <div id="o-head"></div>
+        <div id="o-ctx"></div>
+        <div id="o-meta"></div>
+        <div id="o-board" class="panel"></div>
+        <div id="o-potm"></div>
+        <div id="o-stand-h"></div>
+        <div id="o-stand" class="panel"></div>
+      </div>
+      <div id="foot" class="abs foot clip" data-start="0" data-duration="__DURATION__" data-track-index="2"></div>
+    </div>
+    <script>
+/*__CARD_DATA__*/
+/*__COMMON_JS__*/
+      const D = C.duration;
+      $("o-crests").appendChild(crestImgs(C.crests, 118));
+      $("o-pilltxt").textContent = C.status;
+
+      const head = $("o-head");
+      head.textContent = C.headline;
+      const hs = fit(head, 940, 88, 40);
+      if (head.scrollWidth > 940) { head.style.whiteSpace = "normal"; head.style.width = "940px"; }
+      const ctx = $("o-ctx");
+      if (C.context) { ctx.textContent = C.context; fit(ctx, 900, 27, 19); } else ctx.style.display = "none";
+      const meta = $("o-meta");
+      if (C.meta) { meta.textContent = C.meta; fit(meta, 860, 23, 17); } else meta.style.display = "none";
+
+      const board = $("o-board");
+      C.innings.forEach((inn) => {
+        const row = el("div", "orow");
+        if (inn.winner) {
+          const wb = el("div", "winbar"); wb.style.background = inn.gscc ? "var(--gold-soft)" : "var(--crimson-signal)";
+          row.appendChild(wb);
+        }
+        const crest = el("div", "crest");
+        if (inn.logo) { const im = el("img"); im.src = inn.logo; crest.appendChild(im); }
+        else {
+          const m = monogram(inn.initials, 76, 26);
+          if (inn.gscc) { m.style.background = "var(--maroon-dark)"; }
+          crest.appendChild(m);
+        }
+        row.appendChild(crest);
+        const nmWrap = el("div", "nm");
+        const nm = el("div", "", esc(inn.team));
+        nm.style.cssText = "font-size:36px;font-weight:800;color:" + (inn.gscc ? "var(--gold-soft)" : "var(--pure-white)");
+        nmWrap.appendChild(nm);
+        if (inn.winner) {
+          const w = el("div", "win", "WINNER");
+          w.style.color = inn.gscc ? "var(--gold-accent)" : "var(--crimson-signal)";
+          nmWrap.appendChild(w);
+        }
+        row.appendChild(nmWrap);
+        const sc = el("div", "sc");
+        const big = el("div", "big", esc(inn.score));
+        big.style.color = inn.gscc ? "var(--gold-soft)" : "var(--pure-white)";
+        sc.appendChild(big);
+        sc.appendChild(el("div", "sub", esc(inn.sub)));
+        row.appendChild(sc);
+        board.appendChild(row);
+      });
+
+      const potm = $("o-potm");
+      if (C.potm) {
+        if (C.potm.prominent) {
+          const b = el("div", "potm-big");
+          b.appendChild(el("div", "lbl", "PLAYER OF THE MATCH"));
+          const who = el("div", "who", esc(C.potm.name)); b.appendChild(who);
+          potm.appendChild(b);
+        } else {
+          potm.appendChild(el("div", "potm-small", "PLAYER OF THE MATCH:<b>" + esc(C.potm.name) + "</b>"));
+        }
+      } else potm.style.display = "none";
+
+      const stand = $("o-stand");
+      if (C.standouts && C.standouts.length) {
+        $("o-stand-h").textContent = "GSCC STANDOUTS";
+        C.standouts.forEach((s) => {
+          const row = el("div", "srow");
+          row.appendChild(el("div", "tag " + (s.role === "BOWL" ? "tag-bowl" : "tag-bat"), esc(s.role)));
+          row.appendChild(el("div", "nm", esc(s.name)));
+          if (s.stat) row.appendChild(el("div", "st", esc(s.stat)));
+          stand.appendChild(row);
+        });
+      } else { $("o-stand-h").style.display = "none"; stand.style.display = "none"; }
+      $("foot").innerHTML = "FOLLOW " + esc(C.handle) + " &nbsp;•&nbsp; " + esc(C.website);
+      // Guarantee clean breathing room below the stack while staying inside IG safe_bottom_y (1480px)
+      const stack = $("stack");
+      const stackBottom = stack.offsetTop + stack.offsetHeight;
+      $("foot").style.top = Math.min(1448, Math.max(1414, Math.round(stackBottom + 34))) + "px";
+
+      const tl = gsap.timeline({ paused: true });
+      tl.fromTo("#o-crests", { opacity: 0, scale: 0.75 }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(1.6)" }, 0.0);
+      tl.fromTo("#o-pill", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.35, ease: "power3.out" }, 0.15);
+      tl.fromTo("#o-head", { opacity: 0, scale: 0.85 }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(1.5)" }, 0.3);
+      tl.fromTo("#o-ctx", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.35, ease: "power3.out" }, 0.55);
+      tl.fromTo("#o-meta", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.35, ease: "power3.out" }, 0.62);
+      tl.fromTo("#o-board", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 0.75);
+      tl.fromTo("#o-potm", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 1.15);
+      tl.fromTo("#o-stand-h", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power2.out" }, 1.25);
+      tl.fromTo("#o-stand", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 1.3);
+      tl.fromTo("#foot", { opacity: 0 }, { opacity: 1, duration: 0.4, ease: "power2.out" }, 1.6);
+      finish(tl, D);
+    </script>
+  </body>
+</html>

@@ -63,15 +63,17 @@ def render_clip_filmstrip(
     t_flip = clip.ticker_flip_sec if clip.ticker_flip_sec is not None else clip.end_sec
 
     if win_start is None or win_end is None:
+        has_undo = "scorer undo/correction" in (clip.note or "").lower()
+        tail_pad = 18.0 if has_undo else 1.0
         if clip.event_type == "wicket":
             default_span = 70.0
-            end_t = min(video_duration - 0.2, t_flip + 1.0)
+            end_t = min(video_duration - 0.2, t_flip + tail_pad)
             # Scorers often take 45-65s on wickets (Out -> Type -> Fielder -> New Batter)
-            start_t = max(0.0, end_t - default_span)
+            start_t = max(0.0, t_flip - (default_span - 1.0))
         else:
             default_span = 36.0
-            end_t = min(video_duration - 0.2, t_flip + 1.0)
-            start_t = max(0.0, end_t - default_span)
+            end_t = min(video_duration - 0.2, t_flip + tail_pad)
+            start_t = max(0.0, t_flip - (default_span - 1.0))
     else:
         start_t = max(0.0, win_start)
         end_t = min(video_duration - 0.2, max(start_t + 1.0, win_end))

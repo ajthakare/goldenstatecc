@@ -16,9 +16,11 @@ from gscc_highlights.framing import (
     build_layout,
     resolve_framing,
 )
+from gscc_highlights import hf_cards
 from gscc_highlights.models import ClipSpec, MatchInfo, ProjectManifest, VideoPart
 from gscc_highlights.overlays import (
     derive_standout_performers,
+    render_clip_backdrop,
     render_clip_lower_card,
     render_clip_top_overlay,
     render_innings_break_card,
@@ -28,7 +30,7 @@ from gscc_highlights.overlays import (
 )
 from gscc_highlights.video_io import get_ffmpeg_paths, probe_video, resolve_hq_stream_url
 
-OVERLAY_SCHEMA_VERSION = "v2.2"
+OVERLAY_SCHEMA_VERSION = "v4.0"
 
 
 def _supports_videotoolbox(ffmpeg: str) -> bool:
@@ -78,6 +80,68 @@ def _pick_teaser_clip(clips: list[ClipSpec], part_map: dict[int, VideoPart]) -> 
         return None, None
     best = max(candidates, key=lambda c: (c.priority, c.duration_sec, c.innings_number, c.clip_id))
     return best, part_map[best.source_video_index]
+
+
+def _finalize_card_segment(ffmpeg: str, raw_mp4: Path, out_mp4: Path, duration_sec: float, config: ClubConfig) -> Path:
+    """Re-encode a silent HyperFrames render with the same codec params + silent AAC as every other segment."""
+    if out_mp4.exists() and out_mp4.stat().st_size > 20_000:
+        return out_mp4
+    base = [
+        ffmpeg, "-y", "-loglevel", "error",
+        "-i", str(raw_mp4),
+        "-f", "lavfi", "-t", f"{duration_sec:.2f}", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
+        "-map", "0:v:0", "-map", "1:a:0",
+        "-vf", f"scale={config.width}:{config.height},fps={config.fps},format=yuv420p",
+        "-shortest",
+    ]
+    audio_out = ["-c:a", "aac", "-b:a", config.audio_bitrate, "-ar", "48000", "-ac", "2", "-movflags", "+faststart", str(out_mp4)]
+    _run_ffmpeg_with_fallback(
+        base + _video_codec_args(ffmpeg, config) + audio_out,
+        base + _sw_codec_args(config) + audio_out,
+    )
+    return out_mp4
+
+
+def _prepare_intro_bg(
+    ffmpeg: str,
+    video_part: VideoPart,
+    start_sec: float,
+    duration_sec: float,
+    framing: Framing,
+    config: ClubConfig,
+    out_mp4: Path,
+) -> Path:
+    """Cut the teaser backdrop for the HyperFrames intro.
+
+    'sharp' (default): crop the top ``intro_crop_top`` of the frame (drops the baked-in scoreboard) centred on the
+    per-match action position, then fill 1080x1920. 'blurred': legacy moody blurred look.
+    """
+    if out_mp4.exists() and out_mp4.stat().st_size > 20_000:
+        return out_mp4
+    w, h = config.width, config.height
+    if (config.intro_backdrop or "sharp").lower() == "blurred":
+        vf = (
+            f"scale=270:480:force_original_aspect_ratio=increase,crop=270:480,boxblur=4:2,scale={w}:{h},"
+            f"eq=brightness=-0.22:contrast=1.10:saturation=0.35,fps={config.fps},format=yuv420p"
+        )
+    else:
+        frac = min(1.0, max(0.4, config.intro_crop_top))
+        top_crop = f"crop=iw:ih*{frac:.3f}:0:0," if frac < 0.99 else ""
+        cx = framing.crop_center_x if framing is not None else 0.5
+        vf = (
+            f"{top_crop}scale=-2:{h}:flags=lanczos,"
+            f"crop={w}:{h}:'min(iw-{w}\\,max(0\\,round({cx:.4f}*iw-{w}/2)))':0,"
+            f"fps={config.fps},format=yuv420p"
+        )
+    cmd = [
+        ffmpeg, "-y", "-loglevel", "error",
+        "-ss", f"{start_sec:.3f}", "-t", f"{duration_sec + 0.3:.2f}", "-i", video_part.local_path,
+        "-an", "-vf", vf, *_sw_codec_args(config), str(out_mp4),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise RuntimeError(f"Intro backdrop cut failed:\n{proc.stderr[-800:]}")
+    return out_mp4
 
 
 def _render_still_segment(
@@ -227,6 +291,7 @@ def _render_single_clip(
     framing: Framing | None = None,
     layout: Layout | None = None,
     hq_video_url: str | None = None,
+    backdrop_png: Path | None = None,
 ) -> Path:
     """Render one v2.2 9:16 Broadcast Card clip with smart framing, Lanczos sharpening, optional 1440p HQ fetch, and slide-in card."""
     if out_mp4.exists() and out_mp4.stat().st_size > 20_000:
@@ -264,12 +329,25 @@ def _render_single_clip(
         )
 
     # Moody desaturated obsidian stadium blur (50x faster via 108x192 boxblur) + Lanczos supersampled crisp foreground
+    if backdrop_png is not None:
+        # Static brand backdrop (same colours as the cards) instead of a muddy blurred copy of the footage
+        head_chain = (
+            f"movie='{backdrop_png.as_posix()}',loop=loop=-1:size=1,trim=duration={dur + 0.5:.3f},"
+            f"setpts=PTS-STARTPTS,fps={config.fps},format=rgba[bg];"
+            f"[0:v]null[fgraw];"
+        )
+        base_overlay = f"[bg][fg]overlay=0:{vy}:shortest=1[comp0];"
+    else:
+        head_chain = (
+            f"[0:v]split=2[bgraw][fgraw];"
+            f"[bgraw]scale=108:192:force_original_aspect_ratio=increase,crop=108:192,"
+            f"boxblur=7:2,scale={w}:{h},eq=brightness=-0.28:contrast=1.08:saturation=0.32[bg];"
+        )
+        base_overlay = f"[bg][fg]overlay=0:{vy}[comp0];"
     vf = (
-        f"[0:v]split=2[bgraw][fgraw];"
-        f"[bgraw]scale=108:192:force_original_aspect_ratio=increase,crop=108:192,"
-        f"boxblur=7:2,scale={w}:{h},eq=brightness=-0.28:contrast=1.08:saturation=0.32[bg];"
+        f"{head_chain}"
         f"{fg_chain}"
-        f"[bg][fg]overlay=0:{vy}[comp0];"
+        f"{base_overlay}"
         f"[comp0][1:v]overlay=0:0[comp1];"
         f"[2:v]format=rgba,fade=t=in:st={delay:.3f}:d={fade_in_d:.3f}:alpha=1[card];"
         f"[comp1][card]overlay=x={LOWER_CARD_X}:"
@@ -466,17 +544,38 @@ def _render_single_clip(
 def _enforce_duration_cap(
     clips: list[ClipSpec],
     config: ClubConfig,
+    *,
+    is_derby: bool = False,
 ) -> list[ClipSpec]:
-    """Strictly enforce total duration <= config.max_duration_sec (including intro, break, outro)."""
-    keep = [c for c in clips if c.enabled and c.duration_sec >= 0.5]
-    while keep:
-        break_overhead = config.innings_break_sec if _has_innings_transition(keep) else 0.0
-        budget = config.max_duration_sec - config.intro_sec - config.outro_sec - break_overhead
-        if sum(c.duration_sec for c in keep) <= budget:
-            return keep
-        lowest = min(keep, key=lambda c: (c.priority, c.innings_number, c.clip_id))
-        keep.remove(lowest)
-    return keep
+    """Strictly enforce total duration <= effective cap (178s normal, 240s derby) via Selection v2.
+
+    Works on shallow copies so render never silently mutates the caller's manifest, gently trims
+    routine fours/sixes when slightly over cap, respects must_keep & balance floors, and prints a
+    clear notice whenever a clip had to be trimmed or dropped at render time.
+    """
+    from dataclasses import replace as dc_replace
+    from gscc_highlights.selector import effective_max_duration_sec, enforce_budget_on_clips
+
+    cap = effective_max_duration_sec(config, is_derby=is_derby)
+    copies = [dc_replace(c) for c in clips]
+    kept, trimmed, cut = enforce_budget_on_clips(
+        copies,
+        config,
+        max_duration_sec=cap,
+        is_derby=is_derby,
+        include_cut_for_budget=False,
+        mutate=True,
+    )
+    if trimmed:
+        print(
+            f"  [selection v2] Gently trimmed {len(trimmed)} boundary clip(s) to stay under {cap:.0f}s "
+            f"(zero clips dropped)."
+        )
+    if cut:
+        cut_summary = ", ".join(f"#{c.clip_id} ({c.over_ball} {c.event_type})" for c in cut[:6])
+        extra = f" +{len(cut) - 6} more" if len(cut) > 6 else ""
+        print(f"  [selection v2] Enforced {cap:.0f}s cap at render — dropped {len(cut)} clip(s): {cut_summary}{extra}")
+    return kept
 
 
 def _measure_integrated_lufs(ffmpeg: str, media_path: Path) -> float | None:
@@ -651,11 +750,11 @@ def render_reel(
         for f in cache_dir.glob("*.mp4"):
             f.unlink(missing_ok=True)
 
-    enabled_clips = _enforce_duration_cap(manifest.clips, config)
+    mi: MatchInfo = manifest.match_info
+    enabled_clips = _enforce_duration_cap(manifest.clips, config, is_derby=mi.is_derby)
     if not enabled_clips:
         raise ValueError("No enabled clips available to render in clips.json.")
 
-    mi: MatchInfo = manifest.match_info
     part_map = {vp.index: vp for vp in manifest.video_parts}
     inn1 = next((i for i in mi.innings if i.innings_number == 1), None)
     inn1_target = (inn1.runs + 1) if (inn1 and inn1.runs > 0) else 0
@@ -683,6 +782,14 @@ def render_reel(
                 if resolved and resolved[1] > vp.height:
                     hq_map[pid] = resolved
 
+    # Animated cards via HyperFrames (auto-falls back to the static Pillow cards when unavailable)
+    hf_env = hf_cards.get_runtime(config)
+    hf_tag = f"hf-{hf_cards.template_fingerprint()}" if hf_env else "pillow"
+    hf_dir = match_dir / "hyperframes"
+    backdrop_png = overlay_dir / "clip_backdrop_v4.png"
+    if not backdrop_png.exists() or no_cache:
+        render_clip_backdrop(config, backdrop_png)
+
     # 1. Live-Action Teaser Intro (cached) + Instagram 4:5 Cover Export
     teaser_clip, teaser_vp = _pick_teaser_clip(enabled_clips, part_map)
     teaser_counts = tuple(sorted((c.event_type for c in enabled_clips)))
@@ -709,9 +816,31 @@ def render_reel(
         teaser_vp.local_path if teaser_vp else "",
         round(teaser_start, 2),
         config.crf,
+        hf_tag,
+        config.intro_crop_top,
+        round(framing.crop_center_x, 3),
     )
 
-    if teaser_clip and teaser_vp and Path(teaser_vp.local_path).exists():
+    intro_mp4: Path | None = None
+    if hf_env:
+        try:
+            bg_mp4: Path | None = None
+            if teaser_clip and teaser_vp and Path(teaser_vp.local_path).exists():
+                bg_mp4 = _prepare_intro_bg(
+                    ffmpeg, teaser_vp, teaser_start, config.intro_sec, framing, config,
+                    cache_dir / f"intro_bg_{intro_key}.mp4",
+                )
+            raw = hf_cards.render_card(
+                "intro", hf_cards.intro_card_data(mi, config), config.intro_sec, hf_dir, hf_env, intro_key, bg_video=bg_mp4
+            )
+            intro_mp4 = _finalize_card_segment(ffmpeg, raw, cache_dir / f"intro_{intro_key}.mp4", config.intro_sec, config)
+        except Exception as exc:
+            print(f"  [hyperframes] intro failed ({str(exc)[:200]}) -> static intro")
+            intro_mp4 = None
+
+    if intro_mp4 is not None:
+        pass
+    elif teaser_clip and teaser_vp and Path(teaser_vp.local_path).exists():
         intro_ov_png = overlay_dir / f"intro_ov_{intro_key}.png"
         if not intro_ov_png.exists() or no_cache:
             render_intro_overlay(mi, config, intro_ov_png, clips=enabled_clips)
@@ -732,6 +861,10 @@ def render_reel(
 
     # 2. Per-Clip Render + Auto-Inserted Innings Break (each cached independently!)
     segment_paths: list[Path] = [intro_mp4]
+    innings_split = next(
+        (i for i, (a, b) in enumerate(zip(enabled_clips, enabled_clips[1:]), start=1) if a.innings_number == 1 and b.innings_number == 2),
+        None,
+    )
     inserted_break = False
     prev_innings: int | None = None
     total_clips = len(enabled_clips)
@@ -753,17 +886,31 @@ def render_reel(
                 config.innings_break_sec,
                 config.instagram_handle,
                 config.crf,
+                hf_tag,
             )
-            break_png = overlay_dir / f"break_{break_key}.png"
-            if not break_png.exists() or no_cache:
-                render_innings_break_card(mi, config, break_png, clips=enabled_clips)
-            break_mp4 = _render_still_segment(
-                ffmpeg,
-                break_png,
-                config.innings_break_sec,
-                cache_dir / f"break_{break_key}.mp4",
-                config,
-            )
+            break_mp4: Path | None = None
+            if hf_env:
+                try:
+                    raw = hf_cards.render_card(
+                        "break", hf_cards.break_card_data(mi, config, enabled_clips),
+                        config.innings_break_sec, hf_dir, hf_env, break_key,
+                    )
+                    break_mp4 = _finalize_card_segment(
+                        ffmpeg, raw, cache_dir / f"break_{break_key}.mp4", config.innings_break_sec, config
+                    )
+                except Exception as exc:
+                    print(f"  [hyperframes] innings break failed ({str(exc)[:200]}) -> static card")
+            if break_mp4 is None:
+                break_png = overlay_dir / f"break_{break_key}.png"
+                if not break_png.exists() or no_cache:
+                    render_innings_break_card(mi, config, break_png, clips=enabled_clips)
+                break_mp4 = _render_still_segment(
+                    ffmpeg,
+                    break_png,
+                    config.innings_break_sec,
+                    cache_dir / f"break_{break_key}.mp4",
+                    config,
+                )
             segment_paths.append(break_mp4)
             inserted_break = True
 
@@ -798,6 +945,8 @@ def render_reel(
             round(config.card_slide_sec, 2),
             round(config.sharpen_amount, 2),
             config.crf,
+            innings_split,
+            "brand-backdrop",
         )
         top_png = overlay_dir / f"clip_{clip.clip_id:02d}_top_{clip_key}.png"
         low_png = overlay_dir / f"clip_{clip.clip_id:02d}_low_{clip_key}.png"
@@ -810,6 +959,7 @@ def render_reel(
                 layout=layout,
                 clip_index=clip_idx,
                 clip_total=total_clips,
+                innings_split=innings_split,
             )
         if not low_png.exists() or no_cache:
             render_clip_lower_card(mi, clip, config, low_png)
@@ -826,6 +976,7 @@ def render_reel(
             framing=framing,
             layout=layout,
             hq_video_url=hq_url,
+            backdrop_png=backdrop_png,
         )
         segment_paths.append(clip_mp4)
         prev_innings = clip.innings_number
@@ -848,11 +999,22 @@ def render_reel(
         config.outro_sec,
         config.instagram_handle,
         config.crf,
+        hf_tag,
     )
-    outro_png = overlay_dir / f"outro_{outro_key}.png"
-    if not outro_png.exists() or no_cache:
-        render_outro_card(mi, config, outro_png, clips=enabled_clips)
-    outro_mp4 = _render_still_segment(ffmpeg, outro_png, config.outro_sec, cache_dir / f"outro_{outro_key}.mp4", config)
+    outro_mp4: Path | None = None
+    if hf_env:
+        try:
+            raw = hf_cards.render_card(
+                "outro", hf_cards.outro_card_data(mi, config, enabled_clips), config.outro_sec, hf_dir, hf_env, outro_key
+            )
+            outro_mp4 = _finalize_card_segment(ffmpeg, raw, cache_dir / f"outro_{outro_key}.mp4", config.outro_sec, config)
+        except Exception as exc:
+            print(f"  [hyperframes] full-time card failed ({str(exc)[:200]}) -> static card")
+    if outro_mp4 is None:
+        outro_png = overlay_dir / f"outro_{outro_key}.png"
+        if not outro_png.exists() or no_cache:
+            render_outro_card(mi, config, outro_png, clips=enabled_clips)
+        outro_mp4 = _render_still_segment(ffmpeg, outro_png, config.outro_sec, cache_dir / f"outro_{outro_key}.mp4", config)
     segment_paths.append(outro_mp4)
 
     # 4. Concatenate all cached segments (stream copy = instant!)

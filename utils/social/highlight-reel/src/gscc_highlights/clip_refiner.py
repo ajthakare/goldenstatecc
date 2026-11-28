@@ -311,8 +311,9 @@ def refine_clips(
         clip.start_sec = round(start_sec, 2)
         clip.end_sec = round(end_sec, 2)
 
+        has_scorer_undo = "scorer undo/correction" in (clip.note or "").lower()
         if clip.status != "bulk_jump":
-            if snr >= 1.8 and not is_wicket:
+            if snr >= 1.8 and not is_wicket and not has_scorer_undo:
                 clip.confidence = "high"
             elif snr >= 1.5:
                 clip.confidence = "medium"
@@ -323,8 +324,8 @@ def refine_clips(
                         clip.note or "Wicket lag can vary (15-55s); verify exact bowler release on filmstrips."
                     )
 
-        # Always store 5-frame lookback anchors for wickets and low-confidence clips
-        if is_wicket or clip.confidence == "low" or clip.status == "bulk_jump":
+        # Always store 5-frame lookback anchors for wickets, scorer-undo clips, and low-confidence clips
+        if is_wicket or has_scorer_undo or clip.confidence == "low" or clip.status == "bulk_jump":
             clip.lookback_anchors = [
                 round(max(0.0, min(vp.duration_sec - 0.5, t_flip + off)), 1)
                 for off in config.wicket_preview_offsets_sec

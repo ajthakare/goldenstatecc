@@ -66,8 +66,11 @@ def generate_preview_sheet(
     row_h = row_label_h + thumb_h + 26
     header_h = 92
 
-    active_clips = [c for c in manifest.clips if c.status != "missing_in_video"]
-    skipped_clips = [c for c in manifest.clips if c.status == "missing_in_video" or not c.enabled]
+    active_clips = [c for c in manifest.clips if c.status not in {"missing_in_video", "cut_for_budget"}]
+    skipped_clips = [
+        c for c in manifest.clips
+        if c.status in {"missing_in_video", "cut_for_budget"} or not c.enabled
+    ]
     footer_h = 46 + len(skipped_clips) * 24 if skipped_clips else 32
     sheet_h = header_h + max(1, len(active_clips)) * row_h + footer_h + pad
 
@@ -83,7 +86,15 @@ def generate_preview_sheet(
     draw.rectangle([(0, 0), (sheet_w, header_h - 4)], fill=(26, 22, 20))
     draw.rectangle([(0, header_h - 4), (sheet_w, header_h)], fill=(201, 162, 39))
 
-    enabled_dur = sum(c.duration_sec for c in manifest.clips if c.enabled) + config.intro_sec + config.outro_sec
+    enabled_list = [c for c in manifest.clips if c.enabled]
+    has_break = any(p.innings_number == 1 and n.innings_number == 2 for p, n in zip(enabled_list, enabled_list[1:]))
+    cap_sec = config.derby_max_duration_sec if manifest.match_info.is_derby else config.max_duration_sec
+    enabled_dur = (
+        sum(c.duration_sec for c in enabled_list)
+        + config.intro_sec
+        + (config.innings_break_sec if has_break else 0.0)
+        + config.outro_sec
+    )
     draw.text(
         (pad, 16),
         f"GSCC HIGHLIGHTS PREVIEW — {manifest.match_info.title}",
@@ -92,8 +103,8 @@ def generate_preview_sheet(
     )
     draw.text(
         (pad, 52),
-        f"Enabled clips: {sum(1 for c in manifest.clips if c.enabled)}/{len(manifest.clips)}  |  "
-        f"Estimated reel: {enabled_dur:.1f}s (max {config.max_duration_sec:.0f}s)  |  Music: {manifest.music_choice}",
+        f"Enabled clips: {len(enabled_list)}/{len(manifest.clips)}  |  "
+        f"Estimated reel: {enabled_dur:.1f}s (max {cap_sec:.0f}s)  |  Music: {manifest.music_choice}",
         fill=(250, 247, 242),
         font=f_sub,
     )
@@ -110,14 +121,20 @@ def generate_preview_sheet(
             status_tag = "ON" if clip.enabled else f"OFF ({clip.status})"
             color = (212, 175, 55) if clip.enabled else (180, 120, 110)
 
+            star = "*" if clip.must_keep else ""
             header_line = (
                 f"#{clip.clip_id:02d} [{status_tag}] {clip.badge} | Ov {clip.over_ball} | "
                 f"{_fmt_mmss(clip.start_sec)}-{_fmt_mmss(clip.end_sec)} ({clip.duration_sec:.1f}s) | "
-                f"{clip.headline}  [{clip.confidence}]"
+                f"{clip.headline}  [p={clip.priority}{star} | {clip.confidence}]"
             )
             draw.text((pad, y), header_line, fill=color, font=f_row)
+            meta_bits = []
+            if clip.selection_reason:
+                meta_bits.append(f"Why: {clip.selection_reason}")
             if clip.note:
-                draw.text((pad, y + 22), f"Note: {clip.note}", fill=(210, 175, 130), font=f_tag)
+                meta_bits.append(f"Note: {clip.note}")
+            if meta_bits:
+                draw.text((pad, y + 22), "   |   ".join(meta_bits), fill=(210, 175, 130), font=f_tag)
 
             # Decide 5-frame lookback strip (wickets / low_confidence / bulk_jump) vs 3-frame Start/Mid/End
             use_lookback = bool(clip.lookback_anchors) and (
@@ -158,12 +175,13 @@ def generate_preview_sheet(
 
     if skipped_clips:
         draw.line([(pad, y + 6), (sheet_w - pad, y + 6)], fill=(140, 29, 24), width=2)
-        draw.text((pad, y + 14), "Skipped / Disabled Clips:", fill=(220, 140, 120), font=f_row)
+        draw.text((pad, y + 14), "Cut for Budget / Skipped Clips (use `tweak --enable <id>` to restore):", fill=(220, 140, 120), font=f_row)
         fy = y + 38
         for c in skipped_clips:
+            detail = c.selection_reason or c.note or c.headline
             draw.text(
                 (pad + 8, fy),
-                f"#{c.clip_id:02d} Ov {c.over_ball} {c.badge} — {c.status}: {c.note or c.headline}",
+                f"#{c.clip_id:02d} Ov {c.over_ball} {c.badge} [p={c.priority}] — {c.status}: {c.headline} ({detail})",
                 fill=(195, 185, 175),
                 font=f_tag,
             )

@@ -148,3 +148,85 @@ def test_denoise_repairs_isolated_overs_glitch_and_striker_diffing():
     assert ws <= 7445.0  # reaches back far enough to catch a 7448s six!
     assert we == 7472.0
     assert ws < prior < we
+
+
+def test_aligner_detects_scorer_undo_reentry_and_anchors_to_first_flip():
+    cfg = load_config()
+    info = MatchInfo(
+        slug="undo_test",
+        title="All Stars Lions & Cubs vs GSCC Tigers",
+        gscc_team="GSCC Tigers",
+        opponent_team="All Stars Lions & Cubs",
+        innings=[
+            InningsSummary(1, "All Stars Lions & Cubs", "GSCC Tigers", 145, 10, "19.2", batting_code="ALC"),
+            InningsSummary(2, "GSCC Tigers", "All Stars Lions & Cubs", 146, 7, "19", batting_code="GST"),
+        ],
+    )
+
+    # Real-world Over 10.6 Likith SIX pattern:
+    # scorer entered 1 run (90/4, 11.0) at 10571s, undid at 10631s, then re-entered 6 (95/4, 11.0) at 10655s.
+    readings = [
+        TickerReading(0, 10511.0, "GST", 89, 4, "10.5", 65),
+        TickerReading(0, 10571.0, "GST", 90, 4, "11", 66),
+        TickerReading(0, 10631.0, "GST", 89, 4, "10.5", 65),
+        TickerReading(0, 10655.0, "GST", 95, 4, "11", 66),
+    ]
+    c_six = HighlightCandidate(
+        ball_event=BallEvent(
+            2, 1, 10, 6, "10.6", "GSCC Tigers", "All Stars Lions & Cubs",
+            "Likith Gowda", "Vikram R", runs_off_bat=6, total_runs_ball=6,
+            is_six=True, score_runs_after=95, score_wickets_after=4,
+        ),
+        event_type="six", priority=80, desired_duration_sec=5.5,
+        badge="MAXIMUM 6", headline="Likith Gowda launches it for 6!", subtext="10* (9)", is_gscc_highlight=True,
+    )
+
+    clips = align_highlights_to_readings([c_six], readings, info, cfg)
+    assert len(clips) == 1
+    assert clips[0].status == "ok" and clips[0].enabled is True
+    assert clips[0].ticker_flip_sec == 10571.0  # anchored to first entry, NOT 10655s!
+    assert clips[0].prev_ball_flip_sec == 10511.0
+    assert clips[0].confidence == "medium"
+    assert "scorer undo/correction" in clips[0].note.lower()
+
+    # Single-frame denoised undo (89/4 -> 90/4 -> 95/4 where 10631s undo frame got dropped) still caught!
+    denoised_readings = [
+        TickerReading(0, 10511.0, "GST", 89, 4, "10.5", 65),
+        TickerReading(0, 10571.0, "GST", 90, 4, "11", 66),
+        TickerReading(0, 10655.0, "GST", 95, 4, "11", 66),
+    ]
+    clips2 = align_highlights_to_readings([c_six], denoised_readings, info, cfg)
+    assert clips2[0].ticker_flip_sec == 10571.0
+    assert "scorer undo/correction" in clips2[0].note.lower()
+
+    # Normal wide BEFORE a legal-ball 6 must NOT falsely trigger scorer undo!
+    wide_then_six = [
+        TickerReading(0, 10511.0, "GST", 89, 4, "10.5", 65),
+        TickerReading(0, 10535.0, "GST", 90, 4, "10.5", 65),  # wide -> legal_balls stays 65
+        TickerReading(0, 10565.0, "GST", 96, 4, "11", 66),    # legal ball 10.6 -> 6 runs
+    ]
+    c_six_after_wide = HighlightCandidate(
+        ball_event=BallEvent(
+            2, 2, 10, 6, "10.6", "GSCC Tigers", "All Stars Lions & Cubs",
+            "Likith Gowda", "Vikram R", runs_off_bat=6, total_runs_ball=6,
+            is_six=True, score_runs_after=96, score_wickets_after=4,
+        ),
+        event_type="six", priority=80, desired_duration_sec=5.5,
+        badge="MAXIMUM 6", headline="Likith Gowda launches it for 6!", subtext="10* (9)", is_gscc_highlight=True,
+    )
+    clips3 = align_highlights_to_readings([c_six_after_wide], wide_then_six, info, cfg)
+    assert clips3[0].ticker_flip_sec == 10565.0
+    assert clips3[0].confidence == "high"
+    assert clips3[0].note == ""
+
+
+def test_parse_stacked_2026_cricclubs_rr_and_inline_team_code():
+    rd = parse_center_box_text(["ALC", "107/4", "RR 9.30", "OVERS 11.3"], video_index=0, timestamp_sec=3500.0)
+    assert rd is not None
+    assert rd.batting_code == "ALC"
+    assert (rd.runs, rd.wickets, rd.legal_balls) == (107, 4, 11 * 6 + 3)
+
+    rd2 = parse_center_box_text(["GST 121/5", "RR 8.85", "OVERS 13.4"], video_index=0, timestamp_sec=11339.0)
+    assert rd2 is not None
+    assert rd2.batting_code == "GST"
+    assert (rd2.runs, rd2.wickets, rd2.legal_balls) == (121, 5, 13 * 6 + 4)
