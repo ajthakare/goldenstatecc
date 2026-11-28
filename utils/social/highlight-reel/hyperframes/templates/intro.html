@@ -9,36 +9,41 @@
       #bgvid { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; object-fit: cover; transform-origin: 50% 40%; }
       #scrim {
         background:
-          radial-gradient(ellipse 70% 38% at 18% 20%, rgba(150, 30, 25, 0.55), transparent 70%),
-          radial-gradient(ellipse 60% 30% at 88% 78%, rgba(212, 175, 55, 0.18), transparent 70%),
-          linear-gradient(180deg, rgba(14, 9, 8, 0.80) 0%, rgba(14, 9, 8, 0.52) 36%, rgba(14, 9, 8, 0.58) 62%, rgba(14, 9, 8, 0.90) 100%);
+          radial-gradient(ellipse 70% 38% at 18% 20%, rgba(150, 30, 25, 0.56), transparent 70%),
+          radial-gradient(ellipse 60% 30% at 88% 78%, rgba(212, 175, 55, 0.20), transparent 70%),
+          linear-gradient(180deg, rgba(14, 9, 8, 0.82) 0%, rgba(14, 9, 8, 0.54) 36%, rgba(14, 9, 8, 0.62) 64%, rgba(14, 9, 8, 0.92) 100%);
       }
-      #club { top: 256px; font-size: 24px; font-weight: 700; letter-spacing: 0.22em; color: var(--gold-soft); }
-      #rule { position: absolute; top: 300px; left: 430px; width: 220px; height: 2px; background: var(--gold-accent); }
-      #crests { top: 326px; }
+      #stack { position: absolute; left: 0; top: 252px; width: 1080px; display: flex; flex-direction: column; align-items: center; }
+      #stack > * { flex: none; }
+      #club { font-size: 24px; font-weight: 700; letter-spacing: 0.22em; color: var(--gold-soft); text-shadow: 0 2px 12px rgba(0, 0, 0, 0.65); }
+      #rule { margin-top: 16px; width: 220px; height: 2px; background: var(--gold-accent); }
+      #crests { margin-top: 26px; height: 190px; display: flex; align-items: center; justify-content: center; }
       #pill {
-        position: absolute; top: 566px; left: 340px; width: 400px; padding: 14px 0; border-radius: 40px; text-align: center;
+        margin-top: 34px; width: 400px; padding: 14px 0; border-radius: 40px; text-align: center;
         font-size: 24px; font-weight: 800; letter-spacing: 0.2em; color: #fff; white-space: nowrap;
         background: linear-gradient(180deg, var(--maroon-hover), var(--maroon-dark)); border: 2px solid rgba(233, 200, 107, 0.65);
       }
-      .team { font-weight: 900; color: var(--pure-white); line-height: 1; white-space: nowrap; text-shadow: 0 6px 28px rgba(0, 0, 0, 0.55); letter-spacing: -0.01em; }
-      #teamA { top: 676px; }
-      #vs { top: 800px; height: 34px; }
-      #vs span { display: inline-block; font-size: 28px; font-weight: 800; letter-spacing: 0.2em; color: var(--gold-soft); }
+      .team {
+        max-width: 920px; text-align: center; font-weight: 900; color: var(--pure-white);
+        line-height: 1.04; text-shadow: 0 6px 28px rgba(0, 0, 0, 0.65); letter-spacing: -0.01em;
+      }
+      #teamA { margin-top: 38px; }
+      #vs { margin-top: 22px; position: relative; width: 1080px; height: 34px; text-align: center; }
+      #vs span { display: inline-block; font-size: 28px; font-weight: 800; letter-spacing: 0.2em; color: var(--gold-soft); text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6); }
       #vs i { position: absolute; top: 16px; width: 200px; height: 2px; background: var(--gold-accent); }
       #vs i.l { left: 284px; transform-origin: 100% 50%; }
       #vs i.r { left: 596px; transform-origin: 0% 50%; }
-      #teamB { top: 856px; }
-      #meta { top: 1000px; font-size: 31px; font-weight: 600; color: var(--gold-soft); }
-      #venue { top: 1046px; font-size: 25px; font-weight: 500; color: var(--muted-text); }
+      #teamB { margin-top: 22px; }
+      #meta { margin-top: 38px; font-size: 31px; font-weight: 700; color: var(--gold-soft); text-shadow: 0 3px 16px rgba(0, 0, 0, 0.8); }
+      #venue { margin-top: 12px; font-size: 26px; font-weight: 600; color: rgba(250, 247, 242, 0.90); text-shadow: 0 3px 16px rgba(0, 0, 0, 0.88); }
       #hook {
-        position: absolute; top: 1100px; left: 0; height: 86px; padding: 0 56px; border-radius: 44px; overflow: hidden;
+        position: relative; margin-top: 34px; height: 84px; padding: 0 56px; border-radius: 44px; overflow: hidden;
         display: flex; align-items: center; justify-content: center; white-space: nowrap;
         font-size: 42px; font-weight: 900; letter-spacing: 0.08em; color: #14100e;
-        background: linear-gradient(180deg, var(--gold-soft), var(--gold-accent)); box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+        background: linear-gradient(180deg, var(--gold-soft), var(--gold-accent)); box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
       }
       #shine { position: absolute; top: 0; left: -140px; width: 90px; height: 100%; background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.65), transparent); }
-      #foot { top: 1384px; }
+      #foot { top: 1396px; text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8); }
     </style>
   </head>
   <body>
@@ -46,17 +51,19 @@
       <div id="bgbase" class="layer bg-intro clip" data-start="0" data-duration="__DURATION__" data-track-index="0"></div>
       <video id="bgvid" class="clip" data-start="0" data-duration="__DURATION__" data-track-index="1" src="assets/bg.mp4" muted playsinline></video>
       <div id="scrim" class="layer clip" data-start="0" data-duration="__DURATION__" data-track-index="2"></div>
-      <div id="club" class="abs clip" data-start="0" data-duration="__DURATION__" data-track-index="3"></div>
-      <div id="rule" class="clip" data-start="0" data-duration="__DURATION__" data-track-index="3"></div>
-      <div id="crests" class="abs clip" data-start="0" data-duration="__DURATION__" data-track-index="4"></div>
-      <div id="pill" class="clip" data-start="0" data-duration="__DURATION__" data-track-index="5">MATCH HIGHLIGHTS</div>
-      <div id="teamA" class="abs team clip" data-start="0" data-duration="__DURATION__" data-track-index="6"></div>
-      <div id="vs" class="abs clip" data-start="0" data-duration="__DURATION__" data-track-index="7"><i class="l"></i><span>VS</span><i class="r"></i></div>
-      <div id="teamB" class="abs team clip" data-start="0" data-duration="__DURATION__" data-track-index="8"></div>
-      <div id="meta" class="abs clip" data-start="0" data-duration="__DURATION__" data-track-index="9"></div>
-      <div id="venue" class="abs clip" data-start="0" data-duration="__DURATION__" data-track-index="9"></div>
-      <div id="hook" class="clip" data-start="0" data-duration="__DURATION__" data-track-index="10"><span id="hooktext"></span><div id="shine"></div></div>
-      <div id="foot" class="abs foot clip" data-start="0" data-duration="__DURATION__" data-track-index="11"></div>
+      <div id="stack" class="clip" data-start="0" data-duration="__DURATION__" data-track-index="3">
+        <div id="club"></div>
+        <div id="rule"></div>
+        <div id="crests"></div>
+        <div id="pill">MATCH HIGHLIGHTS</div>
+        <div id="teamA" class="team"></div>
+        <div id="vs"><i class="l"></i><span>VS</span><i class="r"></i></div>
+        <div id="teamB" class="team"></div>
+        <div id="meta"></div>
+        <div id="venue"></div>
+        <div id="hook"><span id="hooktext"></span><div id="shine"></div></div>
+      </div>
+      <div id="foot" class="abs foot clip" data-start="0" data-duration="__DURATION__" data-track-index="4"></div>
     </div>
     <script>
 /*__CARD_DATA__*/
@@ -67,43 +74,65 @@
       $("teamA").textContent = C.teamA;
       $("teamB").textContent = C.teamB || "";
       if (!C.teamB) { $("vs").style.display = "none"; $("teamB").style.display = "none"; }
-      $("meta").textContent = C.meta || "";
-      $("venue").textContent = C.venue || "";
+      if (C.meta) $("meta").textContent = C.meta; else $("meta").style.display = "none";
+      if (C.venue) $("venue").textContent = C.venue; else $("venue").style.display = "none";
       $("foot").innerHTML = esc(C.handle) + " &nbsp;•&nbsp; " + esc(C.website);
       if (!C.hasBg) { $("bgvid").style.display = "none"; $("scrim").style.display = "none"; }
 
-      // balanced team stack: both lines use the smaller of the two fitted sizes
+      // Smart team typography: wrap extra-long opponent names onto 2 balanced lines so GSCC stays bold & large!
+      function fitTeamLine(node) {
+        node.style.whiteSpace = "nowrap";
+        const singleSz = fit(node, 900, 96, 52);
+        if (singleSz < 64 && node.textContent.trim().includes(" ")) {
+          node.style.whiteSpace = "normal";
+          node.style.width = "880px";
+          node.style.textWrap = "balance";
+          node.style.fontSize = "66px";
+          return 66;
+        }
+        return singleSz;
+      }
       const A = $("teamA"), B = $("teamB");
-      const sA = (A.style.display = "inline-block", A.style.width = "auto", fit(A, 900, 104, 46));
-      const sB = C.teamB ? (B.style.display = "inline-block", B.style.width = "auto", fit(B, 900, 104, 46)) : sA;
-      const size = Math.min(sA, sB);
-      for (const n of [A, B]) { n.style.fontSize = size + "px"; n.style.display = "block"; n.style.width = "1080px"; n.style.left = "0"; }
-      if (!C.teamB) B.style.display = "none";
-      const hook = $("hook");
-      if (!C.hook) { hook.style.display = "none"; }
-      else {
-        $("hooktext").textContent = C.hook;
-        hook.style.left = Math.round((1080 - hook.offsetWidth) / 2) + "px";
+      const sA = fitTeamLine(A);
+      const sB = C.teamB ? fitTeamLine(B) : sA;
+      // Keep the two lines within a harmonious ratio (neither dwarfed) while letting GSCC stay punchy
+      if (C.teamB && A.style.whiteSpace === "nowrap" && B.style.whiteSpace === "nowrap") {
+        const size = Math.min(sA, sB);
+        A.style.fontSize = size + "px";
+        B.style.fontSize = size + "px";
+      } else if (C.teamB) {
+        if (A.style.whiteSpace === "nowrap") A.style.fontSize = Math.min(sA, 88) + "px";
+        if (B.style.whiteSpace === "nowrap") B.style.fontSize = Math.min(sB, 88) + "px";
       }
 
+      const hook = $("hook");
+      if (!C.hook) { hook.style.display = "none"; }
+      else { $("hooktext").textContent = C.hook; }
+
+      // Keep footer cleanly below stack inside IG safe_bottom_y (1480px)
+      const stack = $("stack");
+      const stackBot = stack.offsetTop + stack.offsetHeight;
+      $("foot").style.top = Math.min(1440, Math.max(1386, Math.round(stackBot + 42))) + "px";
+
+      // Snappy 2.4s broadcast reveal timeline (full hero frame held cleanly for 4:5 cover & readability)
       const tl = gsap.timeline({ paused: true });
-      if (C.hasBg) tl.fromTo("#bgvid", { scale: 1.0 }, { scale: 1.09, duration: D, ease: "none" }, 0);
-      tl.fromTo("#club", { opacity: 0, y: -24 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 0.0);
-      tl.fromTo("#rule", { scaleX: 0, opacity: 0 }, { scaleX: 1, opacity: 1, duration: 0.4, ease: "power3.out" }, 0.08);
-      tl.fromTo("#crests", { opacity: 0, scale: 0.7 }, { opacity: 1, scale: 1, duration: 0.55, ease: "back.out(1.6)" }, 0.05);
-      tl.fromTo("#pill", { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.35, ease: "power3.out" }, 0.25);
-      tl.fromTo("#teamA", { opacity: 0, x: -260 }, { opacity: 1, x: 0, duration: 0.5, ease: "power4.out" }, 0.3);
-      tl.fromTo("#vs span", { opacity: 0, scale: 0.4 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2)" }, 0.5);
-      tl.fromTo("#vs i.l", { scaleX: 0 }, { scaleX: 1, duration: 0.35, ease: "power3.out" }, 0.52);
-      tl.fromTo("#vs i.r", { scaleX: 0 }, { scaleX: 1, duration: 0.35, ease: "power3.out" }, 0.52);
-      tl.fromTo("#teamB", { opacity: 0, x: 260 }, { opacity: 1, x: 0, duration: 0.5, ease: "power4.out" }, 0.55);
-      tl.fromTo("#meta", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 0.7);
-      tl.fromTo("#venue", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 0.76);
+      if (C.hasBg) tl.fromTo("#bgvid", { scale: 1.0 }, { scale: 1.08, duration: D, ease: "none" }, 0);
+      tl.fromTo("#club", { opacity: 0, y: -20 }, { opacity: 1, y: 0, duration: 0.32, ease: "power3.out" }, 0.0);
+      tl.fromTo("#rule", { scaleX: 0, opacity: 0 }, { scaleX: 1, opacity: 1, duration: 0.32, ease: "power3.out" }, 0.06);
+      tl.fromTo("#crests", { opacity: 0, scale: 0.72 }, { opacity: 1, scale: 1, duration: 0.45, ease: "back.out(1.6)" }, 0.04);
+      tl.fromTo("#pill", { opacity: 0, y: 22 }, { opacity: 1, y: 0, duration: 0.3, ease: "power3.out" }, 0.18);
+      tl.fromTo("#teamA", { opacity: 0, x: -220 }, { opacity: 1, x: 0, duration: 0.42, ease: "power4.out" }, 0.22);
+      tl.fromTo("#vs span", { opacity: 0, scale: 0.4 }, { opacity: 1, scale: 1, duration: 0.26, ease: "back.out(2)" }, 0.38);
+      tl.fromTo("#vs i.l", { scaleX: 0 }, { scaleX: 1, duration: 0.3, ease: "power3.out" }, 0.4);
+      tl.fromTo("#vs i.r", { scaleX: 0 }, { scaleX: 1, duration: 0.3, ease: "power3.out" }, 0.4);
+      tl.fromTo("#teamB", { opacity: 0, x: 220 }, { opacity: 1, x: 0, duration: 0.42, ease: "power4.out" }, 0.42);
+      tl.fromTo("#meta", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.32, ease: "power3.out" }, 0.56);
+      tl.fromTo("#venue", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.32, ease: "power3.out" }, 0.62);
       if (C.hook) {
-        tl.fromTo("#hook", { opacity: 0, scale: 0.7 }, { opacity: 1, scale: 1, duration: 0.45, ease: "back.out(2)" }, 0.8);
-        tl.fromTo("#shine", { x: 0 }, { x: hook.offsetWidth + 200, duration: 0.7, ease: "power2.inOut" }, 1.5);
+        tl.fromTo("#hook", { opacity: 0, scale: 0.72 }, { opacity: 1, scale: 1, duration: 0.38, ease: "back.out(2)" }, 0.66);
+        tl.fromTo("#shine", { x: 0 }, { x: hook.offsetWidth + 200, duration: 0.6, ease: "power2.inOut" }, 1.15);
       }
-      tl.fromTo("#foot", { opacity: 0 }, { opacity: 1, duration: 0.4, ease: "power2.out" }, 0.85);
+      tl.fromTo("#foot", { opacity: 0 }, { opacity: 1, duration: 0.32, ease: "power2.out" }, 0.72);
       finish(tl, D);
     </script>
   </body>

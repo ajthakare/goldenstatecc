@@ -668,9 +668,15 @@ def _decompose_clip_copy(clip: ClipSpec) -> tuple[str, str, str]:
     # 2. De-boilerplate repetitive headlines into bold Hero-Player typography
     m_four = re.match(r"^(.+?)\s+finds the boundary!?$", raw_head, flags=re.IGNORECASE)
     m_six = re.match(r"^(.+?)\s+launches it for 6!?$", raw_head, flags=re.IGNORECASE)
+    m_streak_six = re.match(
+        r"^(?:back-to-back\s+6s|\d+\s+sixes\s+in\s+a\s+row)\s+from\s+(.+?)!?$",
+        raw_head,
+        flags=re.IGNORECASE,
+    )
     m_strike = re.match(
-        r"^(.+?)\s+(?:strikes(?:\s*\(Run Out\))?|cleans up .+|claims \d+\w+ wicket|grabs a \d+\w+|"
-        r"completes a 5-for|wraps up the innings|traps .+ LBW|HAT-TRICK|—\s*(?:caught & bowled|stumped))!?$",
+        r"^(.+?)\s+(?:strikes(?:\s*\(Run Out\))?|cleans up .+|claims (?:his\s+)?\d+\w+(?:\s+wicket)?|grabs a \d+\w+|"
+        r"completes a (?:5-for|hat-trick)|wraps up .+all out|wraps up the innings|gets the stumping|"
+        r"traps .+ LBW|HAT-TRICK|—\s*(?:caught & bowled|stumped))!?$",
         raw_head,
         flags=re.IGNORECASE,
     )
@@ -680,6 +686,9 @@ def _decompose_clip_copy(clip: ClipSpec) -> tuple[str, str, str]:
         return hero, stat_badge, detail
     if m_six:
         hero = m_six.group(1).strip()
+        return hero, stat_badge, detail
+    if m_streak_six:
+        hero = m_streak_six.group(1).strip()
         return hero, stat_badge, detail
     if m_strike:
         if _is_run_out_clip(clip):
@@ -780,6 +789,33 @@ def _team_initials(team_name: str) -> str:
     if len(words) == 1:
         return words[0][:2].upper()
     return (words[0][0] + words[1][0]).upper()
+
+
+def _innings_monogram(inn: InningsSummary | None, fallback_team: str = "") -> str:
+    """Prefer official CricClubs/NCCA batting_code (e.g. 'ALC'), falling back to team initials."""
+    if inn is not None:
+        code = re.sub(r"[^A-Za-z0-9]", "", (inn.batting_code or "").strip()).upper()
+        if 2 <= len(code) <= 4:
+            return code
+        return _team_initials(inn.batting_team)
+    return _team_initials(fallback_team)
+
+
+def _format_innings_score_pair(inn: InningsSummary, *, uppercase: bool = False) -> tuple[str, str]:
+    """Return cricket-native (big_score, sub_line), rendering 10 wickets as '145' + 'ALL OUT • ...'."""
+    rr = _compute_run_rate(inn.runs, inn.overs_text)
+    ov_str = _format_overs_display(inn.overs_text)
+    if uppercase:
+        ov_str = ov_str.upper()
+    sep = "   •   " if uppercase else "  •  "
+    parts = [p for p in [ov_str, rr] if p]
+    if inn.wickets >= 10:
+        big = str(inn.runs)
+        sub = sep.join(["ALL OUT", *parts])
+    else:
+        big = f"{inn.runs}/{inn.wickets}"
+        sub = sep.join(parts)
+    return big, sub
 
 
 def _is_winning_team(team_name: str, result_text: str) -> bool:
@@ -1088,8 +1124,9 @@ def render_innings_break_card(
     clips: Sequence[ClipSpec] | None = None,
 ) -> Path:
     """Render 1080x1920 Innings Break card: 1st-innings score, chase maths and GSCC's own contributors."""
-    w = config.width
-    cx = w // 2
+    bx = 60
+    bw = config.safe_right_x - bx - 4  # 846px inside IG safe_right_x (910)
+    cx = bx + bw // 2  # unified safe-zone visual axis (483px)
     c = config.colors
     img = _make_stadium_canvas(config, transparent_scrim=False, mood="break")
     draw = ImageDraw.Draw(img)
@@ -1097,7 +1134,6 @@ def render_innings_break_card(
     inn1 = next((i for i in match_info.innings if i.innings_number == 1), None)
     inn2 = next((i for i in match_info.innings if i.innings_number == 2), None)
     bat1_team = inn1.batting_team if inn1 else match_info.gscc_team
-    chase_team = (inn2.batting_team if inn2 else (inn1.bowling_team if inn1 else match_info.opponent_team)) or "CHASING SIDE"
     bat1_is_gscc = config.is_gscc_team(bat1_team)
 
     # Top pill: INNINGS BREAK
@@ -1127,25 +1163,22 @@ def render_innings_break_card(
             outline=_hex_rgba(c.gold_accent, 205),
             width=3,
         )
-        init = _team_initials(bat1_team)
-        f_init = _load_font(config, 50, "black")
+        init = _innings_monogram(inn1, bat1_team)
+        f_init = _load_font(config, 44 if len(init) >= 3 else 50, "black")
         itw, ith, _ = _measure_tracked(draw, init, f_init)
         _draw_text_top(draw, cx - itw / 2, crest_y + (ring - ith) / 2, init, f_init, _hex_rgba(c.warm_white))
         crest_h = ring
 
     y = crest_y + crest_h + 30
-    f_team = _fit_font(draw, config, bat1_team.upper(), 860, 46, 28, "black")
+    f_team = _fit_font(draw, config, bat1_team.upper(), bw, 46, 28, "black")
     y = _draw_centered_top(draw, cx, y, bat1_team.upper(), f_team, _hex_rgba(c.pure_white))
 
     if inn1 and (inn1.runs > 0 or inn1.wickets > 0):
-        score_str = f"{inn1.runs}/{inn1.wickets}"
-        f_big = _fit_font(draw, config, score_str, 860, 190, 100, "black")
+        score_str, meta_str = _format_innings_score_pair(inn1, uppercase=True)
+        f_big = _fit_font(draw, config, score_str, bw, 190, 100, "black")
         y = _draw_centered_top(draw, cx, y + 26, score_str, f_big, _hex_rgba(c.gold_soft))
 
-        rr = _compute_run_rate(inn1.runs, inn1.overs_text)
-        ov_disp = _format_overs_display(inn1.overs_text).upper()
-        meta_str = f"{ov_disp}   •   {rr}" if rr else ov_disp
-        f_ov = _load_font(config, 28, "semibold")
+        f_ov = _fit_font(draw, config, meta_str, bw, 28, 19, "semibold", tracking=3)
         y = _draw_centered_top(draw, cx, y + 22, meta_str, f_ov, _hex_rgba(c.muted_text), tracking=3)
 
         div_y = y + 44
@@ -1174,7 +1207,7 @@ def render_innings_break_card(
         max_balls = _infer_max_balls(match_info)
         rrr = target / (max_balls / 6.0)
         chase_line = f"{target} OFF {max_balls} BALLS   •   RRR {rrr:.2f}"
-        f_ch = _fit_font(draw, config, chase_line, 860, 30, 20, "extrabold", tracking=3)
+        f_ch = _fit_font(draw, config, chase_line, bw, 30, 20, "extrabold", tracking=3)
         y = _draw_centered_top(draw, cx, y + 28, chase_line, f_ch, _hex_rgba(c.warm_white), tracking=3)
 
         # GSCC's own contributors in the 1st innings (bowlers if we fielded, batters if we batted)
@@ -1191,10 +1224,10 @@ def render_innings_break_card(
             if rows:
                 squad_label = (match_info.gscc_team or "GSCC").upper().replace("GSCC ", "")
                 hdr = f"{squad_label} WITH THE {'BAT' if role == 'BAT' else 'BALL'}"
-                lx, lw = 90, 780
-                y += 58
+                lx, lw = bx, bw
+                y += 54
                 _, sh_h = _draw_text_top(draw, lx + 4, y, hdr, _load_font(config, 20, "extrabold"), _hex_rgba(c.gold_soft), tracking=5)
-                y += sh_h + 18
+                y += sh_h + 16
                 row_h = 76
                 panel = _make_clipped_panel(
                     lw,
@@ -1230,7 +1263,7 @@ def render_innings_break_card(
         _draw_centered_top(draw, cx, y + 48, "2ND INNINGS COMING UP", f_big, _hex_rgba(c.gold_soft))
 
     f_foot = _load_font(config, 22, "bold")
-    _draw_centered_top(draw, cx, 1400, f"{config.instagram_handle}   •   {config.website}", f_foot, _hex_rgba(c.gold_accent))
+    _draw_centered_top(draw, cx, 1408, f"{config.instagram_handle}   •   {config.website}", f_foot, _hex_rgba(c.gold_accent))
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     img.convert("RGB").save(out_path)
@@ -1301,15 +1334,20 @@ def render_clip_top_overlay(
     ph_x = hdr_x1 + hdr_w - ph_w - 20
     ph_y = hdr_y1 + (hdr_h - ph_h) // 2 + 2
 
+    is_chase_pill = phase_txt.startswith("NEED ") or phase_txt == "TARGET CHASED"
     if is_clutch:
-        p_fill_t, p_fill_b = _hex_rgba(c.crimson_signal, 235), _hex_rgba(c.maroon_dark, 235)
-        p_outline, p_fg = _hex_rgba(c.gold_soft, 165), _hex_rgba(c.pure_white)
+        p_fill_t, p_fill_b = _hex_rgba(c.crimson_signal, 245), _hex_rgba(c.maroon_dark, 245)
+        p_outline, p_fg = _hex_rgba(c.gold_soft, 180), _hex_rgba(c.pure_white)
+    elif is_chase_pill:
+        # Solid gold chase pill so 'NEED 37 OFF 49' is instantly scannable above the video
+        p_fill_t, p_fill_b = _hex_rgba(c.gold_soft, 255), _hex_rgba(c.gold_accent, 255)
+        p_outline, p_fg = None, _hex_rgba(c.obsidian_deep)
     else:
         p_fill_t, p_fill_b = _hex_rgba("#27211E", 235), _hex_rgba("#1C1715", 235)
         p_outline, p_fg = _hex_rgba(c.gold_accent, 140), _hex_rgba(c.gold_soft)
 
     phase_pill = _make_clipped_panel(
-        ph_w, ph_h, radius=12, fill_top=p_fill_t, fill_bot=p_fill_b, outline=p_outline, outline_width=1
+        ph_w, ph_h, radius=12, fill_top=p_fill_t, fill_bot=p_fill_b, outline=p_outline, outline_width=1 if p_outline else 0
     )
     img.alpha_composite(phase_pill, (ph_x, ph_y))
     _draw_text_top(draw, ph_x + 16, ph_y + (ph_h - pth) // 2, phase_txt, f_phase, p_fg, tracking=1)
@@ -1349,23 +1387,32 @@ def render_clip_top_overlay(
     draw.rectangle([(0, vy1 - 2), (w, vy1)], fill=_hex_rgba(c.gold_accent, 235))
     draw.rectangle([(0, vy2), (w, vy2 + 2)], fill=_hex_rgba(c.gold_accent, 235))
 
-    # --- 3. REEL PROGRESS: one thin bar + innings-break notch + "N / TOTAL" counter ---
+    # --- 3. REEL PROGRESS: one thin bar + innings-break notch + active-innings gold highlight + "N / TOTAL" ---
     if layout.progress_y is not None and clip_total and clip_index is not None and clip_total > 1:
         bx0, bx1, by0 = LOWER_CARD_X, LOWER_CARD_X + LOWER_CARD_W, layout.progress_y
         draw.rounded_rectangle([(bx0, by0), (bx1, by0 + 6)], radius=3, fill=_hex_rgba(c.warm_white, 60))
         done_x = bx0 + int((bx1 - bx0) * (clip_index + 1) / clip_total)
         draw.rounded_rectangle([(bx0, by0), (done_x, by0 + 6)], radius=3, fill=_hex_rgba(c.gold_soft, 255))
-        label_left = ""
-        if innings_split is not None and 0 < innings_split < clip_total:
-            nx = bx0 + int((bx1 - bx0) * innings_split / clip_total)
-            draw.rectangle([(nx - 1, by0 - 5), (nx + 1, by0 + 11)], fill=_hex_rgba(c.pure_white, 210))
-            label_left = "1ST INN  |  2ND INN"
         f_cnt = _load_font(config, 22, "extrabold")
         cnt = f"{clip_index + 1} / {clip_total}"
         cw_, _, _ = _measure_tracked(draw, cnt, f_cnt, tracking=2)
-        _draw_text_top(draw, bx1 - cw_, by0 + 20, cnt, f_cnt, _hex_rgba(c.gold_soft), tracking=2)
-        if label_left:
-            _draw_text_top(draw, bx0, by0 + 22, label_left, _load_font(config, 18, "bold"), _hex_rgba(c.muted_text), tracking=3)
+        cnt_x = bx1 - cw_
+        _draw_text_top(draw, cnt_x, by0 + 20, cnt, f_cnt, _hex_rgba(c.gold_soft), tracking=2)
+        if innings_split is not None and 0 < innings_split < clip_total:
+            nx = bx0 + int((bx1 - bx0) * innings_split / clip_total)
+            draw.rectangle([(nx - 1, by0 - 5), (nx + 1, by0 + 11)], fill=_hex_rgba(c.pure_white, 225))
+            in1_active = clip.innings_number == 1
+            f_off = _load_font(config, 18, "bold")
+            f_on = _load_font(config, 18, "black")
+            col_off = _hex_rgba(c.muted_text, 150)
+            col_on = _hex_rgba(c.gold_soft, 255)
+            lbl1_w, _, _ = _measure_tracked(draw, "1ST INN", f_on if in1_active else f_off, tracking=3)
+            _draw_text_top(draw, bx0, by0 + 22, "1ST INN", f_on if in1_active else f_off, col_on if in1_active else col_off, tracking=3)
+            lbl2_f = f_off if in1_active else f_on
+            lbl2_w, _, _ = _measure_tracked(draw, "2ND INN", lbl2_f, tracking=3)
+            # Place '2ND INN' right at the notch, clamped cleanly between '1ST INN' and 'N / TOTAL'
+            x2 = max(bx0 + lbl1_w + 26, min(nx + 10, cnt_x - lbl2_w - 22))
+            _draw_text_top(draw, x2, by0 + 22, "2ND INN", lbl2_f, col_off if in1_active else col_on, tracking=3)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     img.save(out_path)
@@ -1450,7 +1497,7 @@ def render_clip_lower_card(
             draw, x_cursor, detail_y, detail_line, f_sub, _hex_rgba(c.muted_text if stat_badge else c.warm_white, 235)
         )
 
-    # --- ROW 4: Divider + team/overs (left) + @goldenstate_cc (right) ---
+    # --- ROW 4: Divider + batting team / innings context (left, no duplicate over) + @goldenstate_cc (right) ---
     div_y = ch - 52
     draw.line([(pad_l, div_y), (cw - pad_r, div_y)], fill=_hex_rgba(c.gold_accent, 52), width=1)
 
@@ -1460,8 +1507,13 @@ def render_clip_lower_card(
     foot_y = div_y + (52 - hth) // 2 - 2
     _draw_text_top(draw, cw - pad_r - htw, foot_y, handle, f_foot, _hex_rgba(c.gold_accent))
 
-    team_nm, ov_disp = _split_team_score(clip.score_text)
-    foot_left = "  •  ".join(p for p in [team_nm, ov_disp] if p) or (clip.score_text or "")
+    team_nm, _ = _split_team_score(clip.score_text)
+    if clip.innings_number == 2:
+        inn1 = next((i for i in match_info.innings if i.innings_number == 1), None)
+        ctx_tag = f"Chasing {inn1.runs + 1}" if (inn1 and inn1.runs > 0) else "2nd Innings"
+    else:
+        ctx_tag = "1st Innings"
+    foot_left = "  •  ".join(p for p in [team_nm, ctx_tag] if p) or (clip.score_text or "")
     if foot_left:
         f_fl = _fit_font(draw, config, foot_left, content_w - htw - 24, 20, 16, "semibold")
         _draw_text_top(draw, pad_l, foot_y, foot_left, f_fl, _hex_rgba(c.muted_text))
@@ -1515,22 +1567,23 @@ def render_outro_card(
     out_path: Path,
     clips: Sequence[ClipSpec] | None = None,
 ) -> Path:
-    """Render 1080x1920 broadcast Full-Time Scorecard strictly inside Instagram Safe Zones."""
-    w = config.width
-    cx = w // 2
+    """Render 1080x1920 broadcast Full-Time Scorecard aligned on the unified IG safe-zone axis."""
+    bx = 60
+    bw = config.safe_right_x - bx - 4  # 846px inside IG right-rail safe zone
+    cx = bx + bw // 2  # unified vertical axis (483px) shared by header, cards, and footer
     c = config.colors
     img = _make_stadium_canvas(config, transparent_scrim=False, mood="outro")
     draw = ImageDraw.Draw(img)
 
     # 1. Dual-crest header
-    crest_bot = _composite_crest_lockup(img, match_info, config, cx, 244, 118)
+    crest_bot = _composite_crest_lockup(img, match_info, config, cx, 240, 114)
 
     # 2. Status pill: FULL TIME vs MATCH SUMMARY
     status_txt = _outro_status_pill(match_info)
     f_pill = _load_font(config, 22, "black")
     ptw, pth, _ = _measure_tracked(draw, status_txt, f_pill, tracking=4)
     pw, ph = ptw + 56, pth + 22
-    px, py = cx - pw // 2, crest_bot + 24
+    px, py = cx - pw // 2, crest_bot + 22
     pill = _make_clipped_panel(
         pw, ph, radius=ph // 2, fill_top=_hex_rgba(c.gold_soft, 255), fill_bot=_hex_rgba(c.gold_accent, 255)
     )
@@ -1539,26 +1592,24 @@ def render_outro_card(
 
     # 3. Outcome-first headline (GSCC point of view) + chase context + meta
     head, context = _result_headline(match_info, config)
-    y = py + ph + 30
-    f_res = _fit_font(draw, config, head, 940, 88, 40, "black")
-    res_lines = _wrap_pixel_lines(draw, head, f_res, 940, max_lines=2)
+    y = py + ph + 28
+    f_res = _fit_font(draw, config, head, bw, 84, 38, "black")
+    res_lines = _wrap_pixel_lines(draw, head, f_res, bw, max_lines=2)
     for line in res_lines:
         y = _draw_centered_top(draw, cx, y, line, f_res, _hex_rgba(c.pure_white)) + 10
     if context:
-        f_ctx = _fit_font(draw, config, context, 900, 27, 19, "medium")
+        f_ctx = _fit_font(draw, config, context, bw, 26, 18, "medium")
         y = _draw_centered_top(draw, cx, y + 6, context, f_ctx, _hex_rgba(c.warm_white, 225)) + 6
     meta_s = _meta_line(match_info)
     if meta_s:
-        f_m = _fit_font(draw, config, meta_s, 860, 23, 17, "medium")
+        f_m = _fit_font(draw, config, meta_s, bw, 22, 17, "medium")
         y = _draw_centered_top(draw, cx, y + 8, meta_s, f_m, _hex_rgba(c.muted_text)) + 6
 
-    # 4. Big two-row scoreboard (kept left of the IG right-rail buttons)
-    bx = 60
-    bw = config.safe_right_x - bx - 4
+    # 4. Big two-row scoreboard (unified safe-zone width)
     innings = match_info.innings[:2]
     row_h = 150
     sb_h = max(150, len(innings) * row_h)
-    sb_y = y + 36
+    sb_y = y + 32
     sb_panel = _make_clipped_panel(
         bw,
         sb_h,
@@ -1594,8 +1645,8 @@ def render_outro_card(
                 outline=_hex_rgba(c.gold_accent if is_gscc else "#5B514B", 190),
                 width=2,
             )
-            init = _team_initials(inn.batting_team)
-            f_init = _load_font(config, 26, "extrabold")
+            init = _innings_monogram(inn)
+            f_init = _load_font(config, 23 if len(init) >= 3 else 26, "extrabold")
             itw, ith, _ = _measure_tracked(sb_draw, init, f_init)
             _draw_text_top(
                 sb_draw,
@@ -1606,16 +1657,13 @@ def render_outro_card(
                 _hex_rgba(c.gold_soft if is_gscc else c.warm_white),
             )
 
-        score_str = f"{inn.runs}/{inn.wickets}"
-        f_sc = _load_font(config, 76, "black")
+        score_str, sub_sc = _format_innings_score_pair(inn, uppercase=False)
+        f_sc = _load_font(config, 74, "black")
         sc_w, sc_h, _ = _measure_tracked(sb_draw, score_str, f_sc)
         sc_col = _hex_rgba(c.gold_soft if is_gscc else c.pure_white)
         _draw_text_top(sb_draw, bw - 34 - sc_w, ry + 24, score_str, f_sc, sc_col)
 
-        rr = _compute_run_rate(inn.runs, inn.overs_text)
-        ov_str = _format_overs_display(inn.overs_text)
-        sub_sc = f"{ov_str}  •  {rr}" if rr else ov_str
-        f_sub = _load_font(config, 22, "semibold")
+        f_sub = _load_font(config, 21, "semibold")
         ss_w, _, _ = _measure_tracked(sb_draw, sub_sc, f_sub)
         _draw_text_top(sb_draw, bw - 34 - ss_w, ry + 24 + sc_h + 12, sub_sc, f_sub, _hex_rgba(c.muted_text))
 
@@ -1623,8 +1671,9 @@ def render_outro_card(
         max_name_w = bw - 34 - max(sc_w, ss_w) - tx - 24
         f_tn = _fit_font(sb_draw, config, inn.batting_team, max(160, max_name_w), 36, 22, "extrabold")
         tn_col = _hex_rgba(c.gold_soft if is_gscc else c.pure_white)
-        name_y = ry + (row_h - 38) // 2 - (10 if is_win else 0)
-        _, tn_h = _draw_text_top(sb_draw, tx, name_y, inn.batting_team, f_tn, tn_col)
+        _, tn_h, _ = _measure_tracked(sb_draw, inn.batting_team, f_tn)
+        name_y = ry + (row_h - tn_h) // 2 - (12 if is_win else 0)
+        _draw_text_top(sb_draw, tx, name_y, inn.batting_team, f_tn, tn_col)
         if is_win:
             _draw_text_top(
                 sb_draw,

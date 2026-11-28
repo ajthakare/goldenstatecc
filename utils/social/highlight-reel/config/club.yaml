@@ -57,9 +57,11 @@ selection:
   # Rare intra-club GSCC-vs-GSCC derbies are allowed > 3 min so both squads get fair coverage
   derby_max_duration_sec: 240.0
   target_duration_sec: 170.0
-  intro_sec: 2.9
+  # 2.4s animated HyperFrames intro -> clips -> 2.8s Innings Break -> 5.5s Full-Time Outro
+  intro_sec: 2.4
   innings_break_sec: 2.8
   outro_sec: 5.5
+  card_transition_sec: 0.25
   transition_sec: 0.0
 
   # Default clip lengths by event type
@@ -122,6 +124,8 @@ audio:
   true_peak_db: -1.5
   ground_target_lufs: -19.0
   enable_ducking: true
+  # Subtle locally-synthesized broadcast transition SFX on Innings Break & Full-Time cards
+  enable_sfx: true
 
 render:
   width: 1080

@@ -29,10 +29,9 @@ from typing import Any, Sequence
 from gscc_highlights.config import ClubConfig
 from gscc_highlights.models import ClipSpec, MatchInfo
 from gscc_highlights.overlays import (
-    _compute_run_rate,
-    _format_overs_display,
-    _gscc_perspective,
+    _format_innings_score_pair,
     _infer_max_balls,
+    _innings_monogram,
     _intro_hook_text,
     _is_winning_team,
     _meta_line,
@@ -41,7 +40,6 @@ from gscc_highlights.overlays import (
     _potm_is_gscc,
     _result_headline,
     _split_match_teams,
-    _team_initials,
     derive_standout_performers,
 )
 from gscc_highlights.video_io import get_ffmpeg_paths
@@ -282,18 +280,17 @@ def break_card_data(mi: MatchInfo, config: ClubConfig, clips: Sequence[ClipSpec]
         "website": config.website,
         "team": bat1.upper(),
         "crest": config.squad_logo_path(bat1) if bat1_gscc else None,
-        "monogram": _team_initials(bat1),
+        "monogram": _innings_monogram(inn1, bat1),
         "score": "",
         "rows": [],
     }
     if inn1 and (inn1.runs > 0 or inn1.wickets > 0):
         target = inn1.runs + 1
         max_balls = _infer_max_balls(mi)
-        rr = _compute_run_rate(inn1.runs, inn1.overs_text)
-        ov = _format_overs_display(inn1.overs_text).upper()
+        score_str, meta_str = _format_innings_score_pair(inn1, uppercase=True)
         data.update(
-            score=f"{inn1.runs}/{inn1.wickets}",
-            meta=f"{ov}   •   {rr}" if rr else ov,
+            score=score_str,
+            meta=meta_str,
             target=f"TARGET  {target}",
             chase=f"{target} OFF {max_balls} BALLS   •   RRR {target / (max_balls / 6.0):.2f}",
         )
@@ -318,17 +315,16 @@ def outro_card_data(mi: MatchInfo, config: ClubConfig, clips: Sequence[ClipSpec]
     performers = derive_standout_performers(mi, clips, config)
     innings = []
     for inn in mi.innings[:2]:
-        rr = _compute_run_rate(inn.runs, inn.overs_text)
-        ov = _format_overs_display(inn.overs_text)
+        score_str, sub_str = _format_innings_score_pair(inn, uppercase=False)
         innings.append(
             {
                 "team": inn.batting_team,
                 "gscc": config.is_gscc_team(inn.batting_team),
                 "logo": config.squad_logo_path(inn.batting_team),
-                "initials": _team_initials(inn.batting_team),
+                "initials": _innings_monogram(inn),
                 "winner": _is_winning_team(inn.batting_team, mi.result_text),
-                "score": f"{inn.runs}/{inn.wickets}",
-                "sub": f"{ov}  •  {rr}" if rr else ov,
+                "score": score_str,
+                "sub": sub_str,
             }
         )
     potm = None

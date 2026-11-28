@@ -12,13 +12,19 @@ from gscc_highlights.config import ClubConfig
 SUPPORTED_AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"}
 
 
-def ensure_default_hype_beat(config: ClubConfig, duration_sec: float = 130.0) -> Path:
-    """Synthesize a clean royalty-free 124 BPM sports-reel beat if not already present."""
+def ensure_default_hype_beat(config: ClubConfig, duration_sec: float = 250.0) -> Path:
+    """Synthesize a clean royalty-free 124 BPM sports-reel beat (250s so it never loops mid-reel)."""
     music_dir = config.resolve(config.music_dir)
     music_dir.mkdir(parents=True, exist_ok=True)
     out_path = music_dir / config.default_music
     if out_path.exists() and out_path.stat().st_size > 100_000:
-        return out_path
+        try:
+            with wave.open(str(out_path), "rb") as wf:
+                existing_dur = wf.getnframes() / float(max(1, wf.getframerate()))
+            if existing_dur >= duration_sec - 5.0:
+                return out_path
+        except Exception:
+            pass
 
     sr = 44100
     bpm = 124.0
@@ -84,6 +90,43 @@ def ensure_default_hype_beat(config: ClubConfig, duration_sec: float = 130.0) ->
         wf.writeframes(stereo.tobytes())
 
     return out_path
+
+
+def synthesize_transition_sfx(kind: str, out_wav: Path) -> Path:
+    """Synthesize subtle, broadcast-clean transition SFX locally (zero external licenses/downloads).
+
+    Kinds:
+      - 'card_whoosh': 0.36s airy broadcast swoosh with subtle low body (Innings Break & Full-Time)
+    """
+    if out_wav.exists() and out_wav.stat().st_size > 4_000:
+        return out_wav
+
+    sr = 48000
+    rng = np.random.default_rng(202)
+    dur = 0.36
+    n = int(sr * dur)
+    t = np.linspace(0.0, dur, n, endpoint=False, dtype=np.float32)
+    noise = rng.standard_normal(n).astype(np.float32)
+    kernel = np.array([0.08, 0.18, 0.48, 0.18, 0.08], dtype=np.float32)
+    air = np.convolve(noise, kernel, mode="same")
+    env = np.sin(np.pi * np.clip(t / dur, 0.0, 1.0)) ** 1.7
+    # Gentle pitch-gliding warm harmonic body underneath the swoosh
+    body_freq = 160.0 + 110.0 * np.sin(np.pi * t / dur)
+    body_phase = 2.0 * np.pi * np.cumsum(body_freq) / sr
+    mix = (air * 0.24 + np.sin(body_phase) * 0.18) * env
+
+    peak = float(np.max(np.abs(mix))) + 1e-6
+    mix = np.tanh(mix / peak * 1.05) * 0.65
+    pcm = (mix * 32767.0).astype(np.int16)
+    stereo = np.column_stack([pcm, pcm]).ravel()
+
+    out_wav.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(out_wav), "wb") as wf:
+        wf.setnchannels(2)
+        wf.setsampwidth(2)
+        wf.setframerate(sr)
+        wf.writeframes(stereo.tobytes())
+    return out_wav
 
 
 def list_music_tracks(config: ClubConfig) -> list[Path]:

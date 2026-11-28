@@ -6,30 +6,31 @@
     <script src="assets/gsap.min.js"></script>
     <style>
 /*__COMMON_CSS__*/
-      #stack { position: absolute; left: 0; top: 300px; width: 1080px; display: flex; flex-direction: column; align-items: center; }
+      /* Unified IG safe-zone axis: left=60px, width=846px (clears right-rail buttons x>910 cleanly) */
+      #stack { position: absolute; left: 60px; top: 292px; width: 846px; display: flex; flex-direction: column; align-items: center; }
       #stack > * { flex: none; }
       #b-pill {
         padding: 12px 34px; border-radius: 40px; font-size: 24px; font-weight: 800; letter-spacing: 0.2em; color: var(--gold-soft);
         background: rgba(22, 18, 17, 0.92); border: 2px solid rgba(233, 200, 107, 0.8); white-space: nowrap;
       }
-      #b-crest { margin-top: 40px; height: 150px; display: flex; align-items: center; justify-content: center; }
-      #b-team { margin-top: 28px; font-weight: 900; letter-spacing: -0.01em; white-space: nowrap; }
-      #b-score { margin-top: 4px; font-weight: 900; color: var(--gold-soft); line-height: 1.02; white-space: nowrap; }
-      #b-meta { margin-top: 14px; font-size: 28px; font-weight: 600; letter-spacing: 0.1em; color: var(--muted-text); white-space: nowrap; }
-      #b-rule { margin-top: 36px; width: 420px; height: 2px; background: rgba(201, 162, 39, 0.65); }
+      #b-crest { margin-top: 38px; height: 150px; display: flex; align-items: center; justify-content: center; }
+      #b-team { margin-top: 26px; font-weight: 900; letter-spacing: -0.01em; white-space: nowrap; text-align: center; }
+      #b-score { margin-top: 4px; font-weight: 900; color: var(--gold-soft); line-height: 1.02; white-space: nowrap; font-variant-numeric: tabular-nums; }
+      #b-meta { margin-top: 14px; font-size: 26px; font-weight: 600; letter-spacing: 0.08em; color: var(--muted-text); white-space: nowrap; }
+      #b-rule { margin-top: 34px; width: 400px; height: 2px; background: rgba(201, 162, 39, 0.65); }
       #b-target {
-        margin-top: 36px; padding: 18px 56px; border-radius: 52px; font-size: 46px; font-weight: 900; letter-spacing: 0.1em; white-space: nowrap;
+        margin-top: 34px; padding: 18px 56px; border-radius: 52px; font-size: 46px; font-weight: 900; letter-spacing: 0.1em; white-space: nowrap;
         background: linear-gradient(180deg, var(--crimson-signal), var(--maroon-dark)); border: 2px solid rgba(233, 200, 107, 0.7);
       }
-      #b-chase { margin-top: 26px; font-size: 30px; font-weight: 800; letter-spacing: 0.1em; color: var(--warm-white); white-space: nowrap; }
-      #b-rowh { margin-top: 56px; align-self: flex-start; margin-left: 94px; font-size: 20px; font-weight: 800; letter-spacing: 0.25em; color: var(--gold-soft); }
-      #b-rows { margin-top: 16px; align-self: flex-start; margin-left: 90px; width: 780px; padding: 5px 0; border-radius: 20px; overflow: hidden; }
+      #b-chase { margin-top: 24px; font-size: 28px; font-weight: 800; letter-spacing: 0.09em; color: var(--warm-white); white-space: nowrap; }
+      #b-rowh { margin-top: 52px; align-self: flex-start; padding-left: 4px; font-size: 20px; font-weight: 800; letter-spacing: 0.25em; color: var(--gold-soft); }
+      #b-rows { margin-top: 14px; width: 846px; padding: 5px 0; border-radius: 20px; overflow: hidden; }
       .brow { height: 76px; display: flex; align-items: center; padding: 0 28px 0 24px; position: relative; }
       .brow + .brow { border-top: 1px solid rgba(201, 162, 39, 0.2); }
       .brow .tag { width: 92px; height: 34px; font-size: 18px; margin-right: 24px; }
       .brow .nm { font-size: 32px; font-weight: 700; flex: 1; white-space: nowrap; }
-      .brow .st { font-size: 30px; font-weight: 800; color: var(--gold-soft); white-space: nowrap; }
-      #foot { top: 1400px; font-size: 24px; color: var(--gold-accent); }
+      .brow .st { font-size: 30px; font-weight: 800; color: var(--gold-soft); white-space: nowrap; font-variant-numeric: tabular-nums; }
+      #foot { position: absolute; left: 60px; width: 846px; text-align: center; top: 1408px; font-size: 24px; color: var(--gold-accent); }
     </style>
   </head>
   <body>
@@ -47,7 +48,7 @@
         <div id="b-rowh"></div>
         <div id="b-rows" class="panel"></div>
       </div>
-      <div id="foot" class="abs foot clip" data-start="0" data-duration="__DURATION__" data-track-index="2"></div>
+      <div id="foot" class="foot clip" data-start="0" data-duration="__DURATION__" data-track-index="2"></div>
     </div>
     <script>
 /*__CARD_DATA__*/
@@ -59,19 +60,22 @@
         im.style.cssText = "height:150px;width:auto;filter:drop-shadow(0 8px 24px rgba(0,0,0,.55))";
         crest.appendChild(im);
       } else {
-        crest.appendChild(monogram(C.monogram, 150, 50));
+        const mSz = (C.monogram && C.monogram.length >= 3) ? 44 : 50;
+        crest.appendChild(monogram(C.monogram, 150, mSz));
       }
       $("b-team").textContent = C.team;
-      fit($("b-team"), 860, 46, 28);
+      fit($("b-team"), 830, 44, 26);
       if (C.score) {
         $("b-score").textContent = C.score;
-        fit($("b-score"), 860, 190, 100);
+        fit($("b-score"), 820, 184, 100);
         $("b-meta").textContent = C.meta || "";
+        fit($("b-meta"), 820, 26, 18);
         $("b-target").textContent = C.target;
         $("b-chase").textContent = C.chase || "";
+        fit($("b-chase"), 820, 28, 19);
       } else {
         $("b-score").textContent = "2ND INNINGS COMING UP";
-        fit($("b-score"), 860, 70, 40);
+        fit($("b-score"), 820, 66, 38);
         for (const id of ["b-meta", "b-rule", "b-target", "b-chase"]) $(id).style.display = "none";
       }
       const rows = $("b-rows");
@@ -89,6 +93,9 @@
         $("b-rowh").style.display = "none"; rows.style.display = "none";
       }
       $("foot").innerHTML = esc(C.handle) + " &nbsp;•&nbsp; " + esc(C.website);
+      const stack = $("stack");
+      const stackBottom = stack.offsetTop + stack.offsetHeight;
+      $("foot").style.top = Math.min(1446, Math.max(1404, Math.round(stackBottom + 34))) + "px";
 
       const tl = gsap.timeline({ paused: true });
       tl.fromTo("#b-pill", { opacity: 0, y: -20 }, { opacity: 1, y: 0, duration: 0.35, ease: "power3.out" }, 0.0);

@@ -77,3 +77,44 @@ def test_caption_has_full_match_link_and_no_moments_line():
     assert "▶️ Full match: https://youtu.be/abc123" in text and "t=900" not in text
     assert "In this reel" not in text
     assert text.startswith("🏆 GSCC Bears beat California Falcons by 8 wickets!")
+
+
+def test_all_out_score_and_batting_code_monogram_on_break_and_outro():
+    cfg = load_config()
+    info = MatchInfo(
+        slug="all_stars_tigers",
+        title="All Stars Lions & Cubs vs GSCC Tigers",
+        series="2026 Winter T20 WB-D2",
+        date="Nov 15, 2026",
+        result_text="GSCC Tigers won by 3 Wickets",
+        player_of_match="Shraddhan Jain",
+        gscc_team="GSCC Tigers",
+        opponent_team="All Stars Lions & Cubs",
+        innings=[
+            InningsSummary(1, "All Stars Lions & Cubs", "GSCC Tigers", 145, 10, "19.2", batting_code="ALC", is_gscc_bowling=True),
+            InningsSummary(2, "GSCC Tigers", "All Stars Lions & Cubs", 146, 7, "19", batting_code="GST", is_gscc_batting=True),
+        ],
+    )
+    br = break_card_data(info, cfg, None)
+    assert br["monogram"] == "ALC"
+    assert br["score"] == "145"
+    assert "ALL OUT" in br["meta"]
+
+    ou = outro_card_data(info, cfg, None)
+    assert ou["innings"][0]["initials"] == "ALC"
+    assert ou["innings"][0]["score"] == "145"
+    assert "ALL OUT" in ou["innings"][0]["sub"]
+    assert ou["innings"][1]["score"] == "146/7"
+
+
+def test_v5_templates_use_unified_safe_zone_axis_and_team_fit():
+    from gscc_highlights.hf_cards import TEMPLATE_DIR
+
+    br_html = (TEMPLATE_DIR / "templates" / "break.html").read_text(encoding="utf-8")
+    ou_html = (TEMPLATE_DIR / "templates" / "outro.html").read_text(encoding="utf-8")
+    in_html = (TEMPLATE_DIR / "templates" / "intro.html").read_text(encoding="utf-8")
+
+    assert "left: 60px;" in br_html and "width: 846px;" in br_html
+    assert "left: 60px;" in ou_html and "width: 846px;" in ou_html
+    assert "fit(nm," in ou_html
+    assert "fitTeamLine" in in_html

@@ -501,3 +501,21 @@ def test_smart_dynamic_callouts_for_wickets_milestones_and_back_to_back_sixes():
     assert by_seq[20].badge == "MAXIMUM 6"
     assert by_seq[21].badge == "BACK-TO-BACK 6!"
     assert by_seq[22].badge == "3 SIXES IN A ROW!"
+
+
+def test_v5_decompose_clip_copy_removes_duplicate_dynamic_badge_phrases():
+    from gscc_highlights.overlays import _decompose_clip_copy
+
+    cases = [
+        ("six", "BACK-TO-BACK 6!", "Back-to-back 6s from Ritesh Agrawal!", "40* (21) off Naksh Parmar", "Ritesh Agrawal", "40* (21)"),
+        ("six", "3 SIXES IN A ROW!", "3 sixes in a row from Ritesh Agrawal!", "46* (22) off Naksh Parmar", "Ritesh Agrawal", "46* (22)"),
+        ("wicket", "4TH WICKET!", "Shraddhan Jain claims his 4th!", "Vikram R c Yash b Shraddhan J 1 (2)", "Shraddhan Jain", ""),
+        ("wicket", "ALL OUT!", "Vinay Raghavan wraps up 145 all out!", "Nyle b Vinay R 3 (6)", "Vinay Raghavan", ""),
+        ("wicket", "STUMPED!", "Vinay Raghavan gets the stumping!", "Batter st Dhruv b Vinay R 0 (1)", "Vinay Raghavan", ""),
+        ("wicket", "HAT-TRICK!", "Vinay Raghavan completes a HAT-TRICK!", "Nyle c Dharm b Vinay R 0 (1)", "Vinay Raghavan", ""),
+    ]
+    for etype, badge, hl, sub, exp_hero, exp_stat in cases:
+        clip = ClipSpec(1, True, "ok", "high", 0, 10.0, 5.0, 5.0, 11.0, etype, 2, "11.5", badge, hl, sub, "", 85)
+        hero, stat, _ = _decompose_clip_copy(clip)
+        assert hero == exp_hero
+        assert stat == exp_stat

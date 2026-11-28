@@ -19,6 +19,7 @@ Core rules:
 
 from __future__ import annotations
 
+import math
 import re
 from collections import Counter
 from dataclasses import dataclass
@@ -598,13 +599,14 @@ def _compute_gentle_trim_durations(
     trimmed: dict[int, float] = {}
     remaining = overage
 
-    # Pass 1: trim routine fours proportionally down to min_four_sec
+    # Pass 1: trim routine fours proportionally down to min_four_sec (floor to 0.01s so sum never overshoots cap)
     if fours and remaining > 1e-6:
         if max_four_save >= remaining:
             ratio = remaining / max_four_save
             for it in fours:
                 cut = (it.duration_sec - config.min_four_sec) * ratio
-                trimmed[it.idx] = round(max(config.min_four_sec, it.duration_sec - cut), 2)
+                val = max(config.min_four_sec, it.duration_sec - cut)
+                trimmed[it.idx] = max(round(config.min_four_sec, 2), math.floor(val * 100.0 + 1e-9) / 100.0)
             remaining = 0.0
         else:
             for it in fours:
@@ -616,7 +618,8 @@ def _compute_gentle_trim_durations(
         ratio = min(1.0, remaining / max_six_save)
         for it in sixes:
             cut = (it.duration_sec - config.min_six_sec) * ratio
-            trimmed[it.idx] = round(max(config.min_six_sec, it.duration_sec - cut), 2)
+            val = max(config.min_six_sec, it.duration_sec - cut)
+            trimmed[it.idx] = max(round(config.min_six_sec, 2), math.floor(val * 100.0 + 1e-9) / 100.0)
 
     return trimmed
 
@@ -628,11 +631,21 @@ def _select_items_v2(
 ) -> _SelectionPlan:
     """Shared Selection v2 multi-pass budget packer used by both candidate & ClipSpec stages."""
     if not items:
-        return _SelectionPlan(set(), {}, {}, hard_cap, max(10.0, hard_cap - config.intro_sec - config.outro_sec))
+        return _SelectionPlan(
+            set(),
+            {},
+            {},
+            hard_cap,
+            max(10.0, hard_cap - config.intro_sec - config.outro_sec),
+        )
 
     active_innings = sorted({it.innings_number for it in items})
     has_two_innings = {1, 2}.issubset(set(active_innings))
-    overhead = config.intro_sec + config.outro_sec + (config.innings_break_sec if has_two_innings else 0.0)
+    overhead = (
+        config.intro_sec
+        + config.outro_sec
+        + (config.innings_break_sec if has_two_innings else 0.0)
+    )
     available = max(10.0, hard_cap - overhead)
 
     # Rule #0: Fits-all — keep 100% with zero trims or drops

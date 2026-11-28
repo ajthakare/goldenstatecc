@@ -185,15 +185,17 @@ def test_render_smoke_innings_break_cover_and_per_clip_cache(tmp_path: Path):
     assert len(strips) == 2
     assert all(p.exists() and p.stat().st_size > 10_000 for p in strips)
 
-    # Render #1 (intro 2.0 + clip1 3.5 + innings_break 2.8 + clip2 3.0 + outro 5.5 = ~16.8s)
+    # Render #1 (intro 2.4 + clip1 3.5 + innings_break 2.8 + clip2 3.0 + outro 5.5 = ~17.2s; starts directly on intro)
     out1 = render_reel(reloaded, match_dir, cfg, output_path=tmp_path / "smoke_reel.mp4")
     probed = probe_video(out1)
     assert probed.width == 1080
     assert probed.height == 1920
-    assert 15.0 <= probed.duration_sec <= 18.5
+    assert 15.0 <= probed.duration_sec <= 19.5
 
-    # Innings Break segment & Cover JPEG were both generated
+    # Direct intro start (no cold open), Innings Break, transition SFX & Cover JPEG were generated
+    assert not any((match_dir / "rendered_clips").glob("cold_*.mp4"))
     assert any((match_dir / "rendered_clips").glob("break_*.mp4"))
+    assert (match_dir / "rendered_clips" / "sfx" / "card_whoosh.wav").exists()
     cover_jpg = tmp_path / "smoke_cover.jpg"
     assert cover_jpg.exists() and Image.open(cover_jpg).size == (1080, 1920)
 
@@ -211,6 +213,32 @@ def test_render_smoke_innings_break_cover_and_per_clip_cache(tmp_path: Path):
     out2 = render_reel(reloaded, match_dir, cfg, output_path=tmp_path / "smoke_2_reel.mp4")
     assert out2.exists()
     assert cached_clip1.stat().st_mtime == mtime_before
+
+
+def test_hq_raw_cache_key_is_independent_of_clip_index():
+    from gscc_highlights.models import VideoPart
+    from gscc_highlights.renderer import _hq_clip_cache_key
+
+    vp = VideoPart(index=0, local_path="/tmp/source_part_1.mp4")
+    k1 = _hq_clip_cache_key(vp, "hq1440", 120.5, 6.0)
+    k2 = _hq_clip_cache_key(vp, "hq1440", 120.5, 6.0)
+    k3 = _hq_clip_cache_key(vp, "hq1440", 121.0, 6.0)
+    assert k1 == k2
+    assert k1 != k3
+
+
+def test_default_beat_is_250s_and_sfx_synthesizes(tmp_path: Path):
+    import wave
+    from gscc_highlights.audio import synthesize_transition_sfx
+
+    cfg = load_config()
+    beat = ensure_default_hype_beat(cfg)
+    with wave.open(str(beat), "rb") as wf:
+        dur = wf.getnframes() / float(wf.getframerate())
+    assert dur >= 245.0
+
+    wav_p = synthesize_transition_sfx("card_whoosh", tmp_path / "card_whoosh.wav")
+    assert wav_p.exists() and wav_p.stat().st_size > 10_000
 
 
 def test_shared_workspace_and_output_paths_under_utils_social():

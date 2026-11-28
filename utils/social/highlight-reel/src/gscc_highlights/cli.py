@@ -568,7 +568,7 @@ def _cmd_render(args: argparse.Namespace) -> int:
     hq_url = getattr(args, "hq_url", None)
     cookies = getattr(args, "cookies_from_browser", None)
     hq_label = " + 1440p/1080p HQ clip fetch" if hq_enabled else ""
-    console.print(f"[bold]Rendering v2.2 9:16 Instagram Reel (per-clip cache{hq_label})...[/bold]")
+    console.print(f"[bold]Rendering v5 9:16 Instagram Reel (per-clip cache{hq_label})...[/bold]")
     final_mp4 = render_reel(
         manifest=manifest,
         match_dir=match_dir,

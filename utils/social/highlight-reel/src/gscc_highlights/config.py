@@ -79,9 +79,10 @@ class ClubConfig:
     max_duration_sec: float = 178.0
     derby_max_duration_sec: float = 240.0
     target_duration_sec: float = 170.0
-    intro_sec: float = 2.9
+    intro_sec: float = 2.4
     innings_break_sec: float = 2.8
     outro_sec: float = 5.5
+    card_transition_sec: float = 0.25
     transition_sec: float = 0.0
     clip_durations: dict[str, float] = field(
         default_factory=lambda: {
@@ -138,6 +139,7 @@ class ClubConfig:
     true_peak_db: float = -1.5
     ground_target_lufs: float = -19.0
     enable_ducking: bool = True
+    enable_sfx: bool = True
 
     # Render / Instagram Safe-Zone rules
     width: int = 1080
@@ -256,6 +258,7 @@ def load_config(config_path: Path | str | None = None) -> ClubConfig:
         intro_sec=float(sel.get("intro_sec", defaults.intro_sec)),
         innings_break_sec=float(sel.get("innings_break_sec", defaults.innings_break_sec)),
         outro_sec=float(sel.get("outro_sec", defaults.outro_sec)),
+        card_transition_sec=float(sel.get("card_transition_sec", defaults.card_transition_sec)),
         transition_sec=float(sel.get("transition_sec", defaults.transition_sec)),
         clip_durations={k: float(v) for k, v in sel.get("clip_durations", {}).items()}
         or defaults.clip_durations,
@@ -299,6 +302,7 @@ def load_config(config_path: Path | str | None = None) -> ClubConfig:
         true_peak_db=float(audio.get("true_peak_db", defaults.true_peak_db)),
         ground_target_lufs=float(audio.get("ground_target_lufs", defaults.ground_target_lufs)),
         enable_ducking=bool(audio.get("enable_ducking", defaults.enable_ducking)),
+        enable_sfx=bool(audio.get("enable_sfx", defaults.enable_sfx)),
         width=int(render.get("width", defaults.width)),
         height=int(render.get("height", defaults.height)),
         fps=int(render.get("fps", defaults.fps)),

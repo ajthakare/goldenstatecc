@@ -7,7 +7,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from gscc_highlights.audio import resolve_music_path
+from gscc_highlights.audio import resolve_music_path, synthesize_transition_sfx
 from gscc_highlights.config import ClubConfig
 from gscc_highlights.framing import (
     LOWER_CARD_X,
@@ -30,7 +30,7 @@ from gscc_highlights.overlays import (
 )
 from gscc_highlights.video_io import get_ffmpeg_paths, probe_video, resolve_hq_stream_url
 
-OVERLAY_SCHEMA_VERSION = "v4.0"
+OVERLAY_SCHEMA_VERSION = "v5.0"
 
 
 def _supports_videotoolbox(ffmpeg: str) -> bool:
@@ -74,24 +74,61 @@ def _has_innings_transition(clips: list[ClipSpec]) -> bool:
 
 
 def _pick_teaser_clip(clips: list[ClipSpec], part_map: dict[int, VideoPart]) -> tuple[ClipSpec | None, VideoPart | None]:
-    """Select the highest-impact clip with a valid video part for the live-action teaser intro."""
+    """Select the highest-drama action clip for the Intro backdrop.
+
+    Prefers active action moments (winning shot, wicket, six, century) over slow single-run
+    fifty celebrations so the intro shows real bat-on-ball / stumps-flying action.
+    """
     candidates = [c for c in clips if c.source_video_index in part_map and c.duration_sec >= 1.5]
     if not candidates:
         return None, None
-    best = max(candidates, key=lambda c: (c.priority, c.duration_sec, c.innings_number, c.clip_id))
+
+    def _teaser_key(c: ClipSpec) -> tuple[int, float, int, int]:
+        action_boost = 8 if c.event_type in {"winning_shot", "wicket", "six", "hundred"} else 0
+        return (c.priority + action_boost, min(c.duration_sec, 8.0), c.innings_number, c.clip_id)
+
+    best = max(candidates, key=_teaser_key)
     return best, part_map[best.source_video_index]
 
 
-def _finalize_card_segment(ffmpeg: str, raw_mp4: Path, out_mp4: Path, duration_sec: float, config: ClubConfig) -> Path:
-    """Re-encode a silent HyperFrames render with the same codec params + silent AAC as every other segment."""
+def _pick_peak_action_start(clip: ClipSpec, vp: VideoPart, window_sec: float) -> float:
+    """Anchor Intro backdrop right around ball release & impact (~42% into the clip), not early run-up."""
+    dur = clip.duration_sec
+    if dur <= window_sec + 0.1:
+        ideal = clip.start_sec
+    else:
+        offset = max(0.0, min(dur - window_sec, max(1.4, dur * 0.42)))
+        ideal = clip.start_sec + offset
+    max_start = max(0.0, vp.duration_sec - window_sec - 0.1)
+    return min(ideal, max_start)
+
+
+def _finalize_card_segment(
+    ffmpeg: str,
+    raw_mp4: Path,
+    out_mp4: Path,
+    duration_sec: float,
+    config: ClubConfig,
+    *,
+    fade_in: bool = True,
+) -> Path:
+    """Re-encode a silent HyperFrames render with crisp dip transitions + silent AAC matching every other segment."""
     if out_mp4.exists() and out_mp4.stat().st_size > 20_000:
         return out_mp4
+    fade_d = min(max(0.0, config.card_transition_sec), duration_sec * 0.22)
+    fades: list[str] = []
+    if fade_d >= 0.05:
+        if fade_in:
+            fades.append(f"fade=t=in:st=0:d={fade_d:.2f}")
+        fade_out_st = max(0.0, duration_sec - fade_d)
+        fades.append(f"fade=t=out:st={fade_out_st:.2f}:d={fade_d:.2f}")
+    fade_flt = ("," + ",".join(fades)) if fades else ""
     base = [
         ffmpeg, "-y", "-loglevel", "error",
         "-i", str(raw_mp4),
         "-f", "lavfi", "-t", f"{duration_sec:.2f}", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
         "-map", "0:v:0", "-map", "1:a:0",
-        "-vf", f"scale={config.width}:{config.height},fps={config.fps},format=yuv420p",
+        "-vf", f"scale={config.width}:{config.height},fps={config.fps}{fade_flt},format=yuv420p",
         "-shortest",
     ]
     audio_out = ["-c:a", "aac", "-b:a", config.audio_bitrate, "-ar", "48000", "-ac", "2", "-movflags", "+faststart", str(out_mp4)]
@@ -100,6 +137,56 @@ def _finalize_card_segment(ffmpeg: str, raw_mp4: Path, out_mp4: Path, duration_s
         base + _sw_codec_args(config) + audio_out,
     )
     return out_mp4
+
+
+def _extract_cover_from_video(ffmpeg: str, video_mp4: Path, timestamp_sec: float, out_jpg: Path) -> Path | None:
+    """Extract a crisp 1080x1920 4:5-safe Cover JPEG directly from the rendered HyperFrames intro."""
+    out_jpg.parent.mkdir(parents=True, exist_ok=True)
+    proc = subprocess.run(
+        [
+            ffmpeg, "-y", "-loglevel", "error",
+            "-ss", f"{max(0.0, timestamp_sec):.3f}",
+            "-i", str(video_mp4),
+            "-frames:v", "1", "-q:v", "2", str(out_jpg),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode == 0 and out_jpg.exists() and out_jpg.stat().st_size > 10_000:
+        return out_jpg
+    return None
+
+
+def _hq_clip_cache_key(video_part: VideoPart, src_quality_tag: str, start_sec: float, dur: float) -> str:
+    """Index-independent cache key for raw downloaded HQ clips (never invalidated by dropping/reordering clips)."""
+    return _hash_dict("hq_raw_v1", video_part.local_path, src_quality_tag, round(start_sec, 2), round(dur, 2))
+
+
+def _fetch_cached_hq_clip(
+    ffmpeg: str,
+    hq_video_url: str,
+    start_sec: float,
+    dur: float,
+    out_mp4: Path,
+) -> Path | None:
+    """Fetch and cache the raw remote 1440p/1080p video slice locally once (immune to clip_index / overlay edits)."""
+    if out_mp4.exists() and out_mp4.stat().st_size > 20_000:
+        return out_mp4
+    out_mp4.parent.mkdir(parents=True, exist_ok=True)
+    tmp = out_mp4.with_suffix(".tmp.mp4")
+    cmd = [
+        ffmpeg, "-y", "-loglevel", "error",
+        "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "3",
+        "-ss", f"{start_sec:.3f}", "-t", f"{dur + 0.15:.3f}", "-i", hq_video_url,
+        "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "16", "-pix_fmt", "yuv420p",
+        str(tmp),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode == 0 and tmp.exists() and tmp.stat().st_size > 20_000:
+        tmp.replace(out_mp4)
+        return out_mp4
+    tmp.unlink(missing_ok=True)
+    return None
 
 
 def _prepare_intro_bg(
@@ -291,6 +378,7 @@ def _render_single_clip(
     framing: Framing | None = None,
     layout: Layout | None = None,
     hq_video_url: str | None = None,
+    hq_cached_mp4: Path | None = None,
     backdrop_png: Path | None = None,
 ) -> Path:
     """Render one v2.2 9:16 Broadcast Card clip with smart framing, Lanczos sharpening, optional 1440p HQ fetch, and slide-in card."""
@@ -367,25 +455,23 @@ def _render_single_clip(
 
     audio_tail = ["-c:a", "aac", "-b:a", config.audio_bitrate, "-ar", "48000", "-ac", "2", "-movflags", "+faststart", str(out_mp4)]
 
-    # Attempt 1 (Two-tier HQ): remote 1440p/1080p video + instant local audio from cached source_part
-    if hq_video_url:
+    # Attempt 1 (Two-tier HQ): prefer locally cached raw HQ slice (immune to clip_idx/overlay changes), else remote URL
+    hq_src = str(hq_cached_mp4) if (hq_cached_mp4 is not None and hq_cached_mp4.exists()) else hq_video_url
+    if hq_src:
+        is_remote = hq_cached_mp4 is None or not hq_cached_mp4.exists()
+        hq_in_prefix = (
+            ["-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "3", "-ss", f"{clip.start_sec:.3f}", "-t", f"{dur:.3f}"]
+            if is_remote
+            else ["-t", f"{dur:.3f}"]
+        )
         hq_cmd = [
             ffmpeg,
             "-y",
             "-loglevel",
             "error",
-            "-reconnect",
-            "1",
-            "-reconnect_streamed",
-            "1",
-            "-reconnect_delay_max",
-            "3",
-            "-ss",
-            f"{clip.start_sec:.3f}",
-            "-t",
-            f"{dur:.3f}",
+            *hq_in_prefix,
             "-i",
-            hq_video_url,
+            hq_src,
             "-i",
             str(top_overlay_png),
             "-loop",
@@ -421,18 +507,9 @@ def _render_single_clip(
                 "-y",
                 "-loglevel",
                 "error",
-                "-reconnect",
-                "1",
-                "-reconnect_streamed",
-                "1",
-                "-reconnect_delay_max",
-                "3",
-                "-ss",
-                f"{clip.start_sec:.3f}",
-                "-t",
-                f"{dur:.3f}",
+                *hq_in_prefix,
                 "-i",
-                hq_video_url,
+                hq_src,
                 "-i",
                 str(top_overlay_png),
                 "-loop",
@@ -608,8 +685,10 @@ def _mix_broadcast_audio(
     music_path: Path | None,
     final_out: Path,
     config: ClubConfig,
+    sfx_events: list[tuple[float, str]] | None = None,
+    sfx_dir: Path | None = None,
 ) -> None:
-    """Two-stage broadcast audio mastering: stem-level ground audio, auto-duck music, master to -14 LUFS."""
+    """Two-stage broadcast audio mastering: stem-level ground audio, auto-duck music, subtle card SFX, master to -14 LUFS."""
     probed = probe_video(concat_mp4)
     total_dur = max(1.0, probed.duration_sec)
     fade_out_st = max(0.0, total_dur - 2.4)
@@ -662,7 +741,32 @@ def _mix_broadcast_audio(
         )
         return
 
+    # Optional subtle broadcast transition SFX inputs (Innings Break, Full-Time)
+    sfx_inputs: list[str] = []
+    sfx_filters: list[str] = []
+    sfx_labels: list[str] = []
+    if config.enable_sfx and sfx_events and sfx_dir is not None:
+        sfx_dir.mkdir(parents=True, exist_ok=True)
+        for idx, (ts_sec, kind) in enumerate(sfx_events):
+            if ts_sec < 0.0 or ts_sec >= total_dur - 0.15:
+                continue
+            wav = synthesize_transition_sfx(kind, sfx_dir / f"{kind}.wav")
+            in_idx = 2 + len(sfx_labels)
+            sfx_inputs.extend(["-i", str(wav)])
+            delay_ms = max(0, int(round(ts_sec * 1000.0)))
+            vol_db = -13.0
+            lbl = f"sfx{idx}"
+            sfx_filters.append(
+                f"[{in_idx}:a]aresample=48000,aformat=channel_layouts=stereo,"
+                f"volume={vol_db:.1f}dB,adelay={delay_ms}|{delay_ms}[{lbl}]"
+            )
+            sfx_labels.append(f"[{lbl}]")
+
     music_db = config.music_db
+    extra_filter = (";" + ";".join(sfx_filters)) if sfx_filters else ""
+    amix_inputs = 2 + len(sfx_labels)
+    sfx_concat = "".join(sfx_labels)
+
     if config.enable_ducking:
         mix_filter = (
             f"[0:a]aresample=48000,aformat=channel_layouts=stereo,"
@@ -672,8 +776,9 @@ def _mix_broadcast_audio(
             f"afade=t=in:st=0:d=0.9,"
             f"afade=t=out:st={fade_out_st:.2f}:d=2.4,"
             f"atrim=0:{total_dur:.3f}[mus_raw];"
-            f"[mus_raw][gnd_sc]sidechaincompress=threshold=0.06:ratio=3.5:attack=40:release=420:makeup=1[mus_duck];"
-            f"[gnd_mix][mus_duck]amix=inputs=2:duration=first:dropout_transition=2:normalize=0,"
+            f"[mus_raw][gnd_sc]sidechaincompress=threshold=0.06:ratio=3.5:attack=40:release=420:makeup=1[mus_duck]"
+            f"{extra_filter};"
+            f"[gnd_mix][mus_duck]{sfx_concat}amix=inputs={amix_inputs}:duration=first:dropout_transition=2:normalize=0,"
             f"loudnorm=I={target_lufs:.1f}:TP={tp:.1f}:LRA=11,"
             f"aresample=48000,aformat=channel_layouts=stereo[aout]"
         )
@@ -685,8 +790,9 @@ def _mix_broadcast_audio(
             f"volume={music_db:.1f}dB,"
             f"afade=t=in:st=0:d=0.9,"
             f"afade=t=out:st={fade_out_st:.2f}:d=2.4,"
-            f"atrim=0:{total_dur:.3f}[mus];"
-            f"[gnd_mix][mus]amix=inputs=2:duration=first:dropout_transition=2:normalize=0,"
+            f"atrim=0:{total_dur:.3f}[mus]"
+            f"{extra_filter};"
+            f"[gnd_mix][mus]{sfx_concat}amix=inputs={amix_inputs}:duration=first:dropout_transition=2:normalize=0,"
             f"loudnorm=I={target_lufs:.1f}:TP={tp:.1f}:LRA=11,"
             f"aresample=48000,aformat=channel_layouts=stereo[aout]"
         )
@@ -703,6 +809,7 @@ def _mix_broadcast_audio(
             "-1",
             "-i",
             str(music_path),
+            *sfx_inputs,
             "-filter_complex",
             mix_filter,
             "-map",
@@ -786,22 +893,25 @@ def render_reel(
     hf_env = hf_cards.get_runtime(config)
     hf_tag = f"hf-{hf_cards.template_fingerprint()}" if hf_env else "pillow"
     hf_dir = match_dir / "hyperframes"
-    backdrop_png = overlay_dir / "clip_backdrop_v4.png"
+    hq_cache_dir = match_dir / "hq_clips"
+    backdrop_png = overlay_dir / "clip_backdrop_v5.png"
     if not backdrop_png.exists() or no_cache:
         render_clip_backdrop(config, backdrop_png)
 
-    # 1. Live-Action Teaser Intro (cached) + Instagram 4:5 Cover Export
+    # 1. Animated HyperFrames Intro (2.4s, starts immediately on frame 0) + 1:1 Cover Export
     teaser_clip, teaser_vp = _pick_teaser_clip(enabled_clips, part_map)
     teaser_counts = tuple(sorted((c.event_type for c in enabled_clips)))
     teaser_start = 0.0
-    if teaser_clip and teaser_vp:
-        max_start = max(0.0, teaser_vp.duration_sec - config.intro_sec - 0.1)
-        ideal_start = teaser_clip.start_sec + min(1.2, max(0.0, (teaser_clip.duration_sec - config.intro_sec) * 0.4))
-        teaser_start = min(ideal_start, max_start)
+    if teaser_clip and teaser_vp and Path(teaser_vp.local_path).exists():
+        teaser_start = _pick_peak_action_start(teaser_clip, teaser_vp, config.intro_sec)
+
+    segment_paths: list[Path] = []
+    sfx_events: list[tuple[float, str]] = []
+    timeline_cursor = 0.0
 
     intro_key = _hash_dict(
         OVERLAY_SCHEMA_VERSION,
-        "intro_teaser",
+        "intro_teaser_direct",
         mi.title,
         mi.series,
         mi.date,
@@ -815,6 +925,7 @@ def render_reel(
         teaser_counts,
         teaser_vp.local_path if teaser_vp else "",
         round(teaser_start, 2),
+        round(config.card_transition_sec, 2),
         config.crf,
         hf_tag,
         config.intro_crop_top,
@@ -822,6 +933,7 @@ def render_reel(
     )
 
     intro_mp4: Path | None = None
+    intro_raw_hf: Path | None = None
     if hf_env:
         try:
             bg_mp4: Path | None = None
@@ -830,13 +942,16 @@ def render_reel(
                     ffmpeg, teaser_vp, teaser_start, config.intro_sec, framing, config,
                     cache_dir / f"intro_bg_{intro_key}.mp4",
                 )
-            raw = hf_cards.render_card(
+            intro_raw_hf = hf_cards.render_card(
                 "intro", hf_cards.intro_card_data(mi, config), config.intro_sec, hf_dir, hf_env, intro_key, bg_video=bg_mp4
             )
-            intro_mp4 = _finalize_card_segment(ffmpeg, raw, cache_dir / f"intro_{intro_key}.mp4", config.intro_sec, config)
+            intro_mp4 = _finalize_card_segment(
+                ffmpeg, intro_raw_hf, cache_dir / f"intro_{intro_key}.mp4", config.intro_sec, config, fade_in=False
+            )
         except Exception as exc:
             print(f"  [hyperframes] intro failed ({str(exc)[:200]}) -> static intro")
             intro_mp4 = None
+            intro_raw_hf = None
 
     if intro_mp4 is not None:
         pass
@@ -859,8 +974,9 @@ def render_reel(
             render_intro_card(mi, config, intro_png, clips=enabled_clips)
         intro_mp4 = _render_still_segment(ffmpeg, intro_png, config.intro_sec, cache_dir / f"intro_{intro_key}.mp4", config)
 
-    # 2. Per-Clip Render + Auto-Inserted Innings Break (each cached independently!)
-    segment_paths: list[Path] = [intro_mp4]
+    # 2. Per-Clip Render + Auto-Inserted Innings Break (two-tier HQ clip cache + segment cache!)
+    segment_paths.append(intro_mp4)
+    timeline_cursor += probe_video(intro_mp4).duration_sec
     innings_split = next(
         (i for i, (a, b) in enumerate(zip(enabled_clips, enabled_clips[1:]), start=1) if a.innings_number == 1 and b.innings_number == 2),
         None,
@@ -879,11 +995,12 @@ def render_reel(
             break_key = _hash_dict(
                 OVERLAY_SCHEMA_VERSION,
                 "innings_break",
-                [(i.innings_number, i.batting_team, i.bowling_team, i.runs, i.wickets, i.overs_text) for i in mi.innings[:2]],
+                [(i.innings_number, i.batting_team, i.bowling_team, i.runs, i.wickets, i.overs_text, i.batting_code) for i in mi.innings[:2]],
                 mi.gscc_team,
                 mi.opponent_team,
                 mi.top_performers,
                 config.innings_break_sec,
+                round(config.card_transition_sec, 2),
                 config.instagram_handle,
                 config.crf,
                 hf_tag,
@@ -911,7 +1028,9 @@ def render_reel(
                     cache_dir / f"break_{break_key}.mp4",
                     config,
                 )
+            sfx_events.append((max(0.0, timeline_cursor - 0.08), "card_whoosh"))
             segment_paths.append(break_mp4)
+            timeline_cursor += probe_video(break_mp4).duration_sec
             inserted_break = True
 
         hq_entry = hq_map.get(vp.index)
@@ -965,6 +1084,14 @@ def render_reel(
             render_clip_lower_card(mi, clip, config, low_png)
 
         clip_mp4 = cache_dir / f"clip_{clip.clip_id:02d}_{clip_key}.mp4"
+        hq_cached_mp4: Path | None = None
+        if hq_url and not (clip_mp4.exists() and clip_mp4.stat().st_size > 20_000):
+            # Two-tier raw HQ clip cache: immune to clip_idx / total_clips / headline changes!
+            raw_hq_key = _hq_clip_cache_key(vp, src_quality_tag, clip.start_sec, clip.duration_sec)
+            hq_cached_mp4 = _fetch_cached_hq_clip(
+                ffmpeg, hq_url, clip.start_sec, clip.duration_sec, hq_cache_dir / f"hq_{raw_hq_key}.mp4"
+            )
+
         _render_single_clip(
             ffmpeg,
             vp,
@@ -976,9 +1103,11 @@ def render_reel(
             framing=framing,
             layout=layout,
             hq_video_url=hq_url,
+            hq_cached_mp4=hq_cached_mp4,
             backdrop_png=backdrop_png,
         )
         segment_paths.append(clip_mp4)
+        timeline_cursor += clip.duration_sec
         prev_innings = clip.innings_number
 
     # 3. Full-Time Scorecard Outro (cached)
@@ -994,9 +1123,10 @@ def render_reel(
         mi.gscc_team,
         mi.opponent_team,
         mi.is_derby,
-        [(i.batting_team, i.runs, i.wickets, i.overs_text) for i in mi.innings],
+        [(i.batting_team, i.runs, i.wickets, i.overs_text, i.batting_code) for i in mi.innings],
         resolved_perfs,
         config.outro_sec,
+        round(config.card_transition_sec, 2),
         config.instagram_handle,
         config.crf,
         hf_tag,
@@ -1015,6 +1145,7 @@ def render_reel(
         if not outro_png.exists() or no_cache:
             render_outro_card(mi, config, outro_png, clips=enabled_clips)
         outro_mp4 = _render_still_segment(ffmpeg, outro_png, config.outro_sec, cache_dir / f"outro_{outro_key}.mp4", config)
+    sfx_events.append((max(0.0, timeline_cursor - 0.08), "card_whoosh"))
     segment_paths.append(outro_mp4)
 
     # 4. Concatenate all cached segments (stream copy = instant!)
@@ -1045,24 +1176,39 @@ def render_reel(
         check=True,
     )
 
-    # 5. Final Broadcast Audio Mix (-14 LUFS + auto-ducking music under cheers)
+    # 5. Final Broadcast Audio Mix (-14 LUFS + auto-ducking music + subtle card transition SFX)
     final_out = output_path or (config.output_root / f"{mi.slug}_reel.mp4")
     final_out.parent.mkdir(parents=True, exist_ok=True)
 
     music_choice = music_override if music_override is not None else manifest.music_choice
     music_path = resolve_music_path(music_choice, config)
-    _mix_broadcast_audio(ffmpeg, concat_mp4, music_path, final_out, config)
+    _mix_broadcast_audio(
+        ffmpeg,
+        concat_mp4,
+        music_path,
+        final_out,
+        config,
+        sfx_events=sfx_events,
+        sfx_dir=cache_dir / "sfx",
+    )
 
-    # 6. Export clean Instagram 4:5 Cover JPEG alongside the MP4
+    # 6. Export 1:1 Instagram 4:5 Cover JPEG directly from the HyperFrames intro peak frame (Pillow fallback)
     if config.export_cover_jpg:
         cover_path = _cover_path_for_output(final_out)
-        bg_frame: Path | None = None
-        if teaser_clip and teaser_vp and Path(teaser_vp.local_path).exists():
-            frame_jpg = overlay_dir / f"teaser_frame_{intro_key}.jpg"
-            if not frame_jpg.exists() or no_cache:
-                bg_frame = _extract_teaser_frame(ffmpeg, teaser_vp, teaser_start + 0.5, frame_jpg)
-            else:
-                bg_frame = frame_jpg
-        render_intro_card(mi, config, cover_path, clips=enabled_clips, bg_frame_path=bg_frame)
+        exported_hf_cover = None
+        if intro_raw_hf is not None and intro_raw_hf.exists():
+            # Sample well before HyperFrames' 0.18s FADE_OUT tail so cover has 100% peak brightness
+            exported_hf_cover = _extract_cover_from_video(
+                ffmpeg, intro_raw_hf, max(0.0, config.intro_sec - 0.40), cover_path
+            )
+        if exported_hf_cover is None:
+            bg_frame: Path | None = None
+            if teaser_clip and teaser_vp and Path(teaser_vp.local_path).exists():
+                frame_jpg = overlay_dir / f"teaser_frame_{intro_key}.jpg"
+                if not frame_jpg.exists() or no_cache:
+                    bg_frame = _extract_teaser_frame(ffmpeg, teaser_vp, teaser_start + 0.5, frame_jpg)
+                else:
+                    bg_frame = frame_jpg
+            render_intro_card(mi, config, cover_path, clips=enabled_clips, bg_frame_path=bg_frame)
 
     return final_out
